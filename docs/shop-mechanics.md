@@ -197,3 +197,81 @@ number without saying which mode it is.
 arbitrage the binding constraint on sale throughput is the item's **liquidity**
 (24h volume), not its buy limit, but both are reported: `gp/4h` is capped by
 `min(buyLimit, sellableUnits)`.
+
+## 10. Inventory space and banking
+
+Sources:
+
+- <https://oldschool.runescape.wiki/w/Inventory> — "A player's backpack inventory
+  can hold up to 28 items, and any additional items must be stored in the
+  player's bank."
+- <https://oldschool.runescape.wiki/w/Stackable_items> — "Stackable items are
+  items which only take up one space in a player's inventory."
+
+This is the only part of the model where *time* depends on what the item is
+rather than only on its price:
+
+| item | slots per unit | banking between buys |
+|---|---|---|
+| stackable (arrows, runes, coins, …) | one slot for the whole stack | never |
+| non-stackable (`stackable = No`) | 1 each | every load |
+| stackability unknown | 1 each (conservative) | every load |
+
+A load is **27**, not 28: coins stack but still occupy a slot, and shop purchases
+are paid from the inventory, so the coin stack is not available for goods.
+`src/domain/budget.ts` exposes this as `DEFAULT_UNITS_PER_LOAD`.
+
+Bank trips for `N` non-stackable units, and the time they cost:
+
+```text
+bankTrips          = N <= 27 ? 0 : ceil(N / 27) - 1
+bankSecondsPerTrip = 2 * bankTiles * secondsPerTile + handoverSeconds
+timeSeconds        = max(worlds * hopSeconds + bankTrips * bankSecondsPerTrip,
+                         sellSeconds)
+```
+
+The `- 1` is deliberate: the final inventory load is carried to the GE rather
+than banked and re-bought. Trips are counted across the **whole plan**, not per
+world, because hopping worlds does not empty your backpack.
+
+### 10.1 Trip length is per shop, not global
+
+A single trip time cannot be right for every shop: Varrock General Store is ~30
+tiles from Varrock west bank, while Razmire Builders Merchants is a run across
+Mort'ton. Each shop therefore carries two fields of its own:
+
+- `bankTiles` — straight-line distance to the nearest bank on the same map.
+- `nearestBank` — that bank's wiki page, so the number is auditable.
+
+Sources for the join:
+
+- <https://oldschool.runescape.wiki/w/Special:Bucket?bucket=map> — page centres as
+  `{x,y,plane,mapID}` for pages that opted in with `bucket=yes`.
+- <https://oldschool.runescape.wiki/w/Category:Banks> — the bank page list.
+- Bank pages' `{{Map|...}}` infobox parameter — most banks do not opt into the
+  bucket, so their coordinates are read from wikitext.
+- <https://oldschool.runescape.wiki/w/Game_tick> — one tick is 0.6 s.
+- <https://oldschool.runescape.wiki/w/Hazard_Prevention> — running moves 2 tiles
+  per tick; walking moves 1.
+
+Only banks sharing the shop's `mapID` are considered. That stops a Dwarven Mine
+shop being priced against Keldagrim's bank ~398 tiles away on another map. When
+a shop's map has no bank, a cross-map bank is accepted only within 40 tiles:
+that catches shops on custom maps which share the surface coordinate space, but
+rejects cross-world coincidences.
+
+`secondsPerTile` defaults to 0.6 (walking; 0.3 is running) and the bank handover
+defaults to 3 s. Both are explicit assumptions, while `bankTiles` is sourced.
+The UI exposes travel speed only; it cannot change a shop's distance.
+
+Straight-line distance is a **lower bound** on travel time: corners, doors and
+obstacles make the real route longer. Raise `secondsPerTile` to compensate.
+
+Where the wiki map gives no bank for a shop (no coordinates, or no bank on its
+map), `bankTiles` is `null` and the budget planner reports `gpPerHour = null`
+rather than inventing a trip. Those rows still show their per-4h throughput.
+
+Stackability is read from the item infobox's `|stackable =` parameter; see
+`docs/data-sources.md` §3.1. A page that does not state it, or whose item
+variants disagree, is stored as `null` and charged as non-stackable — the
+pessimistic direction for gp/hour.

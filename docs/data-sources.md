@@ -52,11 +52,49 @@ Two things that cost time to discover:
 
 ## 3. Wiki MediaWiki API — `oldschool.runescape.wiki/api.php`
 
-Used only for shop categories (`prop=categories`, batched 50 titles/request).
+Used for shop categories and item stackability (`prop=categories`, batched 50
+titles/request).
 
 Note: this wiki has **no Cargo** (`action=cargoquery` returns
 `Unrecognized value for parameter "action"`), and `Special:Buckets` (plural) does
 not exist. Do not design around either.
+
+### 3.1 Item stackability
+
+| Query | Purpose | TTL | Cost |
+|---|---|---|---|
+| `action=query&prop=revisions&rvslots=main&rvprop=content&redirects=1&titles=…` | the `stackable` infobox parameter | 24h | ~25 requests for 1,239 items |
+
+The prices API does not publish stackability, and the wiki's `infobox_item`
+bucket does not either (verified live: 18 columns, none of them `stackable`). The
+parameter is parsed **by key** out of the page wikitext, so a template reorder
+cannot shift it. `redirects=1` plus the response's `normalized` and `redirects`
+arrays let a page that has moved still join back to the GE mapping name.
+
+Absent, empty, or contradictory values (item variants that disagree) are stored
+as `null`. `budget.ts` treats `null` as non-stackable, which overstates time
+rather than understating it. See `docs/shop-mechanics.md` §10 for the time model.
+
+Template: <https://oldschool.runescape.wiki/w/Template:Infobox_Item>
+
+### 3.2 Shop and bank coordinates
+
+| Source | Purpose | TTL | Cost |
+|---|---|---|---|
+| `Special:Bucket?bucket=map` | centre `{x,y,plane,mapID}` for shop pages | 24h | 2,177 rows / 5 requests |
+| `Category:Banks` (`list=categorymembers`) | bank page titles | 24h | 1 request |
+| `prop=revisions` on those titles | the `Map` template's coordinates | 24h | ~2 requests |
+
+Only pages whose map template passes `bucket=yes` are in the map bucket, which
+covers the shops (588/593) but almost none of the banks. Banks are therefore
+read from their infobox wikitext. `mapID` separates the overworld (0) from
+underground and instanced maps, and comes from the bucket's `options` cell for
+shops and from the `mapID=` parameter for banks.
+
+Distances are computed in `src/domain/bankTrip.ts`: same `mapID` first, then a
+cross-map fallback limited to 40 tiles. Shops with no usable bank are stored
+with `bankTiles: null` and never assigned a made-up trip. See
+`docs/shop-mechanics.md` §10.1.
 
 ## 4. Deliberately not used
 

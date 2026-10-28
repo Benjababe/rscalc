@@ -17,6 +17,10 @@
 
 import { z } from 'zod';
 import { fetchText } from './http.js';
+import { decodeEntities, extractRows } from './wikiTable.js';
+
+// Kept as a re-export for callers that predate the shared table parser.
+export { decodeEntities };
 
 const WIKI = 'https://oldschool.runescape.wiki';
 export const STORELINE_BUCKET_URL = `${WIKI}/w/Special:Bucket?bucket=storeline`;
@@ -47,65 +51,10 @@ export interface RawStoreLine {
 }
 
 // ---------------------------------------------------------------------------
-// Minimal HTML table extraction
+// HTML table rows
 // ---------------------------------------------------------------------------
-
-const NAMED_ENTITIES: Record<string, string> = {
-  amp: '&',
-  lt: '<',
-  gt: '>',
-  quot: '"',
-  apos: "'",
-  nbsp: ' ',
-};
-
-export function decodeEntities(input: string): string {
-  return input.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (match, body: string) => {
-    if (body.startsWith('#x') || body.startsWith('#X')) {
-      const code = Number.parseInt(body.slice(2), 16);
-      return Number.isFinite(code) ? String.fromCodePoint(code) : match;
-    }
-    if (body.startsWith('#')) {
-      const code = Number.parseInt(body.slice(1), 10);
-      return Number.isFinite(code) ? String.fromCodePoint(code) : match;
-    }
-    const named = NAMED_ENTITIES[body.toLowerCase()];
-    return named ?? match;
-  });
-}
-
-/** Visible text of an HTML fragment, with entities decoded and tags stripped. */
-function cellText(html: string): string {
-  return decodeEntities(html.replace(/<[^>]*>/g, ''))
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-interface TableRow {
-  header: boolean;
-  cells: string[];
-}
-
-/** Extract rows, remembering which ones were `<th>` header rows. */
-function extractRows(html: string): TableRow[] {
-  const rows: TableRow[] = [];
-  const rowPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-  let rowMatch: RegExpExecArray | null;
-
-  while ((rowMatch = rowPattern.exec(html)) !== null) {
-    const inner = rowMatch[1] ?? '';
-    const isHeader = /<th[\s>]/i.test(inner);
-    const cellPattern = /<t([dh])[^>]*>([\s\S]*?)<\/t\1>/gi;
-    const cells: string[] = [];
-    let cellMatch: RegExpExecArray | null;
-    while ((cellMatch = cellPattern.exec(inner)) !== null) {
-      cells.push(cellText(cellMatch[2] ?? ''));
-    }
-    if (cells.length > 0) rows.push({ header: isHeader, cells });
-  }
-
-  return rows;
-}
+// `extractRows` (and entity decoding) lives in `wikiTable.ts`, shared with the
+// map bucket parser so both address columns by header name.
 
 // ---------------------------------------------------------------------------
 // Value coercion
@@ -158,21 +107,88 @@ interface SoldItemJson {
 
 /** Coerce a JSON field that should be text into text, else null. */
 function asText(value: unknown): string | null {
-  if (typeof value === 'string') return optionalText(stripWikiMarkup(value));
+  if (typeof value === 'string') return optionalText(cleanHtmlText(value));
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
   return null;
 }
 
 /**
- * Strip wiki link markup so headings like `East of [[Dark Warriors' Fortress]]`
- * render as plain text in the CLI and UI.
+ * Remove elements with a given class, balancing nested tags of the same name.
  *
- *   [[A|B]] -> B     [[A]] -> A
+ * The wiki's floor-number template renders both the UK and US floor conventions
+ * (CSS hides one). A flat regex cannot remove the hidden one because `<span>`
+ * nests inside `<span>`, so this walks the tags instead.
+ */
+function removeElementByClass(
+  html: string,
+  tagName: string,
+  className: string,
+): string {
+  const opening = new RegExp(
+    `<${tagName}\\b[^>]*class="[^"]*\\b${className}\\b[^"]*"[^>]*>`,
+    'i',
+  );
+  let text = html;
+
+  for (;;) {
+    const match = opening.exec(text);
+    if (match === null) return text;
+
+    const start = match.index;
+    const openingLength = (match[0] ?? '').length;
+    const tags = new RegExp(`<\\/?${tagName}\\b[^>]*>`, 'gi');
+    tags.lastIndex = start + openingLength;
+
+    let depth = 1;
+    let end = -1;
+    let tagMatch: RegExpExecArray | null;
+    while ((tagMatch = tags.exec(text)) !== null) {
+      depth += (tagMatch[0] ?? '').startsWith('</') ? -1 : 1;
+      if (depth === 0) {
+        end = tagMatch.index + (tagMatch[0] ?? '').length;
+        break;
+      }
+    }
+
+    // Malformed HTML: leave the rest alone rather than truncating it.
+    if (end === -1) return text;
+    text = `${text.slice(0, start)}${text.slice(end)}`;
+  }
+}
+
+/**
+ * Turn a wiki-rendered HTML fragment into display text.
+ *
+ * `sold_item_json` fields are rendered HTML, not wikitext: a location can arrive
+ * as the floor-number template's spans plus entities. Keeping the raw string
+ * puts markup in the UI, so tags are removed, `<br>` becomes a separator, and
+ * the duplicate UK/US floor conventions collapse to the UK wording (the wiki's
+ * own locale).
+ */
+export function cleanHtmlText(raw: string): string {
+  let text = removeElementByClass(raw, 'span', 'floornumber-us');
+  text = removeElementByClass(text, 'sup', 'floornumber-help');
+  text = text.replace(
+    /<span[^>]*user-select\s*:\s*none[^>]*>[\s\S]*?<\/span>/gi,
+    '',
+  );
+  text = text.replace(/<br\s*\/?>/gi, ' · ');
+  text = decodeEntities(text.replace(/<[^>]*>/g, ''));
+  return stripWikiMarkup(text);
+}
+
+/**
+ * Strip wiki link and emphasis markup so headings like `East of [[Dark Warriors'
+ * Fortress]]` render as plain text in the CLI and UI.
+ *
+ *   [[A|B]] -> B     [[A]] -> A     '''bold''' -> bold
  */
 function stripWikiMarkup(text: string): string {
   return text
     .replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, '$2')
     .replace(/\[\[([^\]]+)\]\]/g, '$1')
+    .replace(/'''/g, '')
+    .replace(/''/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }

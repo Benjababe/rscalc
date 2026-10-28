@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { planWithBudget, DEFAULT_HOP_SECONDS } from '../src/domain/budget.js';
+import {
+  DEFAULT_UNITS_PER_LOAD,
+  INVENTORY_SLOTS,
+  planWithBudget,
+  DEFAULT_HOP_SECONDS,
+  type BudgetPlan,
+} from '../src/domain/budget.js';
 import { planPurchase, type ShopRow } from '../src/domain/shopPrice.js';
+
+/** Assert a plan has a computable time, then hand back its gp/hour. */
+function knownGpPerHour(plan: BudgetPlan): number {
+  expect(plan.gpPerHour).not.toBeNull();
+  return plan.gpPerHour ?? Number.NaN;
+}
 
 /**
  * Bob's Brilliant Axes steel axe: sells at 100%, 2% per unit, 3 in stock.
@@ -134,7 +146,7 @@ describe('planWithBudget', () => {
     const fast = planWithBudget(AXE, 500, CLEAR_ONE_WORLD * 4, { hopSeconds: 5 });
     const slow = planWithBudget(AXE, 500, CLEAR_ONE_WORLD * 4, { hopSeconds: 30 });
     expect(fast.units).toBe(slow.units);
-    expect(fast.gpPerHour).toBeGreaterThan(slow.gpPerHour);
+    expect(knownGpPerHour(fast)).toBeGreaterThan(knownGpPerHour(slow));
   });
 
   it('respects maxWorlds', () => {
@@ -166,14 +178,211 @@ describe('planWithBudget', () => {
       delta: 1,
       baseStock: 5000,
     };
-    const plan = planWithBudget(salt, 44, 1_000_000, { hopSeconds: 10, maxWorlds: 200 });
+    const plan = planWithBudget(salt, 44, 1_000_000, {
+      hopSeconds: 10,
+      maxWorlds: 200,
+      bankTiles: 20,
+    });
     expect(plan.unitsPerWorld).toBeGreaterThan(0);
     // The final world is usually partial, so `units` is bounded by the product
     // rather than equal to it: every completed world yields the full amount,
     // and the last visit yields whatever the leftover gold affords.
     expect(plan.units).toBeGreaterThan((plan.worlds - 1) * plan.unitsPerWorld);
     expect(plan.units).toBeLessThanOrEqual(plan.worlds * plan.unitsPerWorld);
-    expect(plan.gpPerHour).toBeGreaterThan(0);
-    expect(Number.isFinite(plan.gpPerHour)).toBe(true);
+    expect(knownGpPerHour(plan)).toBeGreaterThan(0);
+    expect(Number.isFinite(knownGpPerHour(plan))).toBe(true);
+  });
+});
+
+/**
+ * Flat-priced row so unit counts are exact: 10 gp per unit forever, 100 units
+ * per world. Only stackability and the bank time vary between these tests.
+ */
+const FLAT: ShopRow = {
+  itemValue: 10,
+  sellMultiplier: 1000,
+  buyMultiplier: 600,
+  delta: 0,
+  baseStock: 100,
+};
+
+describe('banking non-stackable items', () => {
+  it('reserves one of the 28 slots for the coin stack', () => {
+    expect(INVENTORY_SLOTS).toBe(28);
+    expect(DEFAULT_UNITS_PER_LOAD).toBe(27);
+  });
+
+  it('never banks for stackable items', () => {
+    const plan = planWithBudget(FLAT, 20, 1_000_000, {
+      stackable: true,
+      maxWorlds: 1,
+    });
+    expect(plan.units).toBe(100);
+    expect(plan.bankTrips).toBe(0);
+    expect(plan.bankSecondsTotal).toBe(0);
+    expect(plan.timeSeconds).toBe(plan.hopSecondsTotal);
+  });
+
+  it('fits one load without a bank trip', () => {
+    // Exactly one load (27 units): you are about to leave to sell them, so no
+    // trip back to the shop is needed.
+    const plan = planWithBudget(FLAT, 20, DEFAULT_UNITS_PER_LOAD * 10, {
+      stackable: false,
+    });
+    expect(plan.units).toBe(DEFAULT_UNITS_PER_LOAD);
+    expect(plan.bankTrips).toBe(0);
+  });
+
+  it('charges one trip per extra load', () => {
+    const one = planWithBudget(FLAT, 20, (DEFAULT_UNITS_PER_LOAD + 1) * 10, {
+      stackable: false,
+    });
+    expect(one.units).toBe(DEFAULT_UNITS_PER_LOAD + 1);
+    expect(one.bankTrips).toBe(1);
+
+    const two = planWithBudget(FLAT, 20, (DEFAULT_UNITS_PER_LOAD * 2 + 1) * 10, {
+      stackable: false,
+    });
+    expect(two.units).toBe(DEFAULT_UNITS_PER_LOAD * 2 + 1);
+    expect(two.bankTrips).toBe(2);
+  });
+
+  it('counts bank trips across the whole plan, not per world', () => {
+    // 2 worlds x 100 units = 200 units = 8 loads -> 7 trips. Counting per world
+    // would wrongly give 2 x 3 = 6.
+    const plan = planWithBudget(FLAT, 20, 2_000, {
+      stackable: false,
+      maxWorlds: 2,
+    });
+    expect(plan.units).toBe(200);
+    expect(plan.worlds).toBe(2);
+    expect(plan.bankTrips).toBe(Math.ceil(200 / DEFAULT_UNITS_PER_LOAD) - 1);
+  });
+
+  it('adds bank time to the buying side, then takes the slower side', () => {
+    const plan = planWithBudget(FLAT, 20, 1_000, {
+      stackable: false,
+      maxWorlds: 1,
+      hopSeconds: 10,
+      bankTiles: 10,
+      secondsPerTile: 0.5,
+      bankHandoverSeconds: 0,
+    });
+    expect(plan.units).toBe(100);
+    expect(plan.hopSecondsTotal).toBe(10);
+    expect(plan.bankTrips).toBe(3); // ceil(100 / 27) - 1
+    expect(plan.bankSecondsPerTrip).toBe(10); // 2 * 10 tiles * 0.5s
+    expect(plan.bankSecondsTotal).toBe(30);
+    expect(plan.timeSeconds).toBe(40); // 10s of hops + 30s of banking
+
+    // A shallow throughput cap still owns the clock: 4h of GE selling beats
+    // 40s of buying even with banking charged.
+    const capped = planWithBudget(FLAT, 20, 1_000, {
+      stackable: false,
+      maxWorlds: 1,
+      hopSeconds: 10,
+      bankTiles: 10,
+      secondsPerTile: 0.5,
+      bankHandoverSeconds: 0,
+      maxUnits: 100,
+    });
+    expect(capped.sellSeconds).toBeCloseTo(4 * 3600, 6);
+    expect(capped.timeSeconds).toBe(4 * 3600);
+  });
+
+  it('treats unknown stackability conservatively', () => {
+    // Same shop, same bank distance; only the stacking answer differs.
+    const unknown = planWithBudget(FLAT, 20, 1_000_000, {
+      maxWorlds: 1,
+      bankTiles: 10,
+    });
+    const nonStackable = planWithBudget(FLAT, 20, 1_000_000, {
+      stackable: false,
+      maxWorlds: 1,
+      bankTiles: 10,
+    });
+    const stackable = planWithBudget(FLAT, 20, 1_000_000, {
+      stackable: true,
+      maxWorlds: 1,
+      bankTiles: 10,
+    });
+
+    expect(unknown).toEqual(nonStackable);
+    expect(knownGpPerHour(unknown)).toBeLessThan(knownGpPerHour(stackable));
+  });
+
+  it("uses each shop's own bank distance, not a global time", () => {
+    const near = planWithBudget(FLAT, 20, 1_000_000, {
+      stackable: false,
+      maxWorlds: 1,
+      bankTiles: 5,
+      secondsPerTile: 0.5,
+      bankHandoverSeconds: 0,
+    });
+    const far = planWithBudget(FLAT, 20, 1_000_000, {
+      stackable: false,
+      maxWorlds: 1,
+      bankTiles: 100,
+      secondsPerTile: 0.5,
+      bankHandoverSeconds: 0,
+    });
+
+    expect(near.bankTrips).toBe(far.bankTrips);
+    expect(near.bankSecondsPerTrip).toBe(5);
+    expect(far.bankSecondsPerTrip).toBe(100);
+    expect(knownGpPerHour(near)).toBeGreaterThan(knownGpPerHour(far));
+  });
+
+  it('refuses to guess when the bank distance is unknown', () => {
+    const plan = planWithBudget(FLAT, 20, 1_000_000, {
+      stackable: false,
+      maxWorlds: 1,
+    });
+
+    expect(plan.units).toBe(100);
+    expect(plan.bankTrips).toBe(3);
+    expect(plan.bankTimeKnown).toBe(false);
+    expect(plan.bankSecondsTotal).toBe(0); // no invented seconds
+    expect(plan.gpPerHour).toBeNull();
+  });
+
+  it('stays computable when nothing needs banking', () => {
+    // Fits in one load: no trip, so an unknown distance cannot matter.
+    const small = planWithBudget(FLAT, 20, 10 * DEFAULT_UNITS_PER_LOAD, {
+      stackable: false,
+    });
+    expect(small.bankTrips).toBe(0);
+    expect(small.bankTimeKnown).toBe(true);
+    expect(small.gpPerHour).not.toBeNull();
+
+    // Stackable: no trip however many units there are.
+    const stacked = planWithBudget(FLAT, 20, 1_000_000, {
+      stackable: true,
+      maxWorlds: 1,
+    });
+    expect(stacked.bankTrips).toBe(0);
+    expect(stacked.bankTimeKnown).toBe(true);
+    expect(stacked.gpPerHour).not.toBeNull();
+  });
+
+  it('passes the bank-interface handover through', () => {
+    const plan = planWithBudget(FLAT, 20, 1_000, {
+      stackable: false,
+      maxWorlds: 1,
+      bankTiles: 10,
+      secondsPerTile: 0.5,
+      bankHandoverSeconds: 7,
+    });
+    expect(plan.bankSecondsPerTrip).toBe(17); // 10 + 7
+    expect(plan.bankSecondsTotal).toBe(51); // 3 trips
+  });
+
+  it('lets the caller override the load size', () => {
+    const plan = planWithBudget(FLAT, 20, 300, {
+      stackable: false,
+      unitsPerLoad: 10,
+    });
+    expect(plan.units).toBe(30);
+    expect(plan.bankTrips).toBe(2);
   });
 });

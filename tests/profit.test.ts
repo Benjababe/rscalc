@@ -18,6 +18,7 @@ function quote(overrides: Partial<MarketQuote> = {}): MarketQuote {
     name: 'Steel axe',
     members: false,
     value: 200,
+    stackable: false,
     limit: 100,
     high: 1000,
     low: 900,

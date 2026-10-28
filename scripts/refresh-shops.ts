@@ -6,11 +6,14 @@
  *
  * Sources:
  *   - shop stock tables: Special:Bucket?bucket=storeline
+ *   - shop coordinates: Special:Bucket?bucket=map
+ *   - bank coordinates: Category:Banks page wikitext (`{{Map|...}}`)
  *   - item ids and base values: prices.runescape.wiki/api/v2/osrs/mapping
  *   - shop categories: the wiki's own page categories
  *
  * Rule from AGENTS.md: a field is either sourced or `null`. We never invent a
- * stock figure, because a fabricated one produces confident, wrong profit.
+ * stock figure or a bank distance, because a fabricated one produces confident,
+ * wrong profit.
  */
 
 import { mkdir, writeFile } from 'fs/promises';
@@ -27,6 +30,8 @@ import {
   parseStockCell,
   type RawStoreLine,
 } from '../src/api/storeBucket.js';
+import { fetchBankTitles, fetchMapPoints, fetchPageMapPoints } from '../src/api/wikiMap.js';
+import { nearestBankFor } from '../src/domain/bankTrip.js';
 import { ShopCatalogSchema, type ShopEntry } from '../src/types.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -50,12 +55,63 @@ async function main(): Promise<void> {
   const shopTypes = await fetchShopTypes(shopTitles);
   log(`  ${shopTypes.size} shops annotated`);
 
+  log('fetching shop coordinates (map bucket)...');
+  const map = await fetchMapPoints();
+  log(`  ${map.points.size} pages located (${map.rows} rows, ${map.pages} pages)`);
+
+  log('fetching bank locations...');
+  const bankTitles = await fetchBankTitles();
+  const bankPoints = await fetchPageMapPoints(bankTitles);
+  log(
+    `  ${bankPoints.points.size}/${bankTitles.length} banks located (${bankPoints.requests} requests)`,
+  );
+
+  // One distance per shop page, shared by every row that shop sells. Shops
+  // with no map point, or with no bank in their coordinate space, stay null:
+  // the budget planner then refuses to invent a bank time for them.
+  const bankByShop = new Map<
+    string,
+    { bankTiles: number | null; nearestBank: string | null }
+  >();
+  let withoutCoordinates = 0;
+  let withoutBank = 0;
+
+  for (const page of shopTitles) {
+    const point = map.points.get(page);
+    if (point === undefined) {
+      withoutCoordinates += 1;
+      bankByShop.set(page, { bankTiles: null, nearestBank: null });
+      continue;
+    }
+
+    const nearest = nearestBankFor(point, bankPoints.points);
+    if (nearest === null) {
+      withoutBank += 1;
+      bankByShop.set(page, { bankTiles: null, nearestBank: null });
+      continue;
+    }
+
+    bankByShop.set(page, {
+      bankTiles: Math.round(nearest.tiles * 10) / 10,
+      nearestBank: nearest.bankPage,
+    });
+  }
+
+  log(
+    `  ${shopTitles.length - withoutCoordinates - withoutBank}/${shopTitles.length} shops have a bank distance ` +
+      `(${withoutCoordinates} without coordinates, ${withoutBank} without a bank on their map)`,
+  );
+
   const entries: ShopEntry[] = [];
   let unresolved = 0;
 
   for (const line of lines) {
     const match = byName.get(normaliseItemName(line.itemName).toLowerCase());
     if (match === undefined) unresolved += 1;
+    const bank = bankByShop.get(line.shopPage) ?? {
+      bankTiles: null,
+      nearestBank: null,
+    };
 
     entries.push({
       shopPage: line.shopPage,
@@ -73,6 +129,8 @@ async function main(): Promise<void> {
       baseStock: parseStockCell(line.stockRaw),
       infiniteStock: isInfiniteStock(line.stockRaw),
       restockTicks: parseIntCell(line.restockRaw),
+      bankTiles: bank.bankTiles,
+      nearestBank: bank.nearestBank,
       storeSellPrice: line.storeSellPrice,
       storeBuyPrice: line.storeBuyPrice,
       currency: line.currency,
@@ -98,6 +156,7 @@ async function main(): Promise<void> {
   log(`  unresolved names: ${unresolved} (kept, itemId=null)`);
   log(`  infinite stock:   ${entries.filter((e) => e.infiniteStock).length}`);
   log(`  non-Coins:        ${entries.filter((e) => e.currency.toLowerCase() !== 'coins').length}`);
+  log(`  with bank distance: ${entries.filter((e) => e.bankTiles !== null).length}`);
   log(`  elapsed:          ${((Date.now() - started) / 1000).toFixed(1)}s`);
 }
 

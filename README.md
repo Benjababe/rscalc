@@ -19,7 +19,7 @@ Works for all **593 shops** in the game, 3,595 priceable shop/item pairs.
 
 ```sh
 pnpm install
-pnpm build:data     # fetch shop catalogue + GE prices  (~25s, no API key)
+pnpm build:data     # fetch shop catalogue + GE prices  (~60s, no API key)
 pnpm report         # ranked table in the terminal
 pnpm dev            # web UI at http://localhost:5173
 ```
@@ -36,7 +36,7 @@ pnpm dev            # web UI at http://localhost:5173
 | `pnpm report --mode=patient` | price against GE `high` instead of `low` |
 | `pnpm report --write` | also emit `data/opportunities.json` for the UI |
 | `pnpm dev` / `pnpm build` | web UI |
-| `pnpm test` / `pnpm typecheck` | 57 tests / `tsc --noEmit` |
+| `pnpm test` / `pnpm typecheck` | 124 tests / `tsc --noEmit` |
 
 `pnpm report` flags: `--mode=pessimistic|patient`, `--limit=N`, `--members`,
 `--min-volume4h=N`, `--min-margin=N`, `--infinite`, `--write`.
@@ -72,20 +72,28 @@ site is deployable as plain files.
 Enter **Gold available** and the table re-sizes every opportunity to your budget,
 answering "how many can I actually buy, and what's that worth per hour?".
 
-It accounts for three things a naive `budget / unitPrice` would miss:
+It accounts for four things a naive `budget / unitPrice` would miss:
 
 1. **Prices rise as you buy.** It walks the same marginal shop curve as the CLI,
    so a budget buys fewer units than the first-unit price suggests.
 2. **World hops cost time.** Each world is assumed to be at **full default
    stock**, so the price curve restarts every hop. `Worlds` is how many visits
    your budget needs, and hop time is user-configurable (default 10s).
-3. **Selling takes time too.** Time is the *slower* of buying and selling.
-   Buying 13,000 units in one shop visit does not mean you bank them in 10
-   seconds if that quantity is a full 4 hours of GE volume. This is what stops
+3. **Non-stackable items must be banked — at that shop's own distance.** A
+   backpack holds 28 items, and the coin stack you pay with takes one of those
+   slots, so a load carries 27 non-stackable items. Every load after the first
+   costs a trip to the nearest bank, and the distance is read per shop from the
+   wiki map: Varrock General Store is ~32 tiles from its bank, while Razmire in
+   Mort'ton is a much longer run. `Travel speed` (seconds per tile) converts
+   distance to time. Stackable items (arrows, runes, …) never need a bank.
+4. **Selling takes time too.** Time is the *slower* of buying (hops + banks) and
+   selling. Buying 13,000 units in one shop visit does not mean you bank them in
+   10 seconds if that quantity is a full 4 hours of GE volume. This is what stops
    the planner from reporting eight-figure gp/hour on a stale price.
 
-Outputs per row: `Buy` (units your gold covers), `Spend`, `Worlds`, `Profit`, and
-`gp / hour`. Set gold to 0 (Clear) to return to per-shop-visit quantities.
+Outputs per row: `Buy` (units your gold covers), `Spend`, `Worlds`, `Banks`
+(trips, plus seconds per trip for that shop), `Profit`, and `gp / hour`. Set gold
+to 0 (Clear) to return to per-shop-visit quantities.
 
 ## Accuracy — read this before trusting a number
 
@@ -112,11 +120,22 @@ off-by-one that a naive implementation gets wrong). Beyond that, be aware:
 - **World hops are assumed ideal.** Every visited world is treated as full
   default stock. In practice shops are contested, and the first hop is charged
   even though you may already be standing at the shop.
-- **Travel to the shop is not modelled**, only hop time plus GE sell time.
+- **Bank distances are per shop and per map.** They come from the wiki map as
+  straight-line tiles, not a pathfound route, so corners and obstacles add time;
+  the default walking speed (0.6s/tile) partly offsets that, and you can raise it.
+  Shops with no bank on their map (underground or instanced areas) show `—` for
+  gp/hour instead of inventing a trip. The 27-item load assumes you pay with
+  coins carried in the backpack (28 slots minus the coin stack). Travel to the
+  shop itself is still not modelled. Items whose wiki page does not state
+  stackability are treated as non-stackable, which lowers gp/hour rather than
+  inflating it.
+- **Travel to the shop is not modelled**, only hop time, bank trips and GE
+  sell time.
 - **Illiquid items show stale GE prices.** If something trades twice a day, its
   `low` may be wildly out of date. Filter with `--min-volume4h`.
-- **Not modelled:** travel time, teleport costs, competition from other players,
-  instance/quest access requirements, shop gold limits when *selling* to shops.
+- **Not modelled:** travel to the shop, teleport costs, competition from other
+  players, instance/quest access requirements, shop gold limits when *selling*
+  to shops.
 
 ## Project layout
 

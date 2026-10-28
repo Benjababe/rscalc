@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { Opportunity, Ranking, SellMode } from "../../src/types";
-import { planWithBudget, type BudgetPlan } from "../../src/domain/budget";
+import { DEFAULT_SECONDS_PER_TILE, planWithBudget, type BudgetPlan } from "../../src/domain/budget";
 import type { ShopRow } from "../../src/domain/shopPrice";
 import { wikiUrl } from "../../src/util/wiki";
 
@@ -16,6 +16,7 @@ type SortKey =
   | "profit"
   | "spend"
   | "worlds"
+  | "banks"
   | "itemName";
 
 interface OpportunitiesPayload {
@@ -44,6 +45,7 @@ const BUDGET_SORTS: ReadonlySet<SortKey> = new Set<SortKey>([
   "profit",
   "spend",
   "worlds",
+  "banks",
 ]);
 
 const DEFAULT_GOLD = 1_000_000;
@@ -61,6 +63,17 @@ function toShopRow(opp: Opportunity): ShopRow {
   };
 }
 
+/**
+ * Units the GE can absorb in a 4h window, no matter how many shops you visit.
+ *
+ * `sellablePer4h` is additionally capped by one shop visit's stock, so using it
+ * as the budget cap would make world-hopping pointless. The cross-world bound is
+ * the GE buy limit and the 24h volume slice the engine already computed.
+ */
+function sellableAcrossWorlds(opp: Opportunity): number {
+  return Math.min(opp.geBuyLimit ?? Number.POSITIVE_INFINITY, opp.volume4h);
+}
+
 export function App(): JSX.Element {
   const [mode, setMode] = useState<SellMode>("pessimistic");
   const [query, setQuery] = useState("");
@@ -68,6 +81,7 @@ export function App(): JSX.Element {
   const [minVolume, setMinVolume] = useState(0);
   const [gold, setGold] = useState(DEFAULT_GOLD);
   const [hopSeconds, setHopSeconds] = useState(DEFAULT_HOP_SECONDS);
+  const [secondsPerTile, setSecondsPerTile] = useState(DEFAULT_SECONDS_PER_TILE);
   const [sortKey, setSortKey] = useState<SortKey>("gpPerHour");
   const [descending, setDescending] = useState(true);
 
@@ -91,26 +105,32 @@ export function App(): JSX.Element {
     const withPlans: RowData[] = budgetMode
       ? filtered.map((opp) => ({
           ...opp,
-          // Cap by sellable throughput: without it the budget planner will happily
-          // recommend buying an illiquid item whose GE "price" is a stale trade.
+          // Cap by the GE's 4h throughput across worlds: without a cap the
+          // planner will happily recommend buying an illiquid item whose GE
+          // "price" is a stale trade, yielding fantasy gp/hour.
           plan: planWithBudget(toShopRow(opp), opp.netSellPerUnit, gold, {
             hopSeconds,
-            maxUnits: opp.sellablePer4h,
+            bankTiles: opp.bankTiles,
+            secondsPerTile,
+            stackable: opp.stackable,
+            maxUnits: sellableAcrossWorlds(opp),
           }),
         }))
       : filtered;
 
     const key = budgetMode || !BUDGET_SORTS.has(sortKey) ? sortKey : "gpPerHour";
-    const value = (row: RowData): number => {
+    const measure = (row: RowData): number | null => {
       switch (key) {
         case "gpPerHour":
-          return row.plan?.gpPerHour ?? 0;
+          return row.plan?.gpPerHour ?? null;
         case "profit":
           return row.plan?.profit ?? 0;
         case "spend":
           return row.plan?.totalCost ?? 0;
         case "worlds":
           return row.plan?.worlds ?? 0;
+        case "banks":
+          return row.plan?.bankTrips ?? 0;
         case "units":
           return budgetMode ? (row.plan?.units ?? 0) : row.units;
         case "gpPer4h":
@@ -134,12 +154,23 @@ export function App(): JSX.Element {
           ? b.itemName.localeCompare(a.itemName)
           : a.itemName.localeCompare(b.itemName);
       }
-      const delta = value(b) - value(a);
+      const aValue = measure(a);
+      const bValue = measure(b);
+      if (aValue === null || bValue === null) {
+        if (aValue === bValue) return 0;
+        // An unknown bank time is never better than a known one, whichever way
+        // the column is sorted.
+        return aValue === null ? 1 : -1;
+      }
+      const delta = bValue - aValue;
       return descending ? delta : -delta;
     });
-  }, [ranking, query, membersOnly, minVolume, budgetMode, gold, hopSeconds, sortKey, descending]);
+  }, [ranking, query, membersOnly, minVolume, budgetMode, gold, hopSeconds, secondsPerTile, sortKey, descending]);
 
   const best = rows[0];
+  const bestSummary = budgetPlanSummary(
+    rows.find((row) => row.plan?.gpPerHour != null),
+  );
   const medianMargin =
     rows.length > 0
       ? [...rows].map((r) => r.margin).sort((a, b) => a - b)[Math.floor(rows.length / 2)] ?? 0
@@ -246,6 +277,22 @@ export function App(): JSX.Element {
             s
           </label>
 
+          <label className="toggle">
+            <span className="label">Travel speed</span>
+            <input
+              className="num"
+              type="number"
+              min={0}
+              step={0.05}
+              value={secondsPerTile}
+              onChange={(event) =>
+                setSecondsPerTile(Math.max(0, Number(event.target.value) || 0))
+              }
+              aria-label="Seconds per game tile"
+            />
+            s / tile
+          </label>
+
           <div className="presets">
             {[100_000, 1_000_000, 10_000_000, 100_000_000].map((amount) => (
               <button
@@ -267,9 +314,13 @@ export function App(): JSX.Element {
           {budgetMode ? (
             <>
               Sizing buys for <strong>{formatGp(gold)} gp</strong>, assuming{" "}
-              <strong>full default stock on every world</strong> and{" "}
-              <strong>{hopSeconds}s per world hop</strong>. Prices rise as you buy, so
+              <strong>full default stock on every world</strong>,{" "}
+              <strong>{hopSeconds}s per world hop</strong> and a bank trip at each
+              shop's own distance to its nearest bank, travelling at{" "}
+              <strong>{secondsPerTile}s per tile</strong>. Prices rise as you buy, so
               this walks the curve rather than dividing your gold by one unit price.
+              Non-stackable items fill 27 inventory slots per load; shops with no
+              bank on their map show “—” for gp/hour.
             </>
           ) : (
             <>
@@ -282,12 +333,21 @@ export function App(): JSX.Element {
 
       <section className="stats">
         <Stat label="Opportunities" value={rows.length.toLocaleString()} />
-        {budgetPlanSummary(best) !== null && budgetMode ? (
+        {budgetMode ? (
           <>
-            <Stat label="Best gp / hour" value={formatGp(Math.round(budgetPlanSummary(best)?.gpPerHour ?? 0))} accent />
-            <Stat label="Profit on best" value={`${formatGp(Math.round(budgetPlanSummary(best)?.profit ?? 0))} gp`} />
-            <Stat label="Spend on best" value={`${formatGp(Math.round(budgetPlanSummary(best)?.totalCost ?? 0))} gp`} />
-            <Stat label="World hops on best" value={String(budgetPlanSummary(best)?.worlds ?? 0)} />
+            <Stat
+              label="Best gp / hour"
+              value={
+                bestSummary?.gpPerHour != null
+                  ? formatGp(Math.round(bestSummary.gpPerHour))
+                  : "—"
+              }
+              accent
+            />
+            <Stat label="Profit on best" value={`${formatGp(Math.round(bestSummary?.profit ?? 0))} gp`} />
+            <Stat label="Spend on best" value={`${formatGp(Math.round(bestSummary?.totalCost ?? 0))} gp`} />
+            <Stat label="World hops on best" value={String(bestSummary?.worlds ?? 0)} />
+            <Stat label="Bank trips on best" value={String(bestSummary?.bankTrips ?? 0)} />
           </>
         ) : (
           <>
@@ -316,6 +376,7 @@ export function App(): JSX.Element {
                   <Th label="Buy" onClick={() => toggleSort("units")} active={sortKey === "units"} desc={descending} right />
                   <Th label="Spend" onClick={() => toggleSort("spend")} active={sortKey === "spend"} desc={descending} right />
                   <Th label="Worlds" onClick={() => toggleSort("worlds")} active={sortKey === "worlds"} desc={descending} right />
+                  <Th label="Banks" onClick={() => toggleSort("banks")} active={sortKey === "banks"} desc={descending} right />
                   <Th label="Profit" onClick={() => toggleSort("profit")} active={sortKey === "profit"} desc={descending} right />
                   <Th label="gp / hour" onClick={() => toggleSort("gpPerHour")} active={sortKey === "gpPerHour"} desc={descending} right />
                 </>
@@ -344,11 +405,18 @@ export function App(): JSX.Element {
         {budgetMode ? (
           <p>
             <strong>Buy</strong> is how many units your gold actually covers,{" "}
-            <strong>Spend</strong> is what leaves your inventory, and{" "}
-            <strong>Worlds</strong> is how many shop visits that takes. Each world is
-            assumed to be at full default stock, so the price curve restarts every hop.{" "}
-            <strong>gp / hour</strong> = profit ÷ (worlds × hop time) and excludes GE
-            sell-offer fill time and travel to the shop.
+            <strong>Spend</strong> is what leaves your inventory,{" "}
+            <strong>Worlds</strong> is how many shop visits that takes, and{" "}
+            <strong>Banks</strong> is how many trips to the bank the loads need, and
+            the seconds beside it are that shop's own round trip. Each world is
+            assumed to be at full default stock, so the price curve restarts every
+            hop. A backpack holds 28 items; coins take one slot, so a load carries 27
+            non-stackable items. Distances come from the wiki map and are travelled
+            at <strong>{secondsPerTile}s per tile</strong>; stackable items never need
+            a bank. Where the wiki map gives no bank for a shop, gp / hour is shown
+            as <strong>—</strong> rather than assuming a trip.{" "}
+            <strong>gp / hour</strong> = profit ÷ max(world hops + bank trips, GE sell
+            time) and excludes travel to the shop.
           </p>
         ) : (
           <p>
@@ -361,7 +429,11 @@ export function App(): JSX.Element {
         <p>
           Gross margin is net of the 2% GE tax (capped at 5,000,000 gp, items under
           50 gp exempt). Shop stock is per-world in reality; restock times are not
-          modelled. Item names and icons are © Jagex; wiki data is CC BY-SA.
+          modelled. Items whose wiki page does not state stackability are treated as
+          non-stackable, the pessimistic direction. Bank distances are straight-line
+          tiles from the wiki map, not a walking route, so corners and obstacles add
+          time; raise the seconds-per-tile value to allow for that. Item names and
+          icons are © Jagex; wiki data is CC BY-SA.
         </p>
       </footer>
     </div>
@@ -411,8 +483,35 @@ function Row({
           <td className="right mono strong">{plan?.units.toLocaleString() ?? 0}</td>
           <td className="right mono">{formatGp(Math.round(plan?.totalCost ?? 0))}</td>
           <td className="right mono dim">{plan?.worlds ?? 0}</td>
+          <td
+            className="right mono dim"
+            title={
+              row.bankTiles === null
+                ? "No bank distance available for this shop"
+                : `${row.nearestBank ?? "Bank"} · ${Math.round(row.bankTiles)} tiles each way`
+            }
+          >
+            {plan?.bankTrips ?? 0}
+            {(plan?.bankTrips ?? 0) > 0 && (
+              <span className="dim">
+                {" · "}
+                {plan?.bankTimeKnown === false
+                  ? "?"
+                  : `${Math.round(plan?.bankSecondsPerTrip ?? 0)}s`}
+              </span>
+            )}
+          </td>
           <td className="right mono pos">{formatGp(Math.round(plan?.profit ?? 0))}</td>
-          <td className="right mono strong">{formatGp(Math.round(plan?.gpPerHour ?? 0))}</td>
+          <td
+            className="right mono strong"
+            title={
+              plan?.gpPerHour === null
+                ? "Bank distance unknown for this shop, so travel time cannot be computed"
+                : undefined
+            }
+          >
+            {plan?.gpPerHour != null ? formatGp(Math.round(plan.gpPerHour)) : "—"}
+          </td>
         </>
       ) : (
         <>

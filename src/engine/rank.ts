@@ -110,6 +110,8 @@ export function rank(
       baseStock: entry.baseStock,
       infiniteStock: entry.infiniteStock,
       restockTicks: entry.restockTicks,
+      bankTiles: entry.bankTiles,
+      nearestBank: entry.nearestBank,
     });
   }
 

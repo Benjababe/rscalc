@@ -14,6 +14,7 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 import { fetch24h, fetchLatest, fetchMapping } from '../src/api/prices.js';
+import { fetchItemStackability } from '../src/api/wikiItems.js';
 import { readJsonFile } from '../src/util/json.js';
 import { MarketSnapshotSchema, ShopCatalogSchema, type MarketQuote } from '../src/types.js';
 
@@ -39,6 +40,23 @@ async function main(): Promise<void> {
   const mapping = await fetchMapping();
 
   const meta = new Map(mapping.items.map((item) => [item.id, item]));
+
+  // Stackability is not in the prices API, so it comes from the item infobox on
+  // the wiki. Only items the shop catalogue can actually source are needed.
+  const wantedNames = [...wanted].flatMap((id) => {
+    const item = meta.get(id);
+    return item === undefined ? [] : [item.name];
+  });
+  log(`reading stackability for ${wantedNames.length} items from the wiki...`);
+  const stackability = await fetchItemStackability(wantedNames);
+  const nonStackable = [...stackability.stackable.values()].filter(
+    (value) => value === false,
+  ).length;
+  log(
+    `  ${stackability.stackable.size} pages in ${stackability.requests} requests; ` +
+      `${nonStackable} non-stackable, ${stackability.unknown} unstated, ${stackability.missing} missing`,
+  );
+
   const quotes: Record<string, MarketQuote> = {};
   let missingLatest = 0;
 
@@ -58,6 +76,7 @@ async function main(): Promise<void> {
       name: item.name,
       members: item.members,
       value: item.value ?? 0,
+      stackable: stackability.stackable.get(item.name) ?? null,
       limit: item.limit ?? null,
       high: live?.high ?? null,
       low: live?.low ?? null,

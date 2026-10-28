@@ -6,6 +6,19 @@
 
 import { z } from 'zod';
 
+/**
+ * A point on the wiki's game map, in tiles.
+ *
+ * `mapID` separates the overworld (0) from underground and instanced maps, so
+ * two points are only comparable when their map ids match. See
+ * `src/api/wikiMap.ts` and `src/domain/bankTrip.ts`.
+ */
+export interface MapPoint {
+  x: number;
+  y: number;
+  mapID: number;
+}
+
 // ---------------------------------------------------------------------------
 // Shop catalogue
 // ---------------------------------------------------------------------------
@@ -48,6 +61,13 @@ export const ShopEntrySchema = z.object({
   infiniteStock: z.boolean(),
   /** Restock interval in game ticks (1 tick = 0.6 s). Null when `N/A`. */
   restockTicks: z.number().int().nullable(),
+  /**
+   * Straight-line distance to the nearest bank on the shop's map, in tiles.
+   * Null when the shop page has no coordinates or no bank exists on its map.
+   */
+  bankTiles: z.number().nullable(),
+  /** Wiki page title of that bank. Null whenever `bankTiles` is null. */
+  nearestBank: z.string().nullable(),
   /** Price the shop charges at equilibrium, as published. */
   storeSellPrice: z.number().int().nullable(),
   /** Price the shop pays at equilibrium, as published. */
@@ -74,6 +94,12 @@ export const MarketQuoteSchema = z.object({
   members: z.boolean(),
   /** Item base value, the 100% reference for shop prices. */
   value: z.number().int(),
+  /**
+   * True when the item occupies one inventory slot regardless of quantity.
+   * Null when the wiki does not say (or item variants disagree).
+   * https://oldschool.runescape.wiki/w/Stackable_items
+   */
+  stackable: z.boolean().nullable(),
   /** GE 4-hour buy limit. Null when the item has none. */
   limit: z.number().int().nullable(),
   /** Latest purchase price — what a patient sell offer targets. */
@@ -140,6 +166,14 @@ export const OpportunitySchema = z.object({
   baseStock: z.number().int().nullable(),
   infiniteStock: z.boolean(),
   restockTicks: z.number().int().nullable(),
+  /**
+   * Whether the item stacks. Drives whether banking time is charged in the
+   * budget planner. Null means unknown; treat it conservatively.
+   */
+  stackable: z.boolean().nullable(),
+  /** Per-shop bank distance and bank name, echoed for the time model. */
+  bankTiles: z.number().nullable(),
+  nearestBank: z.string().nullable(),
 
   /**
    * Pricing parameters, passed through so the UI can recompute the shop price

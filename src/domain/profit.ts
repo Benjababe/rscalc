@@ -106,6 +106,9 @@ export function evaluate(
     baseStock: Number.isFinite(row.baseStock) ? row.baseStock : null,
     infiniteStock: row.infiniteStock ?? false,
     restockTicks: null,
+    stackable: quote.stackable,
+    bankTiles: null,
+    nearestBank: null,
 
     // Passed through so the UI can rebuild the price curve for a gold budget.
     itemValue: row.itemValue,
