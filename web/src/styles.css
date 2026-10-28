@@ -292,10 +292,6 @@ tbody tr:hover {
   border-radius: 2px;
 }
 
-.vendor {
-  color: var(--dim);
-}
-
 .loc {
   color: var(--dim);
   white-space: nowrap;

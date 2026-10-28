@@ -686,7 +686,6 @@ function Row({
         >
           {row.shopName}
         </a>
-        {row.soldBy !== null && <span className="vendor"> · {row.soldBy}</span>}
       </td>
       <td className="loc">{row.location ?? "—"}</td>
       <td className="right mono">
