@@ -94,7 +94,7 @@ It accounts for four things a naive `budget / unitPrice` would miss:
    the planner from reporting eight-figure gp/hour on a stale price.
 
 Outputs per row: `Buy` (units your gold covers), `Spend`, `Worlds`, `Banks`
-(trips, plus seconds per trip for that shop), `Profit`, and `gp / hour`. Untick
+(trips, seconds per trip, and the bank used), `Profit`, and `gp / hour`. Untick
 **Size buys to gold** (or set gold to 0) to show per-shop-visit quantities; the
 `gp / hour` column still uses your current gold. The gold amount and chosen view
 are saved in the browser's localStorage.
