@@ -36,7 +36,7 @@ pnpm dev            # web UI at http://localhost:5173
 | `pnpm report --mode=patient` | price against GE `high` instead of `low` |
 | `pnpm report --write` | also emit `data/opportunities.json` for the UI |
 | `pnpm dev` / `pnpm build` | web UI |
-| `pnpm test` / `pnpm typecheck` | 124 tests / `tsc --noEmit` |
+| `pnpm test` / `pnpm typecheck` | 135 tests / `tsc --noEmit` |
 
 `pnpm report` flags: `--mode=pessimistic|patient`, `--limit=N`, `--members`,
 `--min-volume4h=N`, `--min-margin=N`, `--infinite`, `--write`.
@@ -69,8 +69,10 @@ site is deployable as plain files.
 
 ## Budget mode (web UI)
 
-Enter **Gold available** and the table re-sizes every opportunity to your budget,
-answering "how many can I actually buy, and what's that worth per hour?".
+Enter **Gold available** and the table re-sizes every opportunity to your
+budget, answering "how many can I actually buy, and what's that worth per
+hour?". Untick **Size buys to gold** to keep the per-shop-visit columns while
+still seeing the hourly rate your gold would earn.
 
 It accounts for four things a naive `budget / unitPrice` would miss:
 
@@ -92,8 +94,10 @@ It accounts for four things a naive `budget / unitPrice` would miss:
    the planner from reporting eight-figure gp/hour on a stale price.
 
 Outputs per row: `Buy` (units your gold covers), `Spend`, `Worlds`, `Banks`
-(trips, plus seconds per trip for that shop), `Profit`, and `gp / hour`. Set gold
-to 0 (Clear) to return to per-shop-visit quantities.
+(trips, plus seconds per trip for that shop), `Profit`, and `gp / hour`. Untick
+**Size buys to gold** (or set gold to 0) to show per-shop-visit quantities; the
+`gp / hour` column still uses your current gold. The gold amount and chosen view
+are saved in the browser's localStorage.
 
 ## Accuracy — read this before trusting a number
 

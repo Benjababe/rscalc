@@ -1,8 +1,15 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Opportunity, Ranking, SellMode } from "../../src/types";
 import { DEFAULT_SECONDS_PER_TILE, planWithBudget, type BudgetPlan } from "../../src/domain/budget";
 import type { ShopRow } from "../../src/domain/shopPrice";
 import { wikiUrl } from "../../src/util/wiki";
+import {
+  BUDGET_STORAGE_KEY,
+  parseBudgetState,
+  serialiseBudgetState,
+  type BudgetState,
+  type BudgetView,
+} from "./storage";
 
 import payload from "../../data/opportunities.json";
 
@@ -48,8 +55,16 @@ const BUDGET_SORTS: ReadonlySet<SortKey> = new Set<SortKey>([
   "banks",
 ]);
 
-const DEFAULT_GOLD = 1_000_000;
 const DEFAULT_HOP_SECONDS = 10;
+
+function readStoredBudget(): BudgetState {
+  if (typeof window === "undefined") return parseBudgetState(null);
+  try {
+    return parseBudgetState(window.localStorage.getItem(BUDGET_STORAGE_KEY));
+  } catch {
+    return parseBudgetState(null);
+  }
+}
 
 /** Rebuild the shop price curve from the payload's pricing parameters. */
 function toShopRow(opp: Opportunity): ShopRow {
@@ -79,14 +94,27 @@ export function App(): JSX.Element {
   const [query, setQuery] = useState("");
   const [membersOnly, setMembersOnly] = useState(false);
   const [minVolume, setMinVolume] = useState(0);
-  const [gold, setGold] = useState(DEFAULT_GOLD);
+  const [initialBudget] = useState<BudgetState>(readStoredBudget);
+  const [gold, setGold] = useState(initialBudget.gold);
+  const [view, setView] = useState<BudgetView>(initialBudget.view);
   const [hopSeconds, setHopSeconds] = useState(DEFAULT_HOP_SECONDS);
   const [secondsPerTile, setSecondsPerTile] = useState(DEFAULT_SECONDS_PER_TILE);
   const [sortKey, setSortKey] = useState<SortKey>("gpPerHour");
   const [descending, setDescending] = useState(true);
 
   const ranking = DATA[mode];
-  const budgetMode = gold > 0;
+  const budgetMode = gold > 0 && view === "budget";
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        BUDGET_STORAGE_KEY,
+        serialiseBudgetState({ gold, view }),
+      );
+    } catch {
+      // localStorage can be unavailable (private mode); the UI still works.
+    }
+  }, [gold, view]);
 
   const rows = useMemo<RowData[]>(() => {
     const needle = query.trim().toLowerCase();
@@ -102,7 +130,7 @@ export function App(): JSX.Element {
       );
     });
 
-    const withPlans: RowData[] = budgetMode
+    const withPlans: RowData[] = gold > 0
       ? filtered.map((opp) => ({
           ...opp,
           // Cap by the GE's 4h throughput across worlds: without a cap the
@@ -263,6 +291,21 @@ export function App(): JSX.Element {
             gp
           </label>
 
+          <label
+            className="toggle"
+            title="Show the gold-sized Buy, Spend, Worlds, Banks and Profit columns."
+          >
+            <input
+              type="checkbox"
+              checked={budgetMode}
+              disabled={gold <= 0}
+              onChange={(event) =>
+                setView(event.target.checked ? "budget" : "shop")
+              }
+            />
+            Size buys to gold
+          </label>
+
           <label className="toggle">
             <span className="label">World hop</span>
             <input
@@ -322,10 +365,17 @@ export function App(): JSX.Element {
               Non-stackable items fill 27 inventory slots per load; shops with no
               bank on their map show “—” for gp/hour.
             </>
+          ) : gold > 0 ? (
+            <>
+              Showing per-shop-visit quantities. The <strong>gp / hour</strong> column
+              is sized to your <strong>{formatGp(gold)} gp</strong> at{" "}
+              <strong>{secondsPerTile}s per tile</strong>. Tick{" "}
+              <strong>Size buys to gold</strong> for the Buy / Spend / Worlds columns.
+            </>
           ) : (
             <>
               Enter gold to size buys across world hops. Showing per-shop-visit
-              quantities instead.
+              quantities; gp / hour needs a gold amount.
             </>
           )}
         </p>
@@ -385,6 +435,7 @@ export function App(): JSX.Element {
                   <Th label="Qty" onClick={() => toggleSort("units")} active={sortKey === "units"} desc={descending} right />
                   <th className="right">Units / 4h</th>
                   <Th label="gp / 4h" onClick={() => toggleSort("gpPer4h")} active={sortKey === "gpPer4h"} desc={descending} right />
+                  <Th label="gp / hour" onClick={() => toggleSort("gpPerHour")} active={sortKey === "gpPerHour"} desc={descending} right />
                 </>
               )}
             </tr>
@@ -407,8 +458,8 @@ export function App(): JSX.Element {
             <strong>Buy</strong> is how many units your gold actually covers,{" "}
             <strong>Spend</strong> is what leaves your inventory,{" "}
             <strong>Worlds</strong> is how many shop visits that takes, and{" "}
-            <strong>Banks</strong> is how many trips to the bank the loads need, and
-            the seconds beside it are that shop's own round trip. Each world is
+            <strong>Banks</strong> is how many trips to the bank the loads need; the
+            seconds beside it are that shop's own round trip. Each world is
             assumed to be at full default stock, so the price curve restarts every
             hop. A backpack holds 28 items; coins take one slot, so a load carries 27
             non-stackable items. Distances come from the wiki map and are travelled
@@ -423,7 +474,10 @@ export function App(): JSX.Element {
             <strong>Unit cost</strong> is the average price across the quantity you would
             take; shop prices rise with every unit bought. <strong>Qty</strong> is what
             one shop visit yields before the next unit stops being profitable.{" "}
-            <strong>Units / 4h</strong> is capped by the GE buy limit and 24h traded volume.
+            <strong>Units / 4h</strong> is capped by the GE buy limit and 24h traded
+            volume. <strong>gp / hour</strong> uses your current gold available and the
+            same per-shop bank time as budget mode; it shows <strong>—</strong> when
+            gold is 0 or the bank distance is unknown.
           </p>
         )}
         <p>
@@ -432,8 +486,9 @@ export function App(): JSX.Element {
           modelled. Items whose wiki page does not state stackability are treated as
           non-stackable, the pessimistic direction. Bank distances are straight-line
           tiles from the wiki map, not a walking route, so corners and obstacles add
-          time; raise the seconds-per-tile value to allow for that. Item names and
-          icons are © Jagex; wiki data is CC BY-SA.
+          time; raise the seconds-per-tile value to allow for that. Your gold amount
+          and the budget/shop view are saved in this browser. Item names and icons are
+          © Jagex; wiki data is CC BY-SA.
         </p>
       </footer>
     </div>
@@ -442,6 +497,22 @@ export function App(): JSX.Element {
 
 function budgetPlanSummary(row: RowData | undefined): BudgetPlan | null {
   return row?.plan ?? null;
+}
+
+function GpPerHourCell({ plan }: { plan: BudgetPlan | undefined }): JSX.Element {
+  let title: string | undefined;
+  if (plan === undefined) {
+    title = "Enter gold available to compute gp / hour";
+  } else if (plan.gpPerHour === null) {
+    title =
+      "Bank distance unknown for this shop, so travel time cannot be computed";
+  }
+
+  return (
+    <td className="right mono strong" title={title}>
+      {plan?.gpPerHour != null ? formatGp(Math.round(plan.gpPerHour)) : "—"}
+    </td>
+  );
 }
 
 function Row({
@@ -509,22 +580,14 @@ function Row({
             )}
           </td>
           <td className="right mono pos">{formatGp(Math.round(plan?.profit ?? 0))}</td>
-          <td
-            className="right mono strong"
-            title={
-              plan?.gpPerHour === null
-                ? "Bank distance unknown for this shop, so travel time cannot be computed"
-                : undefined
-            }
-          >
-            {plan?.gpPerHour != null ? formatGp(Math.round(plan.gpPerHour)) : "—"}
-          </td>
+          <GpPerHourCell plan={plan} />
         </>
       ) : (
         <>
           <td className="right mono">{row.units}</td>
           <td className="right mono dim">{row.sellablePer4h.toLocaleString()}</td>
           <td className="right mono strong">{formatGp(Math.round(row.gpPer4h))}</td>
+          <GpPerHourCell plan={plan} />
         </>
       )}
     </tr>
