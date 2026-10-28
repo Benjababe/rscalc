@@ -194,16 +194,29 @@ export function App(): JSX.Element {
     descending,
   ]);
 
-  const best = rows[0];
-  const bestSummary = budgetPlanSummary(
-    rows.find((row) => row.plan?.gpPerHour != null),
-  );
+  const bestPlanRow = rows.reduce<RowData | undefined>((best, row) => {
+    const gp = row.plan?.gpPerHour;
+    if (gp == null) return best;
+    if (best === undefined) return row;
+    return gp > (best.plan?.gpPerHour ?? Number.NEGATIVE_INFINITY)
+      ? row
+      : best;
+  }, undefined);
+  const bestSummary = budgetPlanSummary(bestPlanRow);
+
+  const bestGp4hRow = rows.reduce<RowData | undefined>((best, row) => {
+    if (best === undefined || row.gpPer4h > best.gpPer4h) return row;
+    return best;
+  }, undefined);
+
   const medianMargin =
     rows.length > 0
       ? ([...rows].map((r) => r.margin).sort((a, b) => a - b)[
           Math.floor(rows.length / 2)
         ] ?? 0)
-      : 0;
+      : null;
+
+  const shopCount = new Set(rows.map((row) => row.shopPage)).size;
 
   function toggleSort(key: SortKey): void {
     if (key === sortKey) setDescending((d) => !d);
@@ -263,8 +276,11 @@ export function App(): JSX.Element {
           Members only
         </label>
 
-        <label className="toggle">
-          Min units / 4h
+        <label
+          className="toggle"
+          title="One shop visit's units, capped by 24h traded volume"
+        >
+          Min sellable
           <input
             className="num"
             type="number"
@@ -272,6 +288,7 @@ export function App(): JSX.Element {
             step={1}
             value={minVolume}
             onChange={(event) => setMinVolume(Number(event.target.value) || 0)}
+            aria-label="Minimum sellable units per shop visit"
           />
         </label>
       </section>
@@ -361,28 +378,19 @@ export function App(): JSX.Element {
         <p className="hint">
           {budgetMode ? (
             <>
-              Sizing buys for <strong>{formatGp(gold)} gp</strong>, assuming{" "}
-              <strong>full default stock on every world</strong>,{" "}
-              <strong>{hopSeconds}s per world hop</strong> and a bank trip at
-              each shop's own distance to its nearest bank, travelling at{" "}
-              <strong>{secondsPerTile}s per tile</strong>. Prices rise as you
-              buy, so this walks the curve rather than dividing your gold by one
-              unit price. Non-stackable items fill 27 inventory slots per load;
-              shops with no bank on their map show “—” for gp/hour.
+              Sizing buys for <strong>{formatGp(gold)} gp</strong> ·{" "}
+              <strong>{hopSeconds}s</strong> hop ·{" "}
+              <strong>{secondsPerTile}s</strong> per tile. Each world resets to
+              full default stock; stackable goods skip banking.
             </>
           ) : gold > 0 ? (
             <>
-              Showing per-shop-visit quantities. The <strong>gp / hour</strong>{" "}
-              column is sized to your <strong>{formatGp(gold)} gp</strong> at{" "}
-              <strong>{secondsPerTile}s per tile</strong>. Tick{" "}
-              <strong>Size buys to gold</strong> for the Buy / Spend / Worlds
-              columns.
+              Showing per-shop-visit quantities. <strong>gp / hour</strong> is
+              sized to <strong>{formatGp(gold)} gp</strong> at{" "}
+              <strong>{secondsPerTile}s</strong> per tile.
             </>
           ) : (
-            <>
-              Enter gold to size buys across world hops. Showing per-shop-visit
-              quantities; gp / hour needs a gold amount.
-            </>
+            <>Enter gold to size buys across world hops.</>
           )}
         </p>
       </section>
@@ -398,37 +406,69 @@ export function App(): JSX.Element {
                   ? formatGp(Math.round(bestSummary.gpPerHour))
                   : "—"
               }
+              title={
+                bestPlanRow
+                  ? `${bestPlanRow.itemName} at ${bestPlanRow.shopName}`
+                  : undefined
+              }
               accent
             />
             <Stat
-              label="Profit on best"
-              value={`${formatGp(Math.round(bestSummary?.profit ?? 0))} gp`}
+              label="Profit at best rate"
+              value={
+                bestSummary === null
+                  ? "—"
+                  : `${formatGp(Math.round(bestSummary.profit))} gp`
+              }
+              title={
+                bestPlanRow
+                  ? `${bestPlanRow.itemName} at ${bestPlanRow.shopName}`
+                  : undefined
+              }
             />
             <Stat
-              label="Spend on best"
-              value={`${formatGp(Math.round(bestSummary?.totalCost ?? 0))} gp`}
-            />
-            <Stat
-              label="World hops on best"
-              value={String(bestSummary?.worlds ?? 0)}
-            />
-            <Stat
-              label="Bank trips on best"
-              value={String(bestSummary?.bankTrips ?? 0)}
+              label="Spend at best rate"
+              value={
+                bestSummary === null
+                  ? "—"
+                  : `${formatGp(Math.round(bestSummary.totalCost))} gp`
+              }
+              title={
+                bestPlanRow
+                  ? `${bestPlanRow.itemName} at ${bestPlanRow.shopName}`
+                  : undefined
+              }
             />
           </>
         ) : (
           <>
             <Stat
               label="Best gp / 4h"
-              value={formatGp(Math.round(best?.gpPer4h ?? 0))}
+              value={
+                bestGp4hRow
+                  ? formatGp(Math.round(bestGp4hRow.gpPer4h))
+                  : "—"
+              }
+              title={
+                bestGp4hRow
+                  ? `${bestGp4hRow.itemName} at ${bestGp4hRow.shopName}`
+                  : undefined
+              }
               accent
             />
             <Stat
               label="Median margin"
-              value={`${formatGp(medianMargin)} gp`}
+              value={
+                medianMargin === null
+                  ? "—"
+                  : `${formatGp(medianMargin)} gp`
+              }
             />
-            <Stat label="Shops scanned" value="593" />
+            <Stat
+              label="Shops with results"
+              value={shopCount.toLocaleString()}
+              title="Distinct shops in the filtered rows"
+            />
           </>
         )}
       </section>
@@ -455,14 +495,16 @@ export function App(): JSX.Element {
                 onClick={() => toggleSort("itemName")}
                 active={sortKey === "itemName"}
                 desc={descending}
+                title="Item name; click to sort"
               />
               <th>Shop</th>
-              <th>Location</th>
+              <th className="loc-col">Location</th>
               <Th
                 label="Unit cost"
                 onClick={() => toggleSort("avgCost")}
                 active={sortKey === "avgCost"}
                 desc={descending}
+                title="Average price paid per unit across the quantity you would take"
                 right
               />
               <Th
@@ -470,14 +512,16 @@ export function App(): JSX.Element {
                 onClick={() => toggleSort("sellPrice")}
                 active={sortKey === "sellPrice"}
                 desc={descending}
+                title="GE price used for this mode"
                 right
               />
-              <th className="right">Tax</th>
+              <th className="right tax-col">Tax</th>
               <Th
                 label="Margin"
                 onClick={() => toggleSort("margin")}
                 active={sortKey === "margin"}
                 desc={descending}
+                title="Net sell price minus average unit cost"
                 right
               />
 
@@ -488,6 +532,7 @@ export function App(): JSX.Element {
                     onClick={() => toggleSort("units")}
                     active={sortKey === "units"}
                     desc={descending}
+                    title="Units your gold covers across world hops"
                     right
                   />
                   <Th
@@ -495,6 +540,7 @@ export function App(): JSX.Element {
                     onClick={() => toggleSort("spend")}
                     active={sortKey === "spend"}
                     desc={descending}
+                    title="Coins spent"
                     right
                   />
                   <Th
@@ -502,6 +548,7 @@ export function App(): JSX.Element {
                     onClick={() => toggleSort("worlds")}
                     active={sortKey === "worlds"}
                     desc={descending}
+                    title="Shop visits needed, assuming full default stock each world"
                     right
                   />
                   <Th
@@ -509,6 +556,7 @@ export function App(): JSX.Element {
                     onClick={() => toggleSort("banks")}
                     active={sortKey === "banks"}
                     desc={descending}
+                    title="Bank trips needed for non-stackable goods; the bank used is shown beneath"
                     right
                   />
                   <Th
@@ -516,6 +564,7 @@ export function App(): JSX.Element {
                     onClick={() => toggleSort("profit")}
                     active={sortKey === "profit"}
                     desc={descending}
+                    title="Net revenue minus spend"
                     right
                   />
                   <Th
@@ -523,24 +572,32 @@ export function App(): JSX.Element {
                     onClick={() => toggleSort("gpPerHour")}
                     active={sortKey === "gpPerHour"}
                     desc={descending}
+                    title="Profit per hour at your current gold, including hops and bank trips"
                     right
                   />
                 </>
               ) : (
                 <>
                   <Th
-                    label="Qty"
+                    label="Qty / visit"
                     onClick={() => toggleSort("units")}
                     active={sortKey === "units"}
                     desc={descending}
+                    title="Units one shop visit yields before the margin closes"
                     right
                   />
-                  <th className="right">Units / 4h</th>
+                  <th
+                    className="right"
+                    title="One shop visit's units, capped by 24h traded volume"
+                  >
+                    Sellable
+                  </th>
                   <Th
                     label="gp / 4h"
                     onClick={() => toggleSort("gpPer4h")}
                     active={sortKey === "gpPer4h"}
                     desc={descending}
+                    title="Profit from one shop visit's sellable units, not the full 4h volume. Use gp / hour for the gold-sized rate."
                     right
                   />
                   <Th
@@ -548,6 +605,7 @@ export function App(): JSX.Element {
                     onClick={() => toggleSort("gpPerHour")}
                     active={sortKey === "gpPerHour"}
                     desc={descending}
+                    title="Profit per hour at your current gold, including hops and bank trips"
                     right
                   />
                 </>
@@ -577,51 +635,57 @@ export function App(): JSX.Element {
       </div>
 
       <footer className="footer">
-        {budgetMode ? (
+        <details className="caveats">
+          <summary>Assumptions &amp; caveats</summary>
+          {budgetMode ? (
+            <p>
+              <strong>Buy</strong> is how many units your gold actually covers,{" "}
+              <strong>Spend</strong> is what leaves your inventory,{" "}
+              <strong>Worlds</strong> is how many shop visits that takes, and{" "}
+              <strong>Banks</strong> is how many trips to the bank the loads need;
+              the seconds beside it are that shop's own round trip, and the bank
+              used is shown beneath. Each world is assumed to be at full default
+              stock, so the price curve restarts every hop. A backpack holds 28
+              items; coins take one slot, so a load carries 27 non-stackable
+              items. Distances come from the wiki map and are travelled at{" "}
+              <strong>{secondsPerTile}s per tile</strong>; stackable items never
+              need a bank. Where the wiki map gives no bank for a shop, gp / hour
+              is shown as <strong>—</strong> rather than assuming a trip.{" "}
+              <strong>gp / hour</strong> = profit ÷ max(world hops + bank trips,
+              GE sell time) and excludes travel to the shop. Clicking{" "}
+              <strong>basket</strong> beside a shop buys every profitable item
+              there together: those world hops and bank loads are shared, so the
+              basket's gp / hour is usually higher than any single row's.
+            </p>
+          ) : (
+            <p>
+              <strong>Unit cost</strong> is the average price across the quantity
+              you would take; shop prices rise with every unit bought.{" "}
+              <strong>Qty / visit</strong> is what one shop visit yields before
+              the next unit stops being profitable. <strong>Sellable</strong> is
+              that quantity capped by 24h traded volume; the GE buy limit is a
+              per-player purchase cap and does not cap sales.{" "}
+              <strong>gp / hour</strong> uses your current gold available and the
+              same per-shop bank time as budget mode; it shows <strong>—</strong>{" "}
+              when gold is 0 or the bank distance is unknown. Clicking{" "}
+              <strong>basket</strong> beside a shop buys every profitable item
+              there together, sharing world hops and bank loads.
+            </p>
+          )}
           <p>
-            <strong>Buy</strong> is how many units your gold actually covers,{" "}
-            <strong>Spend</strong> is what leaves your inventory,{" "}
-            <strong>Worlds</strong> is how many shop visits that takes, and{" "}
-            <strong>Banks</strong> is how many trips to the bank the loads need;
-            the seconds beside it are that shop's own round trip, and the line
-            below names the bank used. Each world is
-            assumed to be at full default stock, so the price curve restarts
-            every hop. A backpack holds 28 items; coins take one slot, so a load
-            carries 27 non-stackable items. Distances come from the wiki map and
-            are travelled at <strong>{secondsPerTile}s per tile</strong>;
-            stackable items never need a bank. Where the wiki map gives no bank
-            for a shop, gp / hour is shown as <strong>—</strong> rather than
-            assuming a trip. <strong>gp / hour</strong> = profit ÷ max(world
-            hops + bank trips, GE sell time) and excludes travel to the shop.
-            Clicking <strong>basket</strong> beside a shop buys every profitable
-            item there together: those world hops and bank loads are shared, so
-            the basket's gp / hour is usually higher than any single row's.
+            Gross margin is net of the 2% GE tax (capped at 5,000,000 gp, items
+            under 50 gp exempt). Shop stock is per-world in reality; restock
+            times are not modelled. Items whose wiki page does not state
+            stackability are treated as non-stackable, the pessimistic direction.
+            Bank distances are straight-line tiles from the wiki map, not a
+            walking route, so corners and obstacles add time; raise the
+            seconds-per-tile value to allow for that. Your gold amount and the
+            budget/shop view are saved in this browser.
           </p>
-        ) : (
-          <p>
-            <strong>Unit cost</strong> is the average price across the quantity
-            you would take; shop prices rise with every unit bought.{" "}
-            <strong>Qty</strong> is what one shop visit yields before the next
-            unit stops being profitable. <strong>Units / 4h</strong> is one
-            shop visit's stock, capped by 24h traded volume; the GE buy limit is
-            a per-player purchase cap and does not cap sales.{" "}
-            <strong>gp / hour</strong> uses your current gold available and the
-            same per-shop bank time as budget mode; it shows <strong>—</strong>{" "}
-            when gold is 0 or the bank distance is unknown. Clicking{" "}
-            <strong>basket</strong> beside a shop buys every profitable item there
-            together, sharing world hops and bank loads.
-          </p>
-        )}
-        <p>
-          Gross margin is net of the 2% GE tax (capped at 5,000,000 gp, items
-          under 50 gp exempt). Shop stock is per-world in reality; restock times
-          are not modelled. Items whose wiki page does not state stackability
-          are treated as non-stackable, the pessimistic direction. Bank
-          distances are straight-line tiles from the wiki map, not a walking
-          route, so corners and obstacles add time; raise the seconds-per-tile
-          value to allow for that. Your gold amount and the budget/shop view are
-          saved in this browser. Item names and icons are © Jagex; wiki data is
-          CC BY-SA.
+        </details>
+        <p className="attribution">
+          Item names and icons © Jagex. Wiki data CC BY-SA. This page makes no
+          network calls.
         </p>
       </footer>
     </div>
@@ -697,7 +761,7 @@ function Row({
           basket
         </button>
       </td>
-      <td className="loc">{row.location ?? "—"}</td>
+      <td className="loc loc-col">{row.location ?? "—"}</td>
       <td className="right mono">
         {formatGp(
           Math.round(
@@ -706,7 +770,7 @@ function Row({
         )}
       </td>
       <td className="right mono">{formatGp(row.sellPrice)}</td>
-      <td className="right mono dim">{formatGp(row.taxPerUnit)}</td>
+      <td className="right mono dim tax-col">{formatGp(row.taxPerUnit)}</td>
       <td className="right mono pos">{formatGp(Math.round(row.margin))}</td>
 
       {budgetMode ? (
@@ -779,9 +843,13 @@ function Th(props: {
   active: boolean;
   desc: boolean;
   right?: boolean;
+  title?: string;
 }): JSX.Element {
   return (
-    <th className={props.right ? "right sortable" : "sortable"}>
+    <th
+      className={props.right ? "right sortable" : "sortable"}
+      title={props.title}
+    >
       <button type="button" onClick={props.onClick}>
         {props.label}
         {props.active && (
@@ -796,9 +864,13 @@ function Stat(props: {
   label: string;
   value: string;
   accent?: boolean;
+  title?: string;
 }): JSX.Element {
   return (
-    <div className={props.accent ? "stat accent" : "stat"}>
+    <div
+      className={props.accent ? "stat accent" : "stat"}
+      title={props.title}
+    >
       <span className="label">{props.label}</span>
       <strong>{props.value}</strong>
     </div>
