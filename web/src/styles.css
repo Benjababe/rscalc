@@ -1,0 +1,296 @@
+:root {
+  --bg: #14161a;
+  --panel: #1b1e24;
+  --panel-2: #22262e;
+  --line: #2c313b;
+  --text: #e6e8ec;
+  --dim: #98a0ae;
+  --accent: #ffd24a;
+  --pos: #5ddb8b;
+  --neg: #ff6b6b;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.app {
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 28px 20px 60px;
+}
+
+/* header */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 16px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 26px;
+  letter-spacing: -0.02em;
+}
+
+.sub {
+  margin: 6px 0 0;
+  color: var(--dim);
+  font-size: 13px;
+  max-width: 60ch;
+}
+
+.asof {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.asof strong {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.label {
+  color: var(--dim);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* controls */
+.controls {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 16px 0;
+}
+
+.modes {
+  display: flex;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.mode {
+  background: var(--panel);
+  color: var(--dim);
+  border: 0;
+  padding: 9px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.mode.active {
+  background: var(--accent);
+  color: #1a1a1a;
+  font-weight: 600;
+}
+
+.search {
+  flex: 1 1 260px;
+  min-width: 200px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 9px 12px;
+  font-size: 13px;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--dim);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.num {
+  width: 68px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 6px 8px;
+  font-size: 13px;
+}
+
+/* stats */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.stat {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat strong {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat.accent strong {
+  color: var(--accent);
+}
+
+/* table */
+.tablewrap {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: auto;
+  max-height: 74vh;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+thead th {
+  position: sticky;
+  top: 0;
+  background: var(--panel-2);
+  text-align: left;
+  padding: 10px 12px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--dim);
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+  z-index: 1;
+}
+
+thead th.sortable button {
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.arrow {
+  margin-left: 4px;
+  color: var(--accent);
+}
+
+tbody td {
+  padding: 9px 12px;
+  border-bottom: 1px solid #23272f;
+  vertical-align: middle;
+}
+
+tbody tr:hover {
+  background: #1f232b;
+}
+
+.right {
+  text-align: right;
+}
+
+.mono {
+  font-variant-numeric: tabular-nums;
+}
+
+.dim {
+  color: var(--dim);
+}
+
+.pos {
+  color: var(--pos);
+}
+
+.strong {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.num-col {
+  color: var(--dim);
+  width: 44px;
+}
+
+.name {
+  font-weight: 500;
+}
+
+.badge {
+  margin-left: 7px;
+  background: #3a2f4a;
+  color: #c9a6ff;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+}
+
+.shop {
+  color: #cfd4dc;
+}
+
+.vendor {
+  color: var(--dim);
+}
+
+.loc {
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+.empty {
+  margin: 0;
+  padding: 24px;
+  color: var(--dim);
+  text-align: center;
+  font-size: 13px;
+}
+
+/* footer */
+.footer {
+  margin-top: 18px;
+  color: var(--dim);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.footer strong {
+  color: var(--text);
+}
+
+@media (max-width: 720px) {
+  .asof {
+    align-items: flex-start;
+  }
+}

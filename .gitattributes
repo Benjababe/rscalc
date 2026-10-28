@@ -1,0 +1,10 @@
+# Normalise line endings so Windows checkouts don't show whole-file diffs.
+* text=auto eol=lf
+
+# Generated data: keep diffs readable in review, but don't let git try to
+# merge competing snapshots.
+data/*.json text eol=lf -merge
+
+# Binary-ish
+*.png binary
+*.ico binary
