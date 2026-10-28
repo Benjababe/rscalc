@@ -107,6 +107,12 @@ export function evaluate(
     infiniteStock: row.infiniteStock ?? false,
     restockTicks: null,
 
+    // Passed through so the UI can rebuild the price curve for a gold budget.
+    itemValue: row.itemValue,
+    sellMultiplier: row.sellMultiplier,
+    buyMultiplier: row.buyMultiplier,
+    delta: row.delta,
+
     geBuyLimit: quote.limit,
     volume4h,
     sellablePer4h,

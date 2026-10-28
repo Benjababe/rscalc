@@ -52,7 +52,7 @@ can reach you about your traffic.
 
 ## How it works
 
-```
+```text
 Special:Bucket?bucket=storeline  ─┐
 prices.runescape.wiki/api/v2     ─┴─► data/shops.json + data/market.json
                                               │
@@ -66,6 +66,26 @@ prices.runescape.wiki/api/v2     ─┴─► data/shops.json + data/market.json
 
 The browser never makes a network call: it renders a static snapshot, so the
 site is deployable as plain files.
+
+## Budget mode (web UI)
+
+Enter **Gold available** and the table re-sizes every opportunity to your budget,
+answering "how many can I actually buy, and what's that worth per hour?".
+
+It accounts for three things a naive `budget / unitPrice` would miss:
+
+1. **Prices rise as you buy.** It walks the same marginal shop curve as the CLI,
+   so a budget buys fewer units than the first-unit price suggests.
+2. **World hops cost time.** Each world is assumed to be at **full default
+   stock**, so the price curve restarts every hop. `Worlds` is how many visits
+   your budget needs, and hop time is user-configurable (default 10s).
+3. **Selling takes time too.** Time is the *slower* of buying and selling.
+   Buying 13,000 units in one shop visit does not mean you bank them in 10
+   seconds if that quantity is a full 4 hours of GE volume. This is what stops
+   the planner from reporting eight-figure gp/hour on a stale price.
+
+Outputs per row: `Buy` (units your gold covers), `Spend`, `Worlds`, `Profit`, and
+`gp / hour`. Set gold to 0 (Clear) to return to per-shop-visit quantities.
 
 ## Accuracy — read this before trusting a number
 
@@ -85,6 +105,14 @@ off-by-one that a naive implementation gets wrong). Beyond that, be aware:
   (instant dump) and is the number to trust.
 - **Thin-volume items are floored.** A 4h throughput of 0.33 units is reported
   as 0, not multiplied into a fake gp/4h figure.
+- **Budget mode caps by liquidity.** Units are capped at the item's sellable
+  throughput (GE buy limit and 24h volume). Without that cap the planner
+  recommends buying illiquid items whose GE price is a stale trade from days
+  ago, producing confidently absurd gp/hour numbers.
+- **World hops are assumed ideal.** Every visited world is treated as full
+  default stock. In practice shops are contested, and the first hop is charged
+  even though you may already be standing at the shop.
+- **Travel to the shop is not modelled**, only hop time plus GE sell time.
 - **Illiquid items show stale GE prices.** If something trades twice a day, its
   `low` may be wildly out of date. Filter with `--min-volume4h`.
 - **Not modelled:** travel time, teleport costs, competition from other players,
@@ -92,9 +120,9 @@ off-by-one that a naive implementation gets wrong). Beyond that, be aware:
 
 ## Project layout
 
-```
+```text
 src/api/       HTTP gateway (UA, 1 req/s, TTL cache, backoff) + typed clients
-src/domain/    shopPrice.ts (game maths), tax.ts, profit.ts — pure, no I/O
+src/domain/    shopPrice.ts (game maths), tax.ts, profit.ts, budget.ts — pure, no I/O
 src/engine/    rank.ts — joins catalogue × prices × volume
 src/types.ts   zod schemas for every artifact
 scripts/       refresh-shops, refresh-market, report, smoke

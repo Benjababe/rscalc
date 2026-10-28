@@ -141,6 +141,17 @@ export const OpportunitySchema = z.object({
   infiniteStock: z.boolean(),
   restockTicks: z.number().int().nullable(),
 
+  /**
+   * Pricing parameters, passed through so the UI can recompute the shop price
+   * curve for a gold budget without re-fetching anything. See
+   * `src/domain/shopPrice.ts` for the units (multipliers and delta are stored
+   * at 10x the displayed percentage).
+   */
+  itemValue: z.number().int(),
+  sellMultiplier: z.number(),
+  buyMultiplier: z.number(),
+  delta: z.number(),
+
   /** Throughput constraints. */
   geBuyLimit: z.number().int().nullable(),
   volume4h: z.number(),
