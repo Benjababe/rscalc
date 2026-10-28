@@ -25,7 +25,8 @@ Notes:
 
 - `value` is genuinely **absent for 19 of 4,674 items**. Modelled as `null`;
   a shop row whose item has no `value` is excluded rather than priced at 0.
-- `limit` is the GE 4-hour buy limit. Absent for 517 items.
+- `limit` is the GE 4-hour buy limit. Absent for 517 items. It is a per-player
+  purchase cap; the engine reports it but caps sale throughput by 24h volume.
 - The API requires a descriptive User-Agent with contact details. We send
   `rscalc/<version> (+<contact>)`.
 

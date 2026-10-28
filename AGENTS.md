@@ -138,6 +138,10 @@ and for shops with no bank on their map.
 ### M3 — Ranking engine ✅
 Join catalog × latest prices × 24h volume × stackability. Filter illiquid /
 negative margin. Sort by gp/4h, then margin, then name.
+- **The GE buy limit is metadata, not a sell cap.** It limits how many one
+  player can buy in 4h; market-wide sale throughput is bounded by the 24h volume
+  slice. Report `geBuyLimit`, but never use `min(geBuyLimit, volume4h)` as the
+  sellable quantity. <https://oldschool.runescape.wiki/w/Grand_Exchange/Buying_limits>
 **Accept:** deterministic output; tests pin filtering and ordering.
 
 ### M4 — UI ✅

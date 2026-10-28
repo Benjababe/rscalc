@@ -7,7 +7,7 @@ import { netProceeds, geTax } from './tax.js';
 import { planPurchase, shopUnitBuyPrice, type ShopRow } from './shopPrice.js';
 import type { MarketQuote, Opportunity, SellMode } from '../types.js';
 
-/** GE buy limit is a 4-hour window. */
+/** The GE buy limit and volume windows are both 4 hours. */
 export const GE_LIMIT_WINDOW_HOURS = 4;
 
 export interface EvaluateOptions {
@@ -68,15 +68,19 @@ export function evaluate(
   const volume4hExact = volume24hForMode(quote, options.mode) / 6;
   const volume4h = Math.floor(volume4hExact);
 
-  // The GE buy limit is a proxy for how fast other players will absorb stock.
-  const limit = quote.limit ?? Number.POSITIVE_INFINITY;
-  const sellablePer4h = Math.max(0, Math.min(plan.units, limit, volume4h));
+  // The GE buy limit is deliberately not part of this cap. It limits how many
+  // of an item one player can *buy* in 4h, not how much the market can absorb
+  // from a seller. The market-wide constraint is the 24h volume on the side of
+  // the book we are selling into. `geBuyLimit` is still reported for
+  // transparency, but it must not shrink the sellable quantity.
+  const sellablePer4h = Math.max(0, Math.min(plan.units, volume4h));
   const gpPer4h = sellablePer4h * margin;
 
-  // How many world hops to fill the 4h throughput.
+  // How many world hops to fill the 4h volume. Null when the item has no
+  // sellable volume in the window.
   const worldsToFill4h =
-    Number.isFinite(limit) && plan.units > 0 && sellablePer4h > 0
-      ? Math.max(1, Math.ceil(Math.min(limit, volume4h) / plan.units))
+    plan.units > 0 && volume4h > 0
+      ? Math.max(1, Math.ceil(volume4h / plan.units))
       : null;
 
   return {

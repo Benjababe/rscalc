@@ -37,7 +37,7 @@ pnpm dev            # web UI at http://localhost:5173
 | `pnpm report --shop="<name>" --gold=N` | one shop's multi-item basket |
 | `pnpm report --write` | also emit `data/opportunities.json` for the UI |
 | `pnpm dev` / `pnpm build` | web UI |
-| `pnpm test` / `pnpm typecheck` | 153 tests / `tsc --noEmit` |
+| `pnpm test` / `pnpm typecheck` | 155 tests / `tsc --noEmit` |
 
 `pnpm report` flags: `--mode=pessimistic|patient`, `--limit=N`, `--members`,
 `--min-volume4h=N`, `--min-margin=N`, `--infinite`, `--write`.
@@ -146,8 +146,9 @@ off-by-one that a naive implementation gets wrong). Beyond that, be aware:
   (instant dump) and is the number to trust.
 - **Thin-volume items are floored.** A 4h throughput of 0.33 units is reported
   as 0, not multiplied into a fake gp/4h figure.
-- **Budget mode caps by liquidity.** Units are capped at the item's sellable
-  throughput (GE buy limit and 24h volume). Without that cap the planner
+- **Budget mode caps by liquidity.** Units are capped at the item's 24h traded
+  volume, split into a 4h slice. The GE buy limit is a per-player purchase cap
+  and is reported but not used as a sell cap. Without the volume cap the planner
   recommends buying illiquid items whose GE price is a stale trade from days
   ago, producing confidently absurd gp/hour numbers.
 - **World hops are assumed ideal.** Every visited world is treated as full

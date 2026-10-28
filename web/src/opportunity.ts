@@ -19,9 +19,10 @@ export function toShopRow(opp: Opportunity): ShopRow {
  * Units the GE can absorb in a 4h window, no matter how many shops you visit.
  *
  * `sellablePer4h` is additionally capped by one shop visit's stock, so using it
- * as the budget cap would make world-hopping pointless. The cross-world bound is
- * the GE buy limit and the 24h volume slice the engine already computed.
+ * as the budget cap would make world-hopping pointless. The cross-world bound
+ * is the 24h volume slice the engine computed. The GE buy limit is a per-player
+ * purchase cap and is deliberately not used here.
  */
 export function sellableAcrossWorlds(opp: Opportunity): number {
-  return Math.min(opp.geBuyLimit ?? Number.POSITIVE_INFINITY, opp.volume4h);
+  return Math.max(0, opp.volume4h);
 }

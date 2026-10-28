@@ -194,7 +194,7 @@ async function main(): Promise<void> {
   process.stdout.write(`${'-'.repeat(132)}\n`);
   process.stdout.write(
     `Buy = average cost/unit across the qty you'd take. Qty = units from ONE shop visit\n` +
-      `before the marginal unit stops being profitable. gp/4h capped by GE buy limit and 24h volume.\n`,
+      `before the marginal unit stops being profitable. gp/4h is one shop visit's sellable units, capped by 24h volume; the GE buy limit is metadata, not a sell cap.\n`,
   );
 
   if (cli.write) {
@@ -297,7 +297,7 @@ function printShopBasket(
     if (sellPrice === null) return;
     const netSellPerUnit = netProceeds(sellPrice);
     const volume4h = Math.floor(volume24hForMode(quote, cli.mode) / 6);
-    const cap = Math.min(quote.limit ?? Number.POSITIVE_INFINITY, volume4h);
+    const cap = Math.max(0, volume4h);
     if (cap <= 0) return;
 
     const perWorldMax = row.infiniteStock

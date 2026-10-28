@@ -88,12 +88,16 @@ describe('evaluate', () => {
     expect(evaluate(ROW, quote({ low: 100 }), { mode: 'pessimistic' })).toBeNull();
   });
 
-  it('caps throughput by the GE buy limit', () => {
+  it('reports but does not cap sales by the GE per-player buy limit', () => {
+    // The limit says how many one player may BUY in 4h. It does not limit how
+    // much the market can absorb from a seller, so one shop visit's 3 axes are
+    // still sellable even though the quote's buy limit is 2.
     const result = evaluate(ROW, quote({ limit: 2 }), { mode: 'pessimistic' });
     expect(result).not.toBeNull();
     if (result === null) return;
-    expect(result.sellablePer4h).toBe(2);
-    expect(result.gpPer4h).toBe(2 * result.margin);
+    expect(result.geBuyLimit).toBe(2);
+    expect(result.sellablePer4h).toBe(3);
+    expect(result.gpPer4h).toBe(3 * result.margin);
   });
 
   it('caps throughput by 4h volume, expressed in whole units', () => {
@@ -118,12 +122,35 @@ describe('evaluate', () => {
     expect(result.gpPer4h).toBe(0);
   });
 
-  it('reports world hops needed to fill the 4h throughput', () => {
-    // 3 units per shop visit, limit 100 -> 34 visits.
-    const result = evaluate(ROW, quote({ limit: 100 }), { mode: 'pessimistic' });
+  it('reports world hops needed to fill the 4h volume', () => {
+    // 3 units per shop visit, 612 sales/day = 102 per 4h -> 34 visits.
+    const result = evaluate(ROW, quote({ lowVolume24h: 612 }), {
+      mode: 'pessimistic',
+    });
     expect(result).not.toBeNull();
     if (result === null) return;
+    expect(result.volume4h).toBe(102);
     expect(result.worldsToFill4h).toBe(34);
+  });
+
+  it('ignores the buy limit when counting world hops', () => {
+    const result = evaluate(ROW, quote({ limit: 2, lowVolume24h: 612 }), {
+      mode: 'pessimistic',
+    });
+    expect(result).not.toBeNull();
+    if (result === null) return;
+    expect(result.geBuyLimit).toBe(2);
+    expect(result.worldsToFill4h).toBe(34);
+  });
+
+  it('reports no world count when the 4h volume is zero', () => {
+    const result = evaluate(ROW, quote({ lowVolume24h: 0 }), {
+      mode: 'pessimistic',
+    });
+    expect(result).not.toBeNull();
+    if (result === null) return;
+    expect(result.sellablePer4h).toBe(0);
+    expect(result.worldsToFill4h).toBeNull();
   });
 
   it('is deterministic', () => {

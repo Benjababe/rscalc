@@ -602,8 +602,9 @@ export function App(): JSX.Element {
             <strong>Unit cost</strong> is the average price across the quantity
             you would take; shop prices rise with every unit bought.{" "}
             <strong>Qty</strong> is what one shop visit yields before the next
-            unit stops being profitable. <strong>Units / 4h</strong> is capped
-            by the GE buy limit and 24h traded volume.{" "}
+            unit stops being profitable. <strong>Units / 4h</strong> is one
+            shop visit's stock, capped by 24h traded volume; the GE buy limit is
+            a per-player purchase cap and does not cap sales.{" "}
             <strong>gp / hour</strong> uses your current gold available and the
             same per-shop bank time as budget mode; it shows <strong>—</strong>{" "}
             when gold is 0 or the bank distance is unknown. Clicking{" "}

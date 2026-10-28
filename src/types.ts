@@ -187,14 +187,17 @@ export const OpportunitySchema = z.object({
   delta: z.number(),
 
   /** Throughput constraints. */
+  /** GE 4-hour buy limit. It caps one player's purchases, not market sales. */
   geBuyLimit: z.number().int().nullable(),
+  /** Floored 4h slice of the 24h volume on the chosen side of the book. */
   volume4h: z.number(),
-  /** Units realistically sellable in 4h: min(units, buyLimit, volume4h). */
+  /** Units from one shop visit that can sell in 4h: min(units, volume4h). */
   sellablePer4h: z.number(),
+  /** Profit from one shop visit's sellable units, not the full 4h volume. */
   gpPer4h: z.number(),
-  /** How many world hops to fill the 4h throughput. Null when unlimited. */
+  /** World hops needed to fill the 4h volume. Null when volume is zero. */
   worldsToFill4h: z.number().int().nullable(),
-  /** gp per hour if 4h throughput is achieved. */
+  /** Placeholder equal to gpPer4h; the UI recomputes the gold-sized rate. */
   gpPerHour: z.number(),
 });
 export type Opportunity = z.infer<typeof OpportunitySchema>;

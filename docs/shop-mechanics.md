@@ -191,12 +191,30 @@ Shop → GE is a **sell** operation, so:
 `profit.ts` computes both and labels them. Do not present a single "profit"
 number without saying which mode it is.
 
-## 9. Buy limits
+## 9. Buy limits and sale throughput
 
-`/api/v2/osrs/mapping` returns `limit` — the GE 4-hour buy limit. For shop
-arbitrage the binding constraint on sale throughput is the item's **liquidity**
-(24h volume), not its buy limit, but both are reported: `gp/4h` is capped by
-`min(buyLimit, sellableUnits)`.
+`/api/v2/osrs/mapping` returns `limit` — the GE 4-hour buy limit. It is the
+maximum quantity of an item **one player** can buy in a 4-hour window.
+
+Source: <https://oldschool.runescape.wiki/w/Grand_Exchange/Buying_limits> —
+"The buying limit of Grand Exchange items is restricted to a certain quantity
+every 4 hours."
+
+That is a purchase cap, not a market-wide sell cap. When you sell, your offer is
+filled by many buyers, each with their own limit. The constraint on sale
+throughput is therefore the item's 24h traded volume on the matching side of the
+book. `geBuyLimit` is reported in each opportunity for transparency, but it is
+not part of the sellable-throughput calculation:
+
+```text
+volume4h       = floor(volume24h / 6)
+sellablePer4h  = min(oneShopVisitUnits, volume4h)
+worldsToFill4h = ceil(volume4h / oneShopVisitUnits)
+```
+
+The 24h volume is the guard against stale, illiquid GE prices. The buy limit is
+still useful context — it tells you how much one buyer can take — but using it
+as a sell cap made high-volume, low-margin items look artificially bad.
 
 ## 10. Inventory space and banking
 
