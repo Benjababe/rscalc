@@ -275,3 +275,97 @@ Stackability is read from the item infobox's `|stackable =` parameter; see
 `docs/data-sources.md` §3.1. A page that does not state it, or whose item
 variants disagree, is stored as `null` and charged as non-stackable — the
 pessimistic direction for gp/hour.
+
+## 11. Multi-item shop baskets
+
+A shop visit is not limited to one item: Lundail's Arena-side Rune Shop sells
+cosmic, air, earth, fire, body and other runes, and one visit can buy from every
+row. The single-item budget planner intentionally charges each item its own world
+hops and bank loads. `src/domain/basket.ts` answers the other question — buy
+every profitable item in the shop during the same visits — by sharing those
+costs across the basket.
+
+### 11.1 Shared world hops
+
+Each world is assumed to be at full default stock for every item, so the shop's
+price curves all restart together. A world is visited if it buys at least one
+unit of anything, and the basket's world count is therefore **not** the sum of
+the per-item world counts:
+
+```text
+worlds = number of visits in which the basket buys at least one unit
+```
+
+The planner fills a world with every affordable profitable unit first. If the
+budget cannot clear a full world, it takes marginal units by profit per coin,
+then hops again while the leftover can still buy a fresh world's first unit (up
+to `maxWorlds`, default 200). The single-item planner does not hop after its
+final partial world; the basket planner does, because a fresh world resets the
+cheapest unit price.
+
+### 11.2 Shared bank loads
+
+The inventory rule in §10 is unchanged, but the load is shared by the basket:
+
+- a distinct **stackable item type** holds one slot for the whole trip;
+- every **non-stackable unit** holds one slot;
+- the coin stack holds one slot, so the base load is 27.
+
+```text
+stackableSlots   = number of distinct stackable item types actually bought
+nonStackableUnits = sum of units whose stackability is not true
+unitsPerLoad     = max(1, 27 - stackableSlots)
+bankTrips        = nonStackableUnits <= unitsPerLoad
+                     ? 0
+                     : ceil(nonStackableUnits / unitsPerLoad) - 1
+```
+
+A stackable-only basket (for example all runes) never banks, so a shop with no
+bank on its map still yields a computable gp/hour. If any non-stackable units
+need a trip and `bankTiles` is `null`, the basket's `gpPerHour` is `null`.
+
+### 11.3 Concurrent GE sell time
+
+Each item has its own 4-hour sellable throughput (`cap`). Its fill time is:
+
+```text
+sellSeconds_i = units_i / cap_i * 4 * 3600
+```
+
+Different items trade in independent order books, so their offers can fill
+concurrently up to the player's Grand Exchange slot count:
+
+- members have **8** offer slots;
+- free players have **3**.
+
+Source: <https://oldschool.runescape.wiki/w/Grand_Exchange> — "Members get eight
+Grand Exchange slots ... free players are limited to three."
+
+The planner sorts fill times longest-first and assigns each to the least-loaded
+slot (LPT scheduling); the makespan is `sellSeconds`. A basket that contains a
+members-only item requires a members account and defaults to 8 slots. An
+all-free-to-play basket defaults to the pessimistic 3 slots. This assumes offers
+can be placed as slots free and ignores the time to walk to the GE and collect.
+
+### 11.4 Budget allocation
+
+The basket first asks whether the remaining gold covers every profitable unit in
+a fresh world. If so, it buys the whole world: there is no allocation choice and
+the result is exact under the per-world model.
+
+If the gold is short, it takes the next marginal unit with the highest profit per
+coin, expanding to the whole block of units that share a price. Each item's
+marginal price rises as its stock falls, so this is the standard greedy for the
+fractional budget knapsack. It is a documented heuristic, not a proof of integer
+knapsack optimality; a deliberately uneven shop could leave a few gp of profit on
+the table. Zero-margin units are never bought.
+
+The basket is exposed in the UI by the **basket** button beside a shop, and in
+the CLI:
+
+```sh
+pnpm report --shop="Lundail's Arena-side Rune Shop" --gold=100000
+```
+
+`tests/basket.test.ts` pins the shared-hop, shared-load, mixed-stackability,
+unknown-bank, GE-slot and allocation behaviour.

@@ -34,12 +34,15 @@ pnpm dev            # web UI at http://localhost:5173
 | `pnpm build:data` | both of the above |
 | `pnpm report` | ranked CLI table |
 | `pnpm report --mode=patient` | price against GE `high` instead of `low` |
+| `pnpm report --shop="<name>" --gold=N` | one shop's multi-item basket |
 | `pnpm report --write` | also emit `data/opportunities.json` for the UI |
 | `pnpm dev` / `pnpm build` | web UI |
-| `pnpm test` / `pnpm typecheck` | 135 tests / `tsc --noEmit` |
+| `pnpm test` / `pnpm typecheck` | 153 tests / `tsc --noEmit` |
 
 `pnpm report` flags: `--mode=pessimistic|patient`, `--limit=N`, `--members`,
 `--min-volume4h=N`, `--min-margin=N`, `--infinite`, `--write`.
+The basket flags are `--shop="<name>"`, `--gold=N`, `--hop=N` (seconds) and
+`--speed=N` (seconds per tile); `--infinite` also applies to a basket.
 
 ## No API keys
 
@@ -99,6 +102,32 @@ Outputs per row: `Buy` (units your gold covers), `Spend`, `Worlds`, `Banks`
 `gp / hour` column still uses your current gold. The gold amount and chosen view
 are saved in the browser's localStorage.
 
+### Shop baskets — one visit, several items
+
+A shop does not sell one item at a time. Lundail's Arena-side Rune Shop sells
+cosmic, air, earth, fire, body and other runes, and one visit can buy them all.
+Click **basket** beside a shop name to plan that visit as a whole:
+
+- **World hops are shared.** The basket needs the number of visits that buy at
+  least one unit, not the sum of each item's own hop count.
+- **Bank loads are shared.** All non-stackable units fill the same 27-slot load,
+  and each distinct stackable item type reserves one slot. A rune-only basket
+  never banks, even in a shop with no bank on its map.
+- **GE sell time is concurrent.** Each item has its own 4-hour fill time, and
+  offers share the Grand Exchange slots (8 for members, 3 for free players).
+- **Gold is allocated by profit per coin.** The basket takes the best marginal
+  unit first; if your gold covers a full world, it buys every profitable unit in
+  it and the result is exact under the model.
+
+The panel shows the combined `Buy`, `Spend`, `Profit`, `Worlds`, `Banks`,
+`gp / hour`, and a per-item breakdown. The main table still ranks items as if you
+bought only that item; the basket is the combined plan. The same view is
+available from the CLI:
+
+```sh
+pnpm report --shop="Lundail's Arena-side Rune Shop" --gold=100000
+```
+
 ## Accuracy — read this before trusting a number
 
 The maths is a direct port of the wiki's own `Module:Shop calculator`, and the
@@ -124,6 +153,22 @@ off-by-one that a naive implementation gets wrong). Beyond that, be aware:
 - **World hops are assumed ideal.** Every visited world is treated as full
   default stock. In practice shops are contested, and the first hop is charged
   even though you may already be standing at the shop.
+- **A basket shares hops and bank loads.** The per-item table's `gp / hour`
+  assumes you buy only that item; the basket panel buys every profitable item in
+  the shop during the same visits, so its `gp / hour` is usually higher. A
+  stackable-only basket can still report a number when the shop has no bank,
+  because it never needs a bank trip.
+- **Basket allocation is greedy.** If your gold cannot clear a full world, the
+  planner takes the affordable marginal unit with the best profit per coin. This
+  is the standard greedy for the fractional budget knapsack, not a proof of
+  integer-knapsack optimality; an unusually uneven shop may leave a few gp of
+  profit on the table. A budget that covers a full world buys every profitable
+  unit, so the greedy is not used in the common case.
+- **GE sell slots are a real constraint.** Sell time schedules each item's 4-hour
+  fill across 8 slots for members and 3 for free players, longest first. More
+  distinct items than slots means later offers wait. This assumes you can place
+  and collect offers without travel time, and it does not model competition
+  filling your offers more slowly.
 - **Bank distances are per shop and per map.** They come from the wiki map as
   straight-line tiles, not a pathfound route, so corners and obstacles add time;
   the default walking speed (0.6s/tile) partly offsets that, and you can raise it.
@@ -145,7 +190,7 @@ off-by-one that a naive implementation gets wrong). Beyond that, be aware:
 
 ```text
 src/api/       HTTP gateway (UA, 1 req/s, TTL cache, backoff) + typed clients
-src/domain/    shopPrice.ts (game maths), tax.ts, profit.ts, budget.ts — pure, no I/O
+src/domain/   shopPrice.ts (game maths), tax.ts, profit.ts, budget.ts, basket.ts — pure, no I/O
 src/engine/    rank.ts — joins catalogue × prices × volume
 src/types.ts   zod schemas for every artifact
 scripts/       refresh-shops, refresh-market, report, smoke

@@ -64,12 +64,14 @@ src/domain/tax.ts      GE tax rules
 src/domain/shopPrice.ts dynamic shop price formula (the game's exact math)
 src/domain/profit.ts   arbitrage planner: marginal buy quantity, margin, gp/4h
 src/domain/budget.ts   gold-budget planner: worlds, banking, gp/hour
+src/domain/basket.ts   multi-item shop planner: shared hops/loads, GE sell slots
 src/domain/bankTrip.ts nearest-bank join + per-shop trip seconds
 src/engine/rank.ts     joins catalog × prices × volume × stackability
 src/types.ts           shared domain types and zod schemas
 scripts/refresh-shops.ts   build data/shops.json (storeline + map + banks)
 scripts/refresh-market.ts  build data/market.json (prices + stackability)
-scripts/report.ts          CLI report; --write emits opportunities.json
+scripts/report.ts          CLI report; --write emits opportunities.json;
+                           --shop prints one shop's multi-item basket
 scripts/smoke.ts           connectivity + schema check
 web/                       Vite + React UI (reads static data only)
 data/                      generated JSON (committed so the UI works offline)
@@ -99,6 +101,8 @@ pnpm shops          # data/shops.json (cold cache: ~35s incl. map + banks)
 pnpm market         # data/market.json (cold cache: ~30s incl. stackability)
 pnpm build:data     # both
 pnpm report --write # data/opportunities.json (both modes)
+pnpm report --shop="Lundail's Arena-side Rune Shop" --gold=100000
+                    # one shop's multi-item basket
 pnpm build          # UI bundle
 ```
 
@@ -165,6 +169,26 @@ Banking time is per shop, not a global setting.
 - UI: per-shop seconds in the Banks cell, a travel-speed input, and `—` for shops
   with no known bank.
 **Accept:** no global bank-time input; unknown distances never produce a number.
+
+### M8 — Multi-item shop baskets ✅
+A shop visit can buy every profitable item on that shop's stock table, so hops
+and bank loads are shared rather than charged once per item.
+- `src/domain/basket.ts` allocates a gold budget across a shop's items. World
+  hops are the number of visits with any purchase, not the sum of per-item hop
+  counts. A fresh world resets every item's price curve.
+- Bank loads are shared: 27 non-stackable units per load, each distinct
+  stackable item type reserves one slot, and stackable-only baskets never bank.
+  If banking is needed and `bankTiles` is `null`, `gpPerHour` is `null`.
+- Sell time schedules each item's 4h fill across the GE offer slots: 8 for
+  members, 3 for free players. Offers for different items run concurrently up to
+  that limit.
+- Allocation takes the next marginal unit with the best profit per coin. A budget
+  that covers a full world buys every profitable unit, so the heuristic is not
+  used in the common case. Zero-margin units are never bought.
+- UI: a **basket** button beside each shop opens the combined plan. CLI:
+  `pnpm report --shop="<name>" --gold=N`.
+**Accept:** tests pin shared hops, shared/mixed bank loads, unknown bank → `null`
+only when a trip is needed, GE slot batching, caps, and the allocation rule.
 
 ## Engineering conventions
 

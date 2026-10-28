@@ -5,8 +5,10 @@ import {
   planWithBudget,
   type BudgetPlan,
 } from "../../src/domain/budget";
-import type { ShopRow } from "../../src/domain/shopPrice";
 import { wikiUrl } from "../../src/util/wiki";
+import { compact, formatGp, formatTime } from "./format";
+import { sellableAcrossWorlds, toShopRow } from "./opportunity";
+import { ShopBasketPanel } from "./ShopBasket";
 import {
   BUDGET_STORAGE_KEY,
   parseBudgetState,
@@ -70,34 +72,12 @@ function readStoredBudget(): BudgetState {
   }
 }
 
-/** Rebuild the shop price curve from the payload's pricing parameters. */
-function toShopRow(opp: Opportunity): ShopRow {
-  return {
-    itemValue: opp.itemValue,
-    sellMultiplier: opp.sellMultiplier,
-    buyMultiplier: opp.buyMultiplier,
-    delta: opp.delta,
-    baseStock: opp.baseStock ?? 0,
-    infiniteStock: opp.infiniteStock,
-  };
-}
-
-/**
- * Units the GE can absorb in a 4h window, no matter how many shops you visit.
- *
- * `sellablePer4h` is additionally capped by one shop visit's stock, so using it
- * as the budget cap would make world-hopping pointless. The cross-world bound is
- * the GE buy limit and the 24h volume slice the engine already computed.
- */
-function sellableAcrossWorlds(opp: Opportunity): number {
-  return Math.min(opp.geBuyLimit ?? Number.POSITIVE_INFINITY, opp.volume4h);
-}
-
 export function App(): JSX.Element {
   const [mode, setMode] = useState<SellMode>("pessimistic");
   const [query, setQuery] = useState("");
   const [membersOnly, setMembersOnly] = useState(false);
   const [minVolume, setMinVolume] = useState(0);
+  const [selectedShop, setSelectedShop] = useState<string | null>(null);
   const [initialBudget] = useState<BudgetState>(readStoredBudget);
   const [gold, setGold] = useState(initialBudget.gold);
   const [view, setView] = useState<BudgetView>(initialBudget.view);
@@ -453,6 +433,18 @@ export function App(): JSX.Element {
         )}
       </section>
 
+      {selectedShop !== null && (
+        <ShopBasketPanel
+          shopPage={selectedShop}
+          opportunities={ranking.opportunities}
+          mode={mode}
+          gold={gold}
+          hopSeconds={hopSeconds}
+          secondsPerTile={secondsPerTile}
+          onClose={() => setSelectedShop(null)}
+        />
+      )}
+
       <div className="tablewrap">
         <table>
           <thead>
@@ -569,6 +561,7 @@ export function App(): JSX.Element {
                 row={row}
                 rank={index + 1}
                 budgetMode={budgetMode}
+                onSelectShop={setSelectedShop}
               />
             ))}
           </tbody>
@@ -600,6 +593,9 @@ export function App(): JSX.Element {
             for a shop, gp / hour is shown as <strong>—</strong> rather than
             assuming a trip. <strong>gp / hour</strong> = profit ÷ max(world
             hops + bank trips, GE sell time) and excludes travel to the shop.
+            Clicking <strong>basket</strong> beside a shop buys every profitable
+            item there together: those world hops and bank loads are shared, so
+            the basket's gp / hour is usually higher than any single row's.
           </p>
         ) : (
           <p>
@@ -610,7 +606,9 @@ export function App(): JSX.Element {
             by the GE buy limit and 24h traded volume.{" "}
             <strong>gp / hour</strong> uses your current gold available and the
             same per-shop bank time as budget mode; it shows <strong>—</strong>{" "}
-            when gold is 0 or the bank distance is unknown.
+            when gold is 0 or the bank distance is unknown. Clicking{" "}
+            <strong>basket</strong> beside a shop buys every profitable item there
+            together, sharing world hops and bank loads.
           </p>
         )}
         <p>
@@ -657,10 +655,12 @@ function Row({
   row,
   rank,
   budgetMode,
+  onSelectShop,
 }: {
   row: RowData;
   rank: number;
   budgetMode: boolean;
+  onSelectShop: (shopPage: string) => void;
 }): JSX.Element {
   const plan = row.plan;
   return (
@@ -686,6 +686,15 @@ function Row({
         >
           {row.shopName}
         </a>
+        <button
+          type="button"
+          className="shop-basket"
+          onClick={() => onSelectShop(row.shopPage)}
+          aria-label={`Open the multi-item basket for ${row.shopName}`}
+          title="Buy every profitable item from this shop in the same visits"
+        >
+          basket
+        </button>
       </td>
       <td className="loc">{row.location ?? "—"}</td>
       <td className="right mono">
@@ -793,22 +802,4 @@ function Stat(props: {
       <strong>{props.value}</strong>
     </div>
   );
-}
-
-/**
- * `shopPage` is the wiki page title verbatim (e.g. `Bob's Brilliant Axes.`,
- * trailing full stop included, because that IS the page name).
- */
-function formatGp(value: number): string {
-  return value.toLocaleString("en-US");
-}
-
-function compact(value: number): string {
-  if (value >= 1_000_000) return `${value / 1_000_000}m`;
-  if (value >= 1_000) return `${value / 1_000}k`;
-  return String(value);
-}
-
-function formatTime(iso: string): string {
-  return iso.replace("T", " ").slice(0, 19);
 }

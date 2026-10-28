@@ -32,7 +32,7 @@ import { planPurchase, shopUnitBuyPrice, type ShopRow } from './shopPrice.js';
 /** Default time to hop to a new world and get back to the shop. */
 export const DEFAULT_HOP_SECONDS = 10;
 /** Sensible ceiling so a huge budget can't imply thousands of hops. */
-const DEFAULT_MAX_WORLDS = 200;
+export const DEFAULT_MAX_WORLDS = 200;
 
 /**
  * Backpack capacity in slots. "A player's backpack inventory can hold up to 28
