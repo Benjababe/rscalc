@@ -727,7 +727,18 @@ function Row({
             )}
             {(plan?.bankTrips ?? 0) > 0 && (
               <span className="bank-loc">
-                {row.nearestBank ?? "Unknown bank"}
+                {row.nearestBank !== null ? (
+                  <a
+                    className="wiki-link"
+                    href={wikiUrl(row.nearestBank)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {row.nearestBank}
+                  </a>
+                ) : (
+                  "Unknown bank"
+                )}
               </span>
             )}
           </td>

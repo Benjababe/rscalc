@@ -240,6 +240,7 @@ tbody tr:hover {
   white-space: nowrap;
   font-size: 10px;
   color: var(--dim);
+  text-transform: capitalize;
 }
 
 .pos {
