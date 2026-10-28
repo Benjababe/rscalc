@@ -458,12 +458,19 @@ function Row({
     <tr>
       <td className="num-col">{rank}</td>
       <td className="item">
-        <span className="name">{row.itemName}</span>
+        <a
+          className="name wiki-link"
+          href={wikiUrl(row.itemName)}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {row.itemName}
+        </a>
         {row.members && <span className="badge">P2P</span>}
       </td>
       <td className="shop" title={row.shopPage}>
         <a
-          className="shop-link"
+          className="wiki-link"
           href={wikiUrl(row.shopPage)}
           target="_blank"
           rel="noopener noreferrer"

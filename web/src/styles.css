@@ -6,6 +6,8 @@
   --text: #e6e8ec;
   --dim: #98a0ae;
   --accent: #ffd24a;
+  --link: #ffffff;
+  --link-hover: #ffd24a;
   --pos: #5ddb8b;
   --neg: #ff6b6b;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -260,19 +262,20 @@ tbody tr:hover {
   color: #cfd4dc;
 }
 
-.shop-link {
-  color: inherit;
+.wiki-link {
+  color: var(--link);
+  font-weight: 700;
   text-decoration: none;
-  border-bottom: 1px dotted #3d4451;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.55);
 }
 
-.shop-link:hover {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
+.wiki-link:hover {
+  color: var(--link-hover);
+  border-bottom-color: var(--link-hover);
 }
 
-.shop-link:focus-visible {
-  outline: 2px solid var(--accent);
+.wiki-link:focus-visible {
+  outline: 2px solid var(--link);
   outline-offset: 2px;
   border-radius: 2px;
 }
