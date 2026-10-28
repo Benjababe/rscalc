@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import type { Opportunity, Ranking, SellMode } from "../../src/types";
 import { planWithBudget, type BudgetPlan } from "../../src/domain/budget";
 import type { ShopRow } from "../../src/domain/shopPrice";
+import { wikiUrl } from "../../src/util/wiki";
 
 import payload from "../../data/opportunities.json";
 
@@ -389,7 +390,14 @@ function Row({
         {row.members && <span className="badge">P2P</span>}
       </td>
       <td className="shop" title={row.shopPage}>
-        {row.shopName}
+        <a
+          className="shop-link"
+          href={wikiUrl(row.shopPage)}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {row.shopName}
+        </a>
         {row.soldBy !== null && <span className="vendor"> · {row.soldBy}</span>}
       </td>
       <td className="loc">{row.location ?? "—"}</td>
@@ -443,6 +451,10 @@ function Stat(props: { label: string; value: string; accent?: boolean }): JSX.El
   );
 }
 
+/**
+ * `shopPage` is the wiki page title verbatim (e.g. `Bob's Brilliant Axes.`,
+ * trailing full stop included, because that IS the page name).
+ */
 function formatGp(value: number): string {
   return value.toLocaleString("en-US");
 }
