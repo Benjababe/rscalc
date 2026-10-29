@@ -315,50 +315,56 @@ export function GeToShopPage(): JSX.Element {
         <div className="budget-inputs">
           <label className="toggle">
             <span className="label">Gold available</span>
-            <input
-              className="num wide"
-              type="number"
-              min={0}
-              step={100_000}
-              value={gold}
-              onChange={(event) =>
-                setGold(Math.max(0, Number(event.target.value) || 0))
-              }
-              aria-label="Gold available"
-            />
-            gp
+            <span className="field-control">
+              <input
+                className="num wide"
+                type="number"
+                min={0}
+                step={100_000}
+                value={gold}
+                onChange={(event) =>
+                  setGold(Math.max(0, Number(event.target.value) || 0))
+                }
+                aria-label="Gold available"
+              />
+              <span className="field-unit">gp</span>
+            </span>
           </label>
 
           <label className="toggle">
             <span className="label">World hop</span>
-            <input
-              className="num"
-              type="number"
-              min={0}
-              step={1}
-              value={hopSeconds}
-              onChange={(event) =>
-                setHopSeconds(Math.max(0, Number(event.target.value) || 0))
-              }
-              aria-label="World hop time in seconds"
-            />
-            s
+            <span className="field-control">
+              <input
+                className="num"
+                type="number"
+                min={0}
+                step={1}
+                value={hopSeconds}
+                onChange={(event) =>
+                  setHopSeconds(Math.max(0, Number(event.target.value) || 0))
+                }
+                aria-label="World hop time in seconds"
+              />
+              <span className="field-unit">s</span>
+            </span>
           </label>
 
           <label className="toggle">
             <span className="label">Travel speed</span>
-            <input
-              className="num"
-              type="number"
-              min={0}
-              step={0.05}
-              value={secondsPerTile}
-              onChange={(event) =>
-                setSecondsPerTile(Math.max(0, Number(event.target.value) || 0))
-              }
-              aria-label="Seconds per game tile"
-            />
-            s / tile
+            <span className="field-control">
+              <input
+                className="num"
+                type="number"
+                min={0}
+                step={0.05}
+                value={secondsPerTile}
+                onChange={(event) =>
+                  setSecondsPerTile(Math.max(0, Number(event.target.value) || 0))
+                }
+                aria-label="Seconds per game tile"
+              />
+              <span className="field-unit">s / tile</span>
+            </span>
           </label>
 
           <div className="presets">
