@@ -106,6 +106,7 @@ body {
   display: block;
   margin-top: 2px;
   font-size: 10px;
+  font-weight: 400;
   color: var(--dim);
   white-space: nowrap;
 }

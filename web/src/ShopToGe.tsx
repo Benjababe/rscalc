@@ -564,7 +564,7 @@ export function ShopToGePage(): JSX.Element {
                     onClick={() => toggleSort("units")}
                     active={sortKey === "units"}
                     desc={descending}
-                    title="Units your gold covers across world hops"
+                    title="Total units your gold covers; the smaller line is one full-stock world's quantity"
                     right
                   />
                   <Th
@@ -816,6 +816,9 @@ function Row({
         <>
           <td className="right mono strong">
             {plan?.units.toLocaleString() ?? 0}
+            <span className="cell-note">
+              {formatGp(plan?.unitsPerWorld ?? 0)}/world
+            </span>
           </td>
           <td className="right mono">
             {formatGp(Math.round(plan?.totalCost ?? 0))}
