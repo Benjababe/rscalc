@@ -74,6 +74,7 @@ src/domain/profit.ts   arbitrage planner: marginal buy quantity, margin, gp/4h
 src/domain/budget.ts   gold-budget planner: worlds, banking, gp/hour
 src/domain/basket.ts   multi-item shop planner: shared hops/loads, GE sell slots
 src/domain/bankTrip.ts nearest-bank join + per-shop trip seconds (shared with the GE trip)
+src/domain/shopAccess.ts  curated access rules -> per-shop access entries; lookup helpers
 src/engine/rank.ts     joins catalog × prices × volume × stackability
 src/engine/sinkRank.ts joins for GE -> shop; buy limit as a purchase cap,
                        general-store exclusion, published buy prices only
@@ -83,6 +84,8 @@ scripts/refresh-market.ts  build data/market.json (prices + stackability)
 scripts/report.ts          CLI report; --write emits opportunities.json;
                            --shop prints one shop's multi-item basket
 scripts/refresh-sinks.ts   GE -> shop ranking; --write emits shop-sinks.json
+scripts/refresh-access.ts  apply scripts/shopAccessRules.ts; emits shop-access.json
+scripts/shopAccessRules.ts curated, cited shop access rules and exceptions
 scripts/smoke.ts           connectivity + schema check
 web/                       Vite + React UI (reads static data only)
 data/                      generated JSON (committed so the UI works offline)
@@ -99,6 +102,7 @@ data/market.json         GE quotes for the 1,239 items the catalogue references;
                          includes stackable
 data/opportunities.json  both sell modes, full lists, consumed by the UI
 data/shop-sinks.json     GE -> shop flips for both buy modes, consumed by the UI
+data/shop-access.json    per-shop known access requirements (177 pages), cited
 ```
 
 Coverage at the last refresh: 526/593 shops have a bank distance (5 have no map
@@ -113,8 +117,9 @@ pnpm typecheck      # tsc --noEmit
 pnpm test           # vitest, no live network
 pnpm shops          # data/shops.json (cold cache: ~35s incl. map + banks)
 pnpm market         # data/market.json (cold cache: ~30s incl. stackability)
-pnpm build:data     # both
-pnpm refresh        # shops + market + both UI rankings
+pnpm access         # data/shop-access.json (offline; curated rules)
+pnpm build:data     # shops + market
+pnpm refresh        # shops + access + market + both UI rankings
 pnpm report --write # data/opportunities.json (both modes)
 pnpm report --shop="Lundail's Arena-side Rune Shop" --gold=100000
                     # one shop's multi-item basket
@@ -255,6 +260,24 @@ the single GE trip are shared rather than charged once per item.
 **Accept:** tests pin shared worlds, shared gold allocation, one GE trip, GE
 buy makespan, caps, unknown-distance `null`, and per-item ordering.
 
+### M11 — Shop access requirements ✅
+Flags shops with a known quest/skill/item/area prerequisite and offers a
+**Hide locked** filter on both pages. No structured wiki field exists, so the
+table is curated and every entry cites a wiki page.
+- `scripts/shopAccessRules.ts` holds area rules and per-shop overrides;
+  `pnpm access` applies them to the catalogue and writes
+  `data/shop-access.json` offline. Exclusions cover the Master fisher, Shield
+  master and Blast Furnace shops; overrides cover Culinaromancer's Chest, Eblis,
+  Oobapohk and the Zanaris market.
+- Absence from the artifact means **unknown**, not accessible. The UI badge links
+  to the source; the filter hides only known-locked shops. It is not an account
+  check (quests/skills are not evaluated).
+- Both pages and their basket panels show the note; `docs/shop-access.md`
+  documents the source policy and how to add an entry.
+**Accept:** tests pin rule matching, exclusions, overrides, deduplication,
+artifact/schema validity against the catalogue, and the unknown-is-not-accessible
+rule.
+
 ## Engineering conventions
 
 - Validate every external JSON shape with zod. Never `as`. Never `any`.
@@ -264,6 +287,8 @@ buy makespan, caps, unknown-distance `null`, and per-item ordering.
   storing. Do not store tags, entities or wiki markup.
 - Domain functions are pure so they're trivially testable. `src/domain/` performs
   no I/O and no network access.
+- Shop access is a curated, cited table, never inferred from names or absence.
+  Unknown stays absent (not "accessible"); every entry carries a wiki URL.
 - Every game-mechanic claim carries a URL citation, in code or in `docs/`.
 - Every price value is tagged with the timestamp it came from.
 - Prices are `number` (gp). Max is well under `Number.MAX_SAFE_INTEGER`.

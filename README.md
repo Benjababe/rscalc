@@ -28,7 +28,7 @@ GE -> SHOP
 
 ```sh
 pnpm install
-pnpm refresh        # catalogue + GE prices + both UI rankings
+pnpm refresh        # catalogue + access + GE prices + both UI rankings
 pnpm report         # ranked table in the terminal
 pnpm dev            # web UI at http://localhost:5173
 ```
@@ -40,8 +40,9 @@ pnpm dev            # web UI at http://localhost:5173
 | `pnpm smoke` | connectivity + schema check against the prices API |
 | `pnpm shops` | rebuild `data/shops.json` (24h cache) |
 | `pnpm market` | rebuild `data/market.json` |
-| `pnpm build:data` | both of the above |
-| `pnpm refresh` | all data: catalogue + market + both UI rankings |
+| `pnpm access` | rebuild `data/shop-access.json` from the curated rules |
+| `pnpm build:data` | shops + market |
+| `pnpm refresh` | all data: catalogue + access + market + both UI rankings |
 | `pnpm report` | ranked CLI table |
 | `pnpm report --mode=patient` | price against GE `high` instead of `low` |
 | `pnpm report --shop="<name>" --gold=N` | one shop's multi-item basket |
@@ -49,7 +50,7 @@ pnpm dev            # web UI at http://localhost:5173
 | `pnpm sinks` | GE → shop ranking in the terminal |
 | `pnpm sinks --write` | emit `data/shop-sinks.json` for the UI |
 | `pnpm dev` / `pnpm build` | web UI |
-| `pnpm test` / `pnpm typecheck` | 227 tests / `tsc --noEmit` |
+| `pnpm test` / `pnpm typecheck` | 238 tests / `tsc --noEmit` |
 
 `pnpm report` flags: `--mode=pessimistic|patient`, `--limit=N`, `--members`,
 `--min-volume4h=N`, `--min-margin=N`, `--infinite`, `--write`.
@@ -59,8 +60,8 @@ The basket flags are `--shop="<name>"`, `--gold=N`, `--hop=N` (seconds) and
 `pnpm sinks` flags: `--mode=pessimistic|patient`, `--limit=N`, `--members`,
 `--min-profit=N`, `--min-volume4h=N`, `--speed=N`, `--infinite`,
 `--include-general-stores`, `--write`. It reads the two data artifacts and makes
-no network calls. To refresh everything — catalogue, market and both UI
-rankings — in one go:
+no network calls. To refresh everything — catalogue, access table, market and
+both UI rankings — in one go:
 
 ```sh
 pnpm refresh
@@ -189,6 +190,16 @@ per-item table shows each batch, average shop price, spend and profit; GE buy
 offers are scheduled across the 8 member / 3 free offer slots. The basket is
 the combined plan, while the main table still ranks items one at a time.
 
+### Shop access
+
+A **locked** badge beside a shop means the wiki-backed access table lists a
+requirement; hover or open the badge for the requirement and its source.
+**Hide locked** removes those shops from both the Shop → GE and GE → shop
+tables. A shop with no badge has **unknown** access, not guaranteed access, and
+the filter is not a check of your account's quests or levels. The table is
+curated and cited in [docs/shop-access.md](docs/shop-access.md); regenerate it
+with `pnpm access`.
+
 What this page deliberately does **not** claim:
 
 - **General stores are excluded.** They buy almost anything, but the wiki's
@@ -286,6 +297,12 @@ off-by-one that a naive implementation gets wrong). Beyond that, be aware:
   assumed to fill concurrently across the offer slots, with no competition or
   collection travel. Per-item rows can show 0 units when the budget goes
   elsewhere.
+- **Shop access is curated, not exhaustive.** A **locked** badge means the
+  wiki-backed access table lists a requirement; the source is linked. **Hide
+  locked** removes only those shops. A shop without a badge has unknown access,
+  not guaranteed access. Requirements are informational and are not evaluated
+  against your account's quests or skill levels. See
+  [docs/shop-access.md](docs/shop-access.md).
 - **Travel to the shop is not modelled** on the shop → GE page, only hop time,
   bank trips and GE sell time.
 - **Illiquid items show stale GE prices.** If something trades twice a day, its
@@ -298,14 +315,15 @@ off-by-one that a naive implementation gets wrong). Beyond that, be aware:
 
 ```text
 src/api/       HTTP gateway (UA, 1 req/s, TTL cache, backoff) + typed clients
-src/domain/   shopPrice.ts (game maths), shopSink.ts (GE -> shop), tax.ts, profit.ts,
-              budget.ts, basket.ts, bankTrip.ts — pure, no I/O
+src/domain/   shopPrice.ts (game maths), shopSink.ts (GE -> shop), shopAccess.ts,
+              tax.ts, profit.ts, budget.ts, basket.ts, bankTrip.ts — pure, no I/O
 src/engine/    rank.ts (shop -> GE), sinkRank.ts (GE -> shop) — join catalogue × prices
 src/types.ts   zod schemas for every artifact
-scripts/       refresh-shops, refresh-market, report, refresh-sinks, smoke
+scripts/       refresh-shops, refresh-market, refresh-access, report,
+              refresh-sinks, smoke
 web/           Vite + React: shop -> GE and GE -> shop pages
 data/          generated JSON (committed so the UI builds offline)
-docs/          shop-mechanics.md, data-sources.md, tooling-notes.md
+docs/          shop-mechanics.md, data-sources.md, shop-access.md, tooling-notes.md
 ```
 
 `docs/shop-mechanics.md` documents every formula with citations, including the

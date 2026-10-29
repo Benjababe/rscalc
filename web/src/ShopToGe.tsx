@@ -6,6 +6,8 @@ import {
   type BudgetPlan,
 } from "../../src/domain/budget";
 import { wikiUrl } from "../../src/util/wiki";
+import { AccessBadge } from "./AccessBadge";
+import { accessFor } from "./access";
 import { compact, formatGp, formatTime } from "./format";
 import { sellableAcrossWorlds, toShopRow } from "./opportunity";
 import { ShopBasketPanel } from "./ShopBasket";
@@ -68,6 +70,7 @@ export function ShopToGePage(): JSX.Element {
   const [mode, setMode] = useState<SellMode>("pessimistic");
   const [query, setQuery] = useState("");
   const [membersOnly, setMembersOnly] = useState(false);
+  const [hideLocked, setHideLocked] = useState(false);
   const [minVolume, setMinVolume] = useState(0);
   const [selectedShop, setSelectedShop] = useState<string | null>(null);
   const [initialBudget] = useState<BudgetState>(() =>
@@ -94,6 +97,7 @@ export function ShopToGePage(): JSX.Element {
 
     const filtered = ranking.opportunities.filter((opp) => {
       if (membersOnly && !opp.members) return false;
+      if (hideLocked && accessFor(opp.shopPage) !== undefined) return false;
       if (opp.sellablePer4h < minVolume) return false;
       if (needle === "") return true;
       return (
@@ -172,6 +176,7 @@ export function ShopToGePage(): JSX.Element {
     ranking,
     query,
     membersOnly,
+    hideLocked,
     minVolume,
     budgetMode,
     gold,
@@ -254,6 +259,18 @@ export function ShopToGePage(): JSX.Element {
             onChange={(event) => setMembersOnly(event.target.checked)}
           />
           Members only
+        </label>
+
+        <label
+          className="toggle"
+          title="Hide shops with a known access requirement from the curated, wiki-sourced access table"
+        >
+          <input
+            type="checkbox"
+            checked={hideLocked}
+            onChange={(event) => setHideLocked(event.target.checked)}
+          />
+          Hide locked
         </label>
 
         <label
@@ -662,6 +679,14 @@ export function ShopToGePage(): JSX.Element {
             seconds-per-tile value to allow for that. Your gold amount and the
             budget/shop view are saved in this browser.
           </p>
+          <p>
+            A <strong>locked</strong> badge marks a shop with a known access
+            requirement from a curated, wiki-sourced table. Hover or open the
+            badge for the requirement and its source. <strong>Hide locked</strong>{" "}
+            removes only known-locked shops; a shop with no badge has unknown
+            access, not guaranteed access. This is not a check of your account's
+            quests or levels.
+          </p>
         </details>
       </footer>
     </div>
@@ -736,6 +761,7 @@ function Row({
         >
           basket
         </button>
+        <AccessBadge shopPage={row.shopPage} />
       </td>
       <td className="loc loc-col">{row.location ?? "—"}</td>
       <td className="right mono">

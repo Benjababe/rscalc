@@ -6,6 +6,7 @@ import {
 } from "../../src/domain/sinkBasket";
 import type { ShopSinkOpportunity } from "../../src/types";
 import { wikiUrl } from "../../src/util/wiki";
+import { accessFor } from "./access";
 import { formatDuration, formatGp } from "./format";
 import { toSinkShopRow } from "./opportunity";
 
@@ -36,6 +37,7 @@ export function SinkBasketPanel({
   onClose,
 }: SinkBasketPanelProps): JSX.Element {
   const panelRef = useRef<HTMLElement>(null);
+  const access = accessFor(shopPage);
 
   useEffect(() => {
     panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -122,6 +124,21 @@ export function SinkBasketPanel({
           ×
         </button>
       </div>
+
+      {access !== undefined && (
+        <p className="basket-note">
+          <span className="flag warn">locked</span> Access:{" "}
+          <strong>{access.requirement}</strong> ·{" "}
+          <a
+            className="wiki-link"
+            href={access.source}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            wiki source
+          </a>
+        </p>
+      )}
 
       {gold <= 0 ? (
         <p className="basket-hint">

@@ -556,6 +556,26 @@ thead th[title] {
   border-color: var(--accent);
 }
 
+.access-badge {
+  margin-left: 6px;
+  background: #2f2612;
+  border: 1px solid #5a4a12;
+  color: var(--accent);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.access-badge:hover {
+  border-color: var(--accent);
+  background: #3a2f16;
+}
+
 .basket-panel {
   background: var(--panel);
   border: 1px solid var(--line);

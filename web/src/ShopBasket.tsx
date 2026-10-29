@@ -6,6 +6,7 @@ import {
 } from "../../src/domain/basket";
 import type { Opportunity, SellMode } from "../../src/types";
 import { wikiUrl } from "../../src/util/wiki";
+import { accessFor } from "./access";
 import { formatDuration, formatGp } from "./format";
 import { sellableAcrossWorlds, toShopRow } from "./opportunity";
 
@@ -38,6 +39,7 @@ export function ShopBasketPanel({
   onClose,
 }: ShopBasketPanelProps): JSX.Element {
   const panelRef = useRef<HTMLElement>(null);
+  const access = accessFor(shopPage);
 
   useEffect(() => {
     panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -129,6 +131,21 @@ export function ShopBasketPanel({
           ×
         </button>
       </div>
+
+      {access !== undefined && (
+        <p className="basket-note">
+          <span className="flag warn">locked</span> Access:{" "}
+          <strong>{access.requirement}</strong> ·{" "}
+          <a
+            className="wiki-link"
+            href={access.source}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            wiki source
+          </a>
+        </p>
+      )}
 
       {gold <= 0 ? (
         <p className="basket-hint">

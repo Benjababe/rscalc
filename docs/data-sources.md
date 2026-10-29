@@ -119,6 +119,18 @@ stored once as `gePoint`, and each shop gets its own `geTiles` from the same
 `null`, which is why the GE → shop page shows `—` for their gp/hour. See
 `docs/shop-mechanics.md` §10.1 and §12.5.
 
+### 3.3 Shop access requirements
+
+The wiki has no single structured access field: `Template:Infobox Shop` has no
+requirement parameter, `Template:Infobox Location` carries `|requirement =` for
+some areas (Fishing Guild, Legends' Guild) but not others (Keldagrim, Zanaris,
+Ape Atoll), and the storeline `store_notes` column only hints at post-quest stock
+variants. The access table is therefore **curated**, not scraped: rules live in
+`scripts/shopAccessRules.ts` and every rule cites the wiki page that states the
+requirement. `pnpm access` applies them to `data/shops.json` and writes
+`data/shop-access.json` offline. A shop absent from the artifact has unknown
+access, not guaranteed access. See [shop-access.md](shop-access.md).
+
 ## 4. Deliberately not used
 
 - **GE Tracker API** — paid subscription + partner approval. Not needed.

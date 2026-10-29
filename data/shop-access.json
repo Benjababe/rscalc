@@ -1,0 +1,1068 @@
+{
+  "generatedAt": "2026-10-29T11:38:01.314Z",
+  "source": "Curated from OSRS Wiki shop and location pages; see docs/shop-access.md",
+  "entries": [
+    {
+      "shopPage": "Aaron's Archery Appendages.",
+      "requirement": "40 Ranged (boostable)",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Ranging_Guild"
+    },
+    {
+      "shopPage": "Agmundi Quality Clothes",
+      "requirement": "The Giant Dwarf (started)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Keldagrim"
+    },
+    {
+      "shopPage": "Ajjat",
+      "requirement": "130 combined Attack+Strength, or 99 in either",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Warriors%27_Guild"
+    },
+    {
+      "shopPage": "Alan (Farming Guild)",
+      "requirement": "45 Farming (65/85 for the higher tiers)",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Farming_Guild"
+    },
+    {
+      "shopPage": "Alexandra",
+      "requirement": "45 Farming (65/85 for the higher tiers)",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Farming_Guild"
+    },
+    {
+      "shopPage": "Allanna's Farming Shop",
+      "requirement": "45 Farming (65/85 for the higher tiers)",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Farming_Guild"
+    },
+    {
+      "shopPage": "Alwyn",
+      "requirement": "Song of the Elves (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Prifddinas"
+    },
+    {
+      "shopPage": "Amelia's Seed Shop",
+      "requirement": "45 Farming (65/85 for the higher tiers)",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Farming_Guild"
+    },
+    {
+      "shopPage": "Amlodd's Magical Supplies",
+      "requirement": "Song of the Elves (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Prifddinas"
+    },
+    {
+      "shopPage": "Aneirin's Armour",
+      "requirement": "Song of the Elves (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Prifddinas"
+    },
+    {
+      "shopPage": "Anwen",
+      "requirement": "Song of the Elves (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Prifddinas"
+    },
+    {
+      "shopPage": "Armour Shop (Jatizso)",
+      "requirement": "The Fremennik Trials",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Jatizso"
+    },
+    {
+      "shopPage": "Arnold's Eclectic Supplies.",
+      "requirement": "Swan Song (partially completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Piscatoris_Fishing_Colony"
+    },
+    {
+      "shopPage": "Aurel",
+      "requirement": "In Aid of the Myreque (started)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Burgh_de_Rott"
+    },
+    {
+      "shopPage": "Aurel's Supplies",
+      "requirement": "In Aid of the Myreque (started)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Burgh_de_Rott"
+    },
+    {
+      "shopPage": "Authentic Throwing Weapons.",
+      "requirement": "40 Ranged (boostable)",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Ranging_Guild"
+    },
+    {
+      "shopPage": "Baba Yaga's Magic Shop.",
+      "requirement": "Lunar Diplomacy (progressed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Lunar_Isle"
+    },
+    {
+      "shopPage": "Barmaid",
+      "requirement": "The Giant Dwarf (started)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Keldagrim"
+    },
+    {
+      "shopPage": "Blades by Urbi.",
+      "requirement": "Icthlarin's Little Helper (partially progressed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Sophanem"
+    },
+    {
+      "shopPage": "Blandebir",
+      "requirement": "The Giant Dwarf (started)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Keldagrim"
+    },
+    {
+      "shopPage": "Branwen's Farming Shop",
+      "requirement": "Song of the Elves (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Prifddinas"
+    },
+    {
+      "shopPage": "Carefree Crafting Stall",
+      "requirement": "The Giant Dwarf (started)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Keldagrim"
+    },
+    {
+      "shopPage": "Cart conductor",
+      "requirement": "The Giant Dwarf (started)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Keldagrim"
+    },
+    {
+      "shopPage": "Contraband yak produce.",
+      "requirement": "The Fremennik Trials",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Jatizso"
+    },
+    {
+      "shopPage": "Crossbow Shop (Keldagrim)",
+      "requirement": "The Giant Dwarf (started)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Keldagrim"
+    },
+    {
+      "shopPage": "Culinaromancer's Chest",
+      "requirement": "Recipe for Disaster (subquest progress unlocks stock)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Culinaromancer%27s_Chest"
+    },
+    {
+      "shopPage": "Daga's Scimitar Smithy",
+      "requirement": "Monkey Madness I (partially completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Ape_Atoll"
+    },
+    {
+      "shopPage": "Dal's General Ogre Supplies",
+      "requirement": "Watchtower (progressed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Gu%27Tanoth"
+    },
+    {
+      "shopPage": "Dargaud's Bow and Arrows.",
+      "requirement": "40 Ranged (boostable)",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Ranging_Guild"
+    },
+    {
+      "shopPage": "Darkmeyer General Store",
+      "requirement": "Sins of the Father (partial; full access needs completion)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Darkmeyer"
+    },
+    {
+      "shopPage": "Darkmeyer Lantern Shop",
+      "requirement": "Sins of the Father (partial; full access needs completion)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Darkmeyer"
+    },
+    {
+      "shopPage": "Darkmeyer Meat Shop",
+      "requirement": "Sins of the Father (partial; full access needs completion)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Darkmeyer"
+    },
+    {
+      "shopPage": "Darkmeyer Seamstress",
+      "requirement": "Sins of the Father (partial; full access needs completion)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Darkmeyer"
+    },
+    {
+      "shopPage": "Dodgy Mike's Second Hand Clothing.",
+      "requirement": "Cabin Fever (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Mos_Le%27Harmless"
+    },
+    {
+      "shopPage": "Dorgesh-Kaan General Supplies",
+      "requirement": "Death to the Dorgeshuun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Dorgesh-Kaan"
+    },
+    {
+      "shopPage": "Dreven",
+      "requirement": "32 Quest Points",
+      "kind": "other",
+      "source": "https://oldschool.runescape.wiki/w/Champions%27_Guild"
+    },
+    {
+      "shopPage": "Duradel",
+      "requirement": "Shilo Village (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Shilo_Village"
+    },
+    {
+      "shopPage": "Durgok",
+      "requirement": "Death to the Dorgeshuun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Dorgesh-Kaan"
+    },
+    {
+      "shopPage": "Eblis",
+      "requirement": "Desert Treasure I (completed; his shop exists afterwards)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Eblis"
+    },
+    {
+      "shopPage": "Elgan's Exceptional Staffs!",
+      "requirement": "Song of the Elves (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Prifddinas"
+    },
+    {
+      "shopPage": "Etceteria Fish",
+      "requirement": "The Fremennik Trials",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Etceteria"
+    },
+    {
+      "shopPage": "Fairy Fixit's Fairy Enchantment",
+      "requirement": "Lost City (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Zanaris"
+    },
+    {
+      "shopPage": "Fernahei's Fishing Hut.",
+      "requirement": "Shilo Village (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Shilo_Village"
+    },
+    {
+      "shopPage": "Fishing Guild Shop.",
+      "requirement": "68 Fishing (boostable)",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Fishing_Guild"
+    },
+    {
+      "shopPage": "Flosi's Fishmongers",
+      "requirement": "The Fremennik Trials",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Jatizso"
+    },
+    {
+      "shopPage": "Flower Girl",
+      "requirement": "The Fremennik Trials",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Miscellania"
+    },
+    {
+      "shopPage": "Franklin Caranos",
+      "requirement": "Swan Song (partially completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Piscatoris_Fishing_Colony"
+    },
+    {
+      "shopPage": "Gadrin",
+      "requirement": "60 Mining",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Mining_Guild"
+    },
+    {
+      "shopPage": "Gardener Gunnhild",
+      "requirement": "The Fremennik Trials",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Miscellania"
+    },
+    {
+      "shopPage": "Garlic Cocktail Supply",
+      "requirement": "Sins of the Father (partial; full access needs completion)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Darkmeyer"
+    },
+    {
+      "shopPage": "Green Gemstone Gems",
+      "requirement": "The Giant Dwarf (started)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Keldagrim"
+    },
+    {
+      "shopPage": "Greengrocer of Miscellania",
+      "requirement": "The Fremennik Trials",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Miscellania"
+    },
+    {
+      "shopPage": "Grud's Herblore Stall.",
+      "requirement": "Watchtower (progressed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Gu%27Tanoth"
+    },
+    {
+      "shopPage": "Guinevere's Dyes",
+      "requirement": "Song of the Elves (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Prifddinas"
+    },
+    {
+      "shopPage": "Gundik",
+      "requirement": "Death to the Dorgeshuun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Dorgesh-Kaan"
+    },
+    {
+      "shopPage": "Gunslik's Assorted Items",
+      "requirement": "The Giant Dwarf (started)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Keldagrim"
+    },
+    {
+      "shopPage": "Gwyn's Mining Emporium",
+      "requirement": "Song of the Elves (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Prifddinas"
+    },
+    {
+      "shopPage": "Hamab's Crafting Emporium",
+      "requirement": "Monkey Madness I (partially completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Ape_Atoll"
+    },
+    {
+      "shopPage": "Happy Heroes' H'emporium.",
+      "requirement": "Heroes' Quest (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Heroes%27_Guild"
+    },
+    {
+      "shopPage": "Harpoon Joe's House of 'Rum'.",
+      "requirement": "Cabin Fever (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Mos_Le%27Harmless"
+    },
+    {
+      "shopPage": "Head chef",
+      "requirement": "32 Cooking + chef's hat/cape or Varrock armour 3/4",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Cooks%27_Guild"
+    },
+    {
+      "shopPage": "Hefin Inn",
+      "requirement": "Song of the Elves (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Prifddinas"
+    },
+    {
+      "shopPage": "Hendor's Awesome Ores",
+      "requirement": "60 Mining",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Mining_Guild"
+    },
+    {
+      "shopPage": "Hirko",
+      "requirement": "The Giant Dwarf (started)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Keldagrim"
+    },
+    {
+      "shopPage": "Ifaba's General Store",
+      "requirement": "Monkey Madness I (partially completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Ape_Atoll"
+    },
+    {
+      "shopPage": "Imia's Supplies",
+      "requirement": "46 Hunter (not boostable)",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Hunter_Guild"
+    },
+    {
+      "shopPage": "Iorwerth's Arms",
+      "requirement": "Song of the Elves (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Prifddinas"
+    },
+    {
+      "shopPage": "Irksol (shop)",
+      "requirement": "Lost City; market entry also costs a cut diamond",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Zanaris"
+    },
+    {
+      "shopPage": "Island Fishmonger",
+      "requirement": "The Fremennik Trials",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Miscellania"
+    },
+    {
+      "shopPage": "Island Greengrocer",
+      "requirement": "The Fremennik Trials",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Etceteria"
+    },
+    {
+      "shopPage": "Islwyn",
+      "requirement": "Song of the Elves (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Prifddinas"
+    },
+    {
+      "shopPage": "Iwan's Maces",
+      "requirement": "Song of the Elves (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Prifddinas"
+    },
+    {
+      "shopPage": "Jamila's Craft Stall.",
+      "requirement": "Icthlarin's Little Helper (partially progressed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Sophanem"
+    },
+    {
+      "shopPage": "Jukat (shop)",
+      "requirement": "Lost City; market entry also costs a cut diamond",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Zanaris"
+    },
+    {
+      "shopPage": "Keepa Kettilon's store",
+      "requirement": "The Fremennik Trials",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Jatizso"
+    },
+    {
+      "shopPage": "Keldagrim Stonemason",
+      "requirement": "The Giant Dwarf (started)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Keldagrim"
+    },
+    {
+      "shopPage": "Keldagrim's Best Bread",
+      "requirement": "The Giant Dwarf (started)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Keldagrim"
+    },
+    {
+      "shopPage": "King's Axe Inn",
+      "requirement": "The Giant Dwarf (started)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Keldagrim"
+    },
+    {
+      "shopPage": "Kjut's Kebabs",
+      "requirement": "The Giant Dwarf (started)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Keldagrim"
+    },
+    {
+      "shopPage": "Kuradal",
+      "requirement": "Shilo Village (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Shilo_Village"
+    },
+    {
+      "shopPage": "Kylie Minnow",
+      "requirement": "68 Fishing (boostable)",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Fishing_Guild"
+    },
+    {
+      "shopPage": "Latlink Fastbell",
+      "requirement": "45 Farming (65/85 for the higher tiers)",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Farming_Guild"
+    },
+    {
+      "shopPage": "Legends Guild General Store.",
+      "requirement": "Legends' Quest (completed for the shops inside)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Legends%27_Guild"
+    },
+    {
+      "shopPage": "Legends Guild Shop of Useful Items.",
+      "requirement": "Legends' Quest (completed for the shops inside)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Legends%27_Guild"
+    },
+    {
+      "shopPage": "Leprechaun Larry's Farming Supplies.",
+      "requirement": "Troll Stronghold quest (progress)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Troll_Stronghold"
+    },
+    {
+      "shopPage": "Liliwen",
+      "requirement": "Mourning's End Part I",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Mourning%27s_End_Part_I"
+    },
+    {
+      "shopPage": "Lletya Archery Shop",
+      "requirement": "Mourning's End Part I",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Mourning%27s_End_Part_I"
+    },
+    {
+      "shopPage": "Lletya Food Store",
+      "requirement": "Mourning's End Part I",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Mourning%27s_End_Part_I"
+    },
+    {
+      "shopPage": "Lletya General Store",
+      "requirement": "Mourning's End Part I",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Mourning%27s_End_Part_I"
+    },
+    {
+      "shopPage": "Lletya Seamstress",
+      "requirement": "Mourning's End Part I",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Mourning%27s_End_Part_I"
+    },
+    {
+      "shopPage": "Lliann's Wares",
+      "requirement": "Song of the Elves (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Prifddinas"
+    },
+    {
+      "shopPage": "Lunderwin",
+      "requirement": "Lost City; market entry also costs a cut diamond",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Zanaris"
+    },
+    {
+      "shopPage": "Magic Guild Store (Mystic Robes)",
+      "requirement": "66 Magic (boostable)",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Wizards%27_Guild"
+    },
+    {
+      "shopPage": "Magic Guild Store (Runes and Staves)",
+      "requirement": "66 Magic (boostable)",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Wizards%27_Guild"
+    },
+    {
+      "shopPage": "Markog",
+      "requirement": "Death to the Dorgeshuun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Dorgesh-Kaan"
+    },
+    {
+      "shopPage": "Master Crafter",
+      "requirement": "40 Crafting + brown apron or Crafting cape",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Crafting_Guild"
+    },
+    {
+      "shopPage": "Mawnis Burowgar",
+      "requirement": "The Fremennik Trials; started The Fremennik Isles",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Neitiznot"
+    },
+    {
+      "shopPage": "Miltog's Lamps",
+      "requirement": "Death to the Dorgeshuun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Dorgesh-Kaan"
+    },
+    {
+      "shopPage": "Mining Guild Mineral Exchange",
+      "requirement": "60 Mining",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Mining_Guild"
+    },
+    {
+      "shopPage": "Miscellanian Clothes Shop",
+      "requirement": "The Fremennik Trials",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Miscellania"
+    },
+    {
+      "shopPage": "Miscellanian Food Shop",
+      "requirement": "The Fremennik Trials",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Miscellania"
+    },
+    {
+      "shopPage": "Miscellanian General Store",
+      "requirement": "The Fremennik Trials",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Miscellania"
+    },
+    {
+      "shopPage": "Moon Clan Fine Clothes.",
+      "requirement": "Lunar Diplomacy (progressed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Lunar_Isle"
+    },
+    {
+      "shopPage": "Moon Clan General Store.",
+      "requirement": "Lunar Diplomacy (progressed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Lunar_Isle"
+    },
+    {
+      "shopPage": "Myreque's Rest",
+      "requirement": "In Aid of the Myreque (started)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Burgh_de_Rott"
+    },
+    {
+      "shopPage": "Mythical Cape Store",
+      "requirement": "Dragon Slayer II (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Myths%27_Guild"
+    },
+    {
+      "shopPage": "Myths' Guild Armoury",
+      "requirement": "Dragon Slayer II (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Myths%27_Guild"
+    },
+    {
+      "shopPage": "Myths' Guild Herbalist",
+      "requirement": "Dragon Slayer II (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Myths%27_Guild"
+    },
+    {
+      "shopPage": "Myths' Guild Weaponry",
+      "requirement": "Dragon Slayer II (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Myths%27_Guild"
+    },
+    {
+      "shopPage": "Nardok's Bone Weapons",
+      "requirement": "Death to the Dorgeshuun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Dorgesh-Kaan"
+    },
+    {
+      "shopPage": "Nathifa's Bake Stall.",
+      "requirement": "Icthlarin's Little Helper (partially progressed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Sophanem"
+    },
+    {
+      "shopPage": "Neitiznot supplies.",
+      "requirement": "The Fremennik Trials; started The Fremennik Isles",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Neitiznot"
+    },
+    {
+      "shopPage": "Nikkie",
+      "requirement": "45 Farming (65/85 for the higher tiers)",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Farming_Guild"
+    },
+    {
+      "shopPage": "Obli's General Store.",
+      "requirement": "Shilo Village (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Shilo_Village"
+    },
+    {
+      "shopPage": "Oneiromancer",
+      "requirement": "Lunar Diplomacy (progressed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Lunar_Isle"
+    },
+    {
+      "shopPage": "Oobapohk's Javelin Store",
+      "requirement": "Monkey Madness II (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Oobapohk%27s_Javelin_Store"
+    },
+    {
+      "shopPage": "Ore store",
+      "requirement": "The Fremennik Trials",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Jatizso"
+    },
+    {
+      "shopPage": "Oswallt",
+      "requirement": "Song of the Elves (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Prifddinas"
+    },
+    {
+      "shopPage": "Paramaya Inn",
+      "requirement": "Shilo Village (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Shilo_Village"
+    },
+    {
+      "shopPage": "Pellem's Fur Store",
+      "requirement": "46 Hunter (not boostable)",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Hunter_Guild"
+    },
+    {
+      "shopPage": "Perry's Chop-chop Shop",
+      "requirement": "60 Woodcutting (boostable)",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Woodcutting_Guild"
+    },
+    {
+      "shopPage": "Pickaxe-Is-Mine",
+      "requirement": "The Giant Dwarf (started)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Keldagrim"
+    },
+    {
+      "shopPage": "Pie Shop",
+      "requirement": "32 Cooking + chef's hat/cape or Varrock armour 3/4",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Cooks%27_Guild"
+    },
+    {
+      "shopPage": "Prifddinas Foodstuffs",
+      "requirement": "Song of the Elves (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Prifddinas"
+    },
+    {
+      "shopPage": "Prifddinas Gem Stall",
+      "requirement": "Song of the Elves (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Prifddinas"
+    },
+    {
+      "shopPage": "Prifddinas General Store",
+      "requirement": "Song of the Elves (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Prifddinas"
+    },
+    {
+      "shopPage": "Prifddinas Herbal Supplies",
+      "requirement": "Song of the Elves (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Prifddinas"
+    },
+    {
+      "shopPage": "Prifddinas Silver Stall",
+      "requirement": "Song of the Elves (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Prifddinas"
+    },
+    {
+      "shopPage": "Prifddinas Spice Stall",
+      "requirement": "Song of the Elves (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Prifddinas"
+    },
+    {
+      "shopPage": "Prifddinas' Seamstress",
+      "requirement": "Song of the Elves (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Prifddinas"
+    },
+    {
+      "shopPage": "Quality Armour Shop",
+      "requirement": "The Giant Dwarf (started)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Keldagrim"
+    },
+    {
+      "shopPage": "Quality Weapons Shop",
+      "requirement": "The Giant Dwarf (started)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Keldagrim"
+    },
+    {
+      "shopPage": "Raetul and Co's Cloth Store.",
+      "requirement": "Icthlarin's Little Helper (partially progressed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Sophanem"
+    },
+    {
+      "shopPage": "Ranging Guild Ticket Exchange",
+      "requirement": "40 Ranged (boostable)",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Ranging_Guild"
+    },
+    {
+      "shopPage": "Ratpit bar (Keldagrim)",
+      "requirement": "The Giant Dwarf (started)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Keldagrim"
+    },
+    {
+      "shopPage": "Reldak's Leather Armour",
+      "requirement": "Death to the Dorgeshuun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Dorgesh-Kaan"
+    },
+    {
+      "shopPage": "Rhazien",
+      "requirement": "The Fremennik Trials",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Etceteria"
+    },
+    {
+      "shopPage": "Rosie",
+      "requirement": "45 Farming (65/85 for the higher tiers)",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Farming_Guild"
+    },
+    {
+      "shopPage": "Scavvo's Rune Store.",
+      "requirement": "32 Quest Points",
+      "kind": "other",
+      "source": "https://oldschool.runescape.wiki/w/Champions%27_Guild"
+    },
+    {
+      "shopPage": "Seravel",
+      "requirement": "Shilo Village (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Shilo_Village"
+    },
+    {
+      "shopPage": "Sian's Ranged Weaponry",
+      "requirement": "Song of the Elves (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Prifddinas"
+    },
+    {
+      "shopPage": "Silver Cog Silver Stall",
+      "requirement": "The Giant Dwarf (started)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Keldagrim"
+    },
+    {
+      "shopPage": "Sloane",
+      "requirement": "130 combined Attack+Strength, or 99 in either",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Warriors%27_Guild"
+    },
+    {
+      "shopPage": "Smith",
+      "requirement": "Cabin Fever (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Mos_Le%27Harmless"
+    },
+    {
+      "shopPage": "Smithing Smith's Shop.",
+      "requirement": "Cabin Fever (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Mos_Le%27Harmless"
+    },
+    {
+      "shopPage": "Solihib's Food Stall",
+      "requirement": "Monkey Madness I (partially completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Ape_Atoll"
+    },
+    {
+      "shopPage": "Sophanem Guard",
+      "requirement": "Icthlarin's Little Helper (partially progressed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Sophanem"
+    },
+    {
+      "shopPage": "Taylor",
+      "requirement": "45 Farming (65/85 for the higher tiers)",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Farming_Guild"
+    },
+    {
+      "shopPage": "The Burrow",
+      "requirement": "46 Hunter (not boostable)",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Hunter_Guild"
+    },
+    {
+      "shopPage": "The Crypt",
+      "requirement": "Sins of the Father (partial; full access needs completion)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Darkmeyer"
+    },
+    {
+      "shopPage": "The Esoterican Arms",
+      "requirement": "The Fremennik Trials",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Miscellania"
+    },
+    {
+      "shopPage": "The Other Inn.",
+      "requirement": "Cabin Fever (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Mos_Le%27Harmless"
+    },
+    {
+      "shopPage": "The Spice Is Right.",
+      "requirement": "Icthlarin's Little Helper (partially progressed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Sophanem"
+    },
+    {
+      "shopPage": "Tindar",
+      "requirement": "Death to the Dorgeshuun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Dorgesh-Kaan"
+    },
+    {
+      "shopPage": "Turgok",
+      "requirement": "Death to the Dorgeshuun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Dorgesh-Kaan"
+    },
+    {
+      "shopPage": "Tutab's Magical Market",
+      "requirement": "Monkey Madness I (partially completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Ape_Atoll"
+    },
+    {
+      "shopPage": "Two Feet Charley's Fish Shop.",
+      "requirement": "Cabin Fever (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Mos_Le%27Harmless"
+    },
+    {
+      "shopPage": "TzHaar-Hur-Lek's Ore and Gem Store",
+      "requirement": "Fire cape (or fire max cape) to enter the interior",
+      "kind": "item",
+      "source": "https://oldschool.runescape.wiki/w/Mor_Ul_Rek"
+    },
+    {
+      "shopPage": "TzHaar-Hur-Rin's Ore and Gem Store",
+      "requirement": "Fire cape (or fire max cape) to enter the interior",
+      "kind": "item",
+      "source": "https://oldschool.runescape.wiki/w/Mor_Ul_Rek"
+    },
+    {
+      "shopPage": "TzHaar-Hur-Tel's Equipment Store",
+      "requirement": "Fire cape (or fire max cape) to enter the interior",
+      "kind": "item",
+      "source": "https://oldschool.runescape.wiki/w/Mor_Ul_Rek"
+    },
+    {
+      "shopPage": "TzHaar-Hur-Zal's Equipment Store",
+      "requirement": "Fire cape (or fire max cape) to enter the interior",
+      "kind": "item",
+      "source": "https://oldschool.runescape.wiki/w/Mor_Ul_Rek"
+    },
+    {
+      "shopPage": "TzHaar-Mej-Roh's Rune Store",
+      "requirement": "Fire cape (or fire max cape) to enter the interior",
+      "kind": "item",
+      "source": "https://oldschool.runescape.wiki/w/Mor_Ul_Rek"
+    },
+    {
+      "shopPage": "Valaine's Shop of Champions.",
+      "requirement": "32 Quest Points",
+      "kind": "other",
+      "source": "https://oldschool.runescape.wiki/w/Champions%27_Guild"
+    },
+    {
+      "shopPage": "Vasile",
+      "requirement": "In Aid of the Myreque (started)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Burgh_de_Rott"
+    },
+    {
+      "shopPage": "Vermundi's Clothes Stall",
+      "requirement": "The Giant Dwarf (started)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Keldagrim"
+    },
+    {
+      "shopPage": "Vigr's Warhammers",
+      "requirement": "The Giant Dwarf (started)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Keldagrim"
+    },
+    {
+      "shopPage": "Warrior Guild Armoury",
+      "requirement": "130 combined Attack+Strength, or 99 in either",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Warriors%27_Guild"
+    },
+    {
+      "shopPage": "Warrior Guild Food Shop",
+      "requirement": "130 combined Attack+Strength, or 99 in either",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Warriors%27_Guild"
+    },
+    {
+      "shopPage": "Warrior Guild Potion Shop",
+      "requirement": "130 combined Attack+Strength, or 99 in either",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Warriors%27_Guild"
+    },
+    {
+      "shopPage": "Weapons galore",
+      "requirement": "The Fremennik Trials",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Jatizso"
+    },
+    {
+      "shopPage": "Yadech Strongarm",
+      "requirement": "130 combined Attack+Strength, or 99 in either",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Warriors%27_Guild"
+    },
+    {
+      "shopPage": "Yanni Salika",
+      "requirement": "Shilo Village (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Shilo_Village"
+    },
+    {
+      "shopPage": "Yarsul's Prodigious Pickaxes",
+      "requirement": "60 Mining",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Mining_Guild"
+    },
+    {
+      "shopPage": "Yulf Squecks",
+      "requirement": "The Fremennik Trials",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Etceteria"
+    },
+    {
+      "shopPage": "Zanaris General Store",
+      "requirement": "Lost City (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Zanaris"
+    },
+    {
+      "shopPage": "Zavistic Rarve",
+      "requirement": "66 Magic (boostable)",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Wizards%27_Guild"
+    },
+    {
+      "shopPage": "Zenkog",
+      "requirement": "Death to the Dorgeshuun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Dorgesh-Kaan"
+    }
+  ]
+}

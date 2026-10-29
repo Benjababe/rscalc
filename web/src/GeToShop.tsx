@@ -14,6 +14,8 @@ import type {
   ShopSinksPayload,
 } from "../../src/types";
 import { wikiUrl } from "../../src/util/wiki";
+import { AccessBadge } from "./AccessBadge";
+import { accessFor } from "./access";
 import { compact, formatDuration, formatGp, formatTime } from "./format";
 import { toSinkShopRow } from "./opportunity";
 import { SinkBasketPanel } from "./SinkBasket";
@@ -66,6 +68,7 @@ export function GeToShopPage(): JSX.Element {
   const [mode, setMode] = useState<SellMode>("pessimistic");
   const [query, setQuery] = useState("");
   const [membersOnly, setMembersOnly] = useState(false);
+  const [hideLocked, setHideLocked] = useState(false);
   const [minProfit, setMinProfit] = useState(0);
   const [minVolume, setMinVolume] = useState(0);
   const [hopSeconds, setHopSeconds] = useState(DEFAULT_HOP_SECONDS);
@@ -94,6 +97,7 @@ export function GeToShopPage(): JSX.Element {
     const planned: RowData[] = [];
     for (const opp of ranking.opportunities) {
       if (membersOnly && !opp.members) continue;
+      if (hideLocked && accessFor(opp.shopPage) !== undefined) continue;
       if (opp.purchaseCap4h < minVolume) continue;
       if (needle !== "") {
         const haystack = `${opp.itemName} ${opp.shopName} ${opp.location ?? ""}`;
@@ -173,6 +177,7 @@ export function GeToShopPage(): JSX.Element {
     ranking,
     query,
     membersOnly,
+    hideLocked,
     minProfit,
     minVolume,
     hopSeconds,
@@ -259,6 +264,18 @@ export function GeToShopPage(): JSX.Element {
             onChange={(event) => setMembersOnly(event.target.checked)}
           />
           Members only
+        </label>
+
+        <label
+          className="toggle"
+          title="Hide shops with a known access requirement from the curated, wiki-sourced access table"
+        >
+          <input
+            type="checkbox"
+            checked={hideLocked}
+            onChange={(event) => setHideLocked(event.target.checked)}
+          />
+          Hide locked
         </label>
 
         <label
@@ -614,6 +631,14 @@ export function GeToShopPage(): JSX.Element {
             between visits to the same world, are not modelled either. The
             200-world ceiling is an explicit assumption, not a sourced count.
           </p>
+          <p>
+            A <strong>locked</strong> badge marks a shop with a known access
+            requirement from a curated, wiki-sourced table. Hover or open the
+            badge for the requirement and its source. <strong>Hide locked</strong>{" "}
+            removes only known-locked shops; a shop with no badge has unknown
+            access, not guaranteed access. This is not a check of your account's
+            quests or levels.
+          </p>
         </details>
       </footer>
     </div>
@@ -676,6 +701,7 @@ function Row({
         >
           basket
         </button>
+        <AccessBadge shopPage={opp.shopPage} />
       </td>
       <td className="loc loc-col">{opp.location ?? "—"}</td>
       <td className="right mono">{formatGp(opp.geBuyPrice)}</td>

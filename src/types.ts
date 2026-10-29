@@ -100,6 +100,39 @@ export const ShopCatalogSchema = z.object({
 export type ShopCatalog = z.infer<typeof ShopCatalogSchema>;
 
 // ---------------------------------------------------------------------------
+// Shop access
+// ---------------------------------------------------------------------------
+
+/** Why a shop may be inaccessible to a player. */
+export const ShopAccessKindSchema = z.enum([
+  'quest',
+  'skill',
+  'item',
+  'area',
+  'other',
+]);
+export type ShopAccessKind = z.infer<typeof ShopAccessKindSchema>;
+
+/**
+ * A known access requirement for one shop page. `source` is the wiki page that
+ * states it; absence from the artifact means "unknown", never "accessible".
+ */
+export const ShopAccessEntrySchema = z.object({
+  shopPage: z.string().min(1),
+  requirement: z.string().min(1),
+  kind: ShopAccessKindSchema,
+  source: z.string().url(),
+});
+export type ShopAccessEntry = z.infer<typeof ShopAccessEntrySchema>;
+
+export const ShopAccessCatalogSchema = z.object({
+  generatedAt: z.string(),
+  source: z.string(),
+  entries: z.array(ShopAccessEntrySchema),
+});
+export type ShopAccessCatalog = z.infer<typeof ShopAccessCatalogSchema>;
+
+// ---------------------------------------------------------------------------
 // Market snapshot
 // ---------------------------------------------------------------------------
 
