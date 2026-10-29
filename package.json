@@ -17,6 +17,7 @@
     "report": "tsx scripts/report.ts",
     "sinks": "tsx scripts/refresh-sinks.ts",
     "build:data": "pnpm shops && pnpm market",
+    "refresh": "pnpm shops && pnpm market && pnpm report --write && pnpm sinks --write",
     "dev": "vite --config web/vite.config.ts",
     "build": "tsc --noEmit && vite build --config web/vite.config.ts",
     "preview": "vite preview --config web/vite.config.ts"

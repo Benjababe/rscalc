@@ -114,6 +114,7 @@ pnpm test           # vitest, no live network
 pnpm shops          # data/shops.json (cold cache: ~35s incl. map + banks)
 pnpm market         # data/market.json (cold cache: ~30s incl. stackability)
 pnpm build:data     # both
+pnpm refresh        # shops + market + both UI rankings
 pnpm report --write # data/opportunities.json (both modes)
 pnpm report --shop="Lundail's Arena-side Rune Shop" --gold=100000
                     # one shop's multi-item basket

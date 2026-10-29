@@ -28,7 +28,7 @@ GE -> SHOP
 
 ```sh
 pnpm install
-pnpm build:data     # fetch shop catalogue + GE prices  (~60s, no API key)
+pnpm refresh        # catalogue + GE prices + both UI rankings
 pnpm report         # ranked table in the terminal
 pnpm dev            # web UI at http://localhost:5173
 ```
@@ -41,6 +41,7 @@ pnpm dev            # web UI at http://localhost:5173
 | `pnpm shops` | rebuild `data/shops.json` (24h cache) |
 | `pnpm market` | rebuild `data/market.json` |
 | `pnpm build:data` | both of the above |
+| `pnpm refresh` | all data: catalogue + market + both UI rankings |
 | `pnpm report` | ranked CLI table |
 | `pnpm report --mode=patient` | price against GE `high` instead of `low` |
 | `pnpm report --shop="<name>" --gold=N` | one shop's multi-item basket |
@@ -58,10 +59,11 @@ The basket flags are `--shop="<name>"`, `--gold=N`, `--hop=N` (seconds) and
 `pnpm sinks` flags: `--mode=pessimistic|patient`, `--limit=N`, `--members`,
 `--min-profit=N`, `--min-volume4h=N`, `--speed=N`, `--infinite`,
 `--include-general-stores`, `--write`. It reads the two data artifacts and makes
-no network calls, so build the UI data with:
+no network calls. To refresh everything — catalogue, market and both UI
+rankings — in one go:
 
 ```sh
-pnpm report --write && pnpm sinks --write
+pnpm refresh
 ```
 
 ## No API keys
