@@ -1,17 +1,27 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   DEFAULT_HOP_SECONDS,
   DEFAULT_SECONDS_PER_TILE,
 } from "../../src/domain/budget";
-import { DEFAULT_SINK_HANDOVER_SECONDS } from "../../src/domain/shopSink";
+import {
+  planShopSink,
+  type ShopSinkPlan,
+} from "../../src/domain/shopSink";
 import type {
   SellMode,
   ShopSinkOpportunity,
   ShopSinksPayload,
 } from "../../src/types";
 import { wikiUrl } from "../../src/util/wiki";
-import { formatDuration, formatGp, formatTime } from "./format";
+import { compact, formatDuration, formatGp, formatTime } from "./format";
+import { toSinkShopRow } from "./opportunity";
+import {
+  browserStore,
+  readStoredBudget,
+  writeStoredBudget,
+  type BudgetState,
+} from "./storage";
 import { Stat, Th } from "./ui";
 
 import payload from "../../data/shop-sinks.json";
@@ -31,11 +41,8 @@ type SortKey =
   | "itemName";
 
 interface RowData {
-  row: ShopSinkOpportunity;
-  /** Recomputed with the user's travel speed; null when the distance is unknown. */
-  tripSeconds: number | null;
-  timeSeconds: number;
-  gpPerHour: number | null;
+  opp: ShopSinkOpportunity;
+  plan: ShopSinkPlan;
 }
 
 const MODE_LABEL: Record<SellMode, string> = {
@@ -46,7 +53,9 @@ const MODE_LABEL: Record<SellMode, string> = {
 /**
  * GE -> shop: buy on the Grand Exchange, sell the noted stack to a shop whose
  * stock table publishes a buy price, hopping worlds so each one resets the
- * shop's stock. Static snapshot; no network calls.
+ * shop's stock. The artifact supplies the eligible rows and their pricing
+ * parameters; the plan is recomputed here so gold, hop time and travel speed
+ * all apply. Static snapshot; no network calls.
  */
 // SAFETY: `data/shop-sinks.json` is only written by `scripts/refresh-sinks.ts`,
 // which validates the payload with `ShopSinksPayloadSchema` first.
@@ -62,75 +71,72 @@ export function GeToShopPage(): JSX.Element {
   const [secondsPerTile, setSecondsPerTile] = useState(
     DEFAULT_SECONDS_PER_TILE,
   );
+  const [initialBudget] = useState<BudgetState>(() =>
+    readStoredBudget(browserStore()),
+  );
+  const [gold, setGold] = useState(initialBudget.gold);
+  const [storedView] = useState(initialBudget.view);
   const [sortKey, setSortKey] = useState<SortKey>("gpPerHour");
   const [descending, setDescending] = useState(true);
+
+  // The same key as the shop -> GE page: gold is shared, the view is preserved.
+  useEffect(() => {
+    writeStoredBudget({ gold, view: storedView }, browserStore());
+  }, [gold, storedView]);
 
   const ranking = DATA[mode];
 
   const rows = useMemo<RowData[]>(() => {
     const needle = query.trim().toLowerCase();
 
-    const filtered = ranking.opportunities.filter((opp) => {
-      if (membersOnly && !opp.members) return false;
-      if (opp.profit < minProfit) return false;
-      if (opp.purchaseCap4h < minVolume) return false;
-      if (needle === "") return true;
-      return (
-        opp.itemName.toLowerCase().includes(needle) ||
-        opp.shopName.toLowerCase().includes(needle) ||
-        (opp.location ?? "").toLowerCase().includes(needle)
-      );
-    });
+    const planned: RowData[] = [];
+    for (const opp of ranking.opportunities) {
+      if (membersOnly && !opp.members) continue;
+      if (opp.purchaseCap4h < minVolume) continue;
+      if (needle !== "") {
+        const haystack = `${opp.itemName} ${opp.shopName} ${opp.location ?? ""}`;
+        if (!haystack.toLowerCase().includes(needle)) continue;
+      }
 
-    // The artifact's gp/hour assumes the build's hop and travel defaults. Both
-    // are interface/movement assumptions, not sourced per-shop data, so the UI
-    // recomputes the time from the row's own distance and world count.
-    const computed: RowData[] = filtered.map((row) => {
-      const tripSeconds =
-        row.geTiles === null
-          ? null
-          : 2 * row.geTiles * secondsPerTile + DEFAULT_SINK_HANDOVER_SECONDS;
-      const hopSecondsTotal = row.worlds * hopSeconds;
-      const travelSeconds =
-        tripSeconds === null ? 0 : tripSeconds + hopSecondsTotal;
-      const buySeconds =
-        row.purchaseCap4h > 0
-          ? (row.units / row.purchaseCap4h) * 4 * 3600
-          : 0;
-      const timeSeconds = Math.max(travelSeconds, buySeconds);
-      const gpPerHour =
-        tripSeconds === null
-          ? null
-          : timeSeconds > 0
-            ? (row.profit * 3600) / timeSeconds
-            : 0;
-      return { row, tripSeconds, timeSeconds, gpPerHour };
-    });
+      const plan = planShopSink(toSinkShopRow(opp), {
+        geCostPerUnit: opp.geBuyPrice,
+        purchaseCap4h: opp.purchaseCap4h,
+        geTiles: opp.geTiles,
+        secondsPerTile,
+        hopSeconds,
+        budgetGp: gold,
+        startStock: opp.baseStock ?? 0,
+      });
+
+      if (plan.units <= 0) continue;
+      if (plan.profit < minProfit) continue;
+      planned.push({ opp, plan });
+    }
 
     const measure = (entry: RowData): number | null => {
       switch (sortKey) {
         case "gpPerHour":
-          return entry.gpPerHour;
+          return entry.plan.gpPerHour;
         case "profit":
-          return entry.row.profit;
+          return entry.plan.profit;
         case "spend":
-          return entry.row.totalCost;
+          return entry.plan.totalCost;
         case "units":
-          return entry.row.units;
+          return entry.plan.units;
         case "unitsPerWorld":
-          return entry.row.unitsPerWorld;
+          return entry.plan.unitsPerWorld;
         case "worlds":
-          return entry.row.worlds;
+          return entry.plan.worlds;
         case "margin":
-          return entry.row.margin;
+          return entry.plan.marginPerUnit;
         case "marginPct":
-          return entry.row.marginPct;
+          return (entry.plan.marginPerUnit / entry.opp.geBuyPrice) * 100;
         case "geBuyPrice":
-          return entry.row.geBuyPrice;
+          return entry.opp.geBuyPrice;
         case "shopAvgPrice":
-          return entry.row.shopAvgPrice;
+          return entry.plan.totalRevenue / entry.plan.units;
         case "geTiles":
-          return entry.row.geTiles;
+          return entry.plan.geTiles;
         case "itemName":
           return null;
         default:
@@ -138,11 +144,11 @@ export function GeToShopPage(): JSX.Element {
       }
     };
 
-    return computed.sort((a, b) => {
+    return planned.sort((a, b) => {
       if (sortKey === "itemName") {
         return descending
-          ? b.row.itemName.localeCompare(a.row.itemName)
-          : a.row.itemName.localeCompare(b.row.itemName);
+          ? b.opp.itemName.localeCompare(a.opp.itemName)
+          : a.opp.itemName.localeCompare(b.opp.itemName);
       }
 
       const aValue = measure(a);
@@ -157,9 +163,9 @@ export function GeToShopPage(): JSX.Element {
         return descending ? bValue - aValue : aValue - bValue;
       }
 
-      const byShop = a.row.shopName.localeCompare(b.row.shopName);
+      const byShop = a.opp.shopName.localeCompare(b.opp.shopName);
       if (byShop !== 0) return byShop;
-      return a.row.itemName.localeCompare(b.row.itemName);
+      return a.opp.itemName.localeCompare(b.opp.itemName);
     });
   }, [
     ranking,
@@ -169,6 +175,7 @@ export function GeToShopPage(): JSX.Element {
     minVolume,
     hopSeconds,
     secondsPerTile,
+    gold,
     sortKey,
     descending,
   ]);
@@ -186,20 +193,20 @@ export function GeToShopPage(): JSX.Element {
   }
 
   const bestRate = rows.reduce<RowData | undefined>((best, row) => {
-    if (row.gpPerHour === null) return best;
+    if (row.plan.gpPerHour === null) return best;
     if (best === undefined) return row;
-    return row.gpPerHour > (best.gpPerHour ?? Number.NEGATIVE_INFINITY)
+    return row.plan.gpPerHour > (best.plan.gpPerHour ?? Number.NEGATIVE_INFINITY)
       ? row
       : best;
   }, undefined);
 
   const bestProfit = rows.reduce<RowData | undefined>(
     (best, row) =>
-      best === undefined || row.row.profit > best.row.profit ? row : best,
+      best === undefined || row.plan.profit > best.plan.profit ? row : best,
     undefined,
   );
 
-  const shopCount = new Set(rows.map((entry) => entry.row.shopPage)).size;
+  const shopCount = new Set(rows.map((entry) => entry.opp.shopPage)).size;
 
   function toggleSort(key: SortKey): void {
     if (key === sortKey) setDescending((d) => !d);
@@ -288,6 +295,22 @@ export function GeToShopPage(): JSX.Element {
       <section className="controls budget">
         <div className="budget-inputs">
           <label className="toggle">
+            <span className="label">Gold available</span>
+            <input
+              className="num wide"
+              type="number"
+              min={0}
+              step={100_000}
+              value={gold}
+              onChange={(event) =>
+                setGold(Math.max(0, Number(event.target.value) || 0))
+              }
+              aria-label="Gold available"
+            />
+            gp
+          </label>
+
+          <label className="toggle">
             <span className="label">World hop</span>
             <input
               className="num"
@@ -318,19 +341,41 @@ export function GeToShopPage(): JSX.Element {
             />
             s / tile
           </label>
+
+          <div className="presets">
+            {[100_000, 1_000_000, 10_000_000, 100_000_000].map((amount) => (
+              <button
+                key={amount}
+                type="button"
+                className={gold === amount ? "preset active" : "preset"}
+                onClick={() => setGold(amount)}
+              >
+                {compact(amount)}
+              </button>
+            ))}
+            <button type="button" className="preset" onClick={() => setGold(0)}>
+              Clear
+            </button>
+          </div>
         </div>
 
         <p className="hint">
           Buy on the GE at{" "}
           <strong>{mode === "pessimistic" ? "high" : "low"}</strong> and sell to
           a shop that publishes a buy price. <strong>General stores are excluded</strong>{" "}
-          for now. Items are collected as <strong>banknotes</strong>, so the
-          whole purchase fits one inventory slot and there is no banking. Each
-          fresh world resets the shop's stock to default: one GE↔shop trip plus{" "}
-          <strong>{hopSeconds}s</strong> per world hop, with travel at{" "}
-          <strong>{secondsPerTile}s</strong> per tile. The shop's offer falls by
-          its <strong>delta%</strong> for every unit sold, which is what caps the
-          batch on each world.
+          for now. Items are collected as <strong>banknotes</strong>, so there is
+          no banking: one GE↔shop trip plus <strong>{hopSeconds}s</strong> per
+          world hop, with travel at <strong>{secondsPerTile}s</strong> per tile.
+          The shop's offer falls by its <strong>delta%</strong> for every unit
+          sold, which caps the batch on each world.{" "}
+          {gold > 0 ? (
+            <>
+              Sizing plans to <strong>{formatGp(gold)} gp</strong>; clear to 0
+              for the uncapped plan.
+            </>
+          ) : (
+            <>Showing the uncapped plan; enter gold to size it.</>
+          )}
         </p>
       </section>
 
@@ -339,13 +384,13 @@ export function GeToShopPage(): JSX.Element {
         <Stat
           label="Best gp / hour"
           value={
-            bestRate?.gpPerHour != null
-              ? formatGp(Math.round(bestRate.gpPerHour))
+            bestRate?.plan.gpPerHour != null
+              ? formatGp(Math.round(bestRate.plan.gpPerHour))
               : "—"
           }
           title={
             bestRate
-              ? `${bestRate.row.itemName} at ${bestRate.row.shopName}`
+              ? `${bestRate.opp.itemName} at ${bestRate.opp.shopName}`
               : "No flip has a known Grand Exchange distance"
           }
           accent
@@ -355,11 +400,11 @@ export function GeToShopPage(): JSX.Element {
           value={
             bestProfit === undefined
               ? "—"
-              : `${formatGp(Math.round(bestProfit.row.profit))} gp`
+              : `${formatGp(Math.round(bestProfit.plan.profit))} gp`
           }
           title={
             bestProfit
-              ? `${bestProfit.row.itemName} at ${bestProfit.row.shopName}`
+              ? `${bestProfit.opp.itemName} at ${bestProfit.opp.shopName}`
               : undefined
           }
         />
@@ -397,7 +442,7 @@ export function GeToShopPage(): JSX.Element {
                 onClick={() => toggleSort("shopAvgPrice")}
                 active={sortKey === "shopAvgPrice"}
                 desc={descending}
-                title="Average shop price across one world's batch; it falls as the shop fills"
+                title="Average shop price across the planned units; it falls as the shop fills"
                 right
               />
               <Th
@@ -413,7 +458,7 @@ export function GeToShopPage(): JSX.Element {
                 onClick={() => toggleSort("units")}
                 active={sortKey === "units"}
                 desc={descending}
-                title="Total units sold across every world, capped by the GE purchase limit"
+                title="Total units across worlds, capped by your gold, the GE 4h supply and the world ceiling"
                 right
               />
               <Th
@@ -437,7 +482,7 @@ export function GeToShopPage(): JSX.Element {
                 onClick={() => toggleSort("spend")}
                 active={sortKey === "spend"}
                 desc={descending}
-                title="Coins paid on the GE"
+                title="Coins paid on the GE; never more than your available gold"
                 right
               />
               <Th
@@ -469,16 +514,18 @@ export function GeToShopPage(): JSX.Element {
           <tbody>
             {rows.slice(0, 300).map((entry, index) => (
               <Row
-                key={`${entry.row.itemId}-${entry.row.shopPage}`}
+                key={`${entry.opp.itemId}-${entry.opp.shopPage}`}
                 data={entry}
                 rank={index + 1}
-                hopSeconds={hopSeconds}
               />
             ))}
           </tbody>
         </table>
         {rows.length === 0 && (
-          <p className="empty">No flips match these filters.</p>
+          <p className="empty">
+            No flips match these filters. Try raising gold or clearing the
+            minimum profit.
+          </p>
         )}
         {rows.length > 300 && (
           <p className="empty">
@@ -519,6 +566,15 @@ export function GeToShopPage(): JSX.Element {
             more if you allowed more hops.
           </p>
           <p>
+            <strong>Gold available</strong> sizes every plan:{" "}
+            <code>units = min(GE 4h supply, 200 worlds × batch, gold / GE buy price)</code>
+            . Spend never exceeds the amount you enter, and a row marked{" "}
+            <strong>budget</strong> was cut by gold rather than by supply.
+            Clearing the field to 0 shows the uncapped plan. The amount is the
+            same value as the <strong>Shop → GE</strong> page: both read and
+            write <code>rscalc.budget</code> in this browser.
+          </p>
+          <p>
             <strong>Time.</strong> One GE↔shop round trip (this shop's own
             straight-line distance, doubled, plus a 3s interface handover), plus
             the world-hop time you set, versus the GE supplying the units under
@@ -553,26 +609,24 @@ export function GeToShopPage(): JSX.Element {
 function Row({
   data,
   rank,
-  hopSeconds,
 }: {
   data: RowData;
   rank: number;
-  hopSeconds: number;
 }): JSX.Element {
-  const row = data.row;
+  const { opp, plan } = data;
   const tripTitle =
-    data.tripSeconds === null
+    plan.tripSeconds === null
       ? "No Grand Exchange distance on this shop's map, so travel time is unknown"
-      : `${Math.round(row.geTiles ?? 0).toLocaleString()} tiles each way, ${Math.round(
-          data.tripSeconds,
-        )}s round trip, plus ${row.worlds} hop${row.worlds === 1 ? "" : "s"} × ${hopSeconds}s`;
-  const shopTitle = `Pays ${formatGp(row.shopFirstUnitPrice)} for the first unit and ${formatGp(
-    row.shopLastUnitPrice,
-  )} for the last on a fresh world; average ${formatGp(Math.round(row.shopAvgPrice))}. Each unit sold lowers the offer by ${row.priceDropPerUnit.toFixed(1)} gp (${row.deltaPct.toFixed(1)}% of value).`;
+      : `${Math.round(plan.geTiles ?? 0).toLocaleString()} tiles each way, ${Math.round(
+          plan.tripSeconds,
+        )}s round trip, plus ${formatDuration(plan.hopSecondsTotal)} hopping`;
+  const shopTitle = `Pays ${formatGp(plan.firstUnitRevenue)} for the first unit and ${formatGp(
+    plan.lastUnitRevenue,
+  )} for the last on a fresh world; average ${formatGp(Math.round(plan.totalRevenue / plan.units))}. Each unit sold lowers the offer by ${plan.priceDropPerUnit.toFixed(1)} gp (${plan.deltaPct.toFixed(1)}% of value).`;
   const gpTitle =
-    data.gpPerHour === null
+    plan.gpPerHour === null
       ? "The GE distance is unknown, so the hourly rate is not computed"
-      : `Total time ${formatDuration(data.timeSeconds)} for ${row.units.toLocaleString()} units across ${row.worlds} worlds`;
+      : `Total time ${formatDuration(plan.timeSeconds)} for ${plan.units.toLocaleString()} units across ${plan.worlds} worlds`;
 
   return (
     <tr>
@@ -580,64 +634,82 @@ function Row({
       <td className="item">
         <a
           className="name wiki-link"
-          href={wikiUrl(row.itemName)}
+          href={wikiUrl(opp.itemName)}
           target="_blank"
           rel="noopener noreferrer"
         >
-          {row.itemName}
+          {opp.itemName}
         </a>
-        {row.members && <span className="badge">P2P</span>}
+        {opp.members && <span className="badge">P2P</span>}
       </td>
-      <td className="shop" title={row.shopPage}>
+      <td className="shop" title={opp.shopPage}>
         <a
           className="wiki-link"
-          href={wikiUrl(row.shopPage)}
+          href={wikiUrl(opp.shopPage)}
           target="_blank"
           rel="noopener noreferrer"
         >
-          {row.shopName}
+          {opp.shopName}
         </a>
       </td>
-      <td className="loc loc-col">{row.location ?? "—"}</td>
-      <td className="right mono">{formatGp(row.geBuyPrice)}</td>
+      <td className="loc loc-col">{opp.location ?? "—"}</td>
+      <td className="right mono">{formatGp(opp.geBuyPrice)}</td>
       <td className="right mono" title={shopTitle}>
-        {formatGp(Math.round(row.shopAvgPrice))}
+        {formatGp(Math.round(plan.totalRevenue / plan.units))}
         <span className="cell-note">
-          {formatGp(row.shopFirstUnitPrice)} → {formatGp(row.shopLastUnitPrice)}{" "}
-          · −{row.deltaPct.toFixed(1)}%/unit
+          {formatGp(plan.firstUnitRevenue)} → {formatGp(plan.lastUnitRevenue)} · −
+          {plan.deltaPct.toFixed(1)}%/unit
         </span>
       </td>
       <td
         className="right mono pos"
-        title={row.atFloor ? "The last unit already paid the 10%-of-value floor" : undefined}
+        title={plan.atFloor ? "The last unit already paid the 10%-of-value floor" : undefined}
       >
-        {formatGp(Math.round(row.margin))}
-        <span className="cell-note">{row.marginPct.toFixed(1)}%</span>
+        {formatGp(Math.round(plan.marginPerUnit))}
+        <span className="cell-note">
+          {((plan.marginPerUnit / opp.geBuyPrice) * 100).toFixed(1)}%
+        </span>
       </td>
-      <td className="right mono strong" title="Total across worlds, bounded by the GE 4h purchase cap">
-        {row.units.toLocaleString()}
+      <td
+        className="right mono strong"
+        title="Total across worlds, capped by your gold, the GE 4h supply and the world ceiling"
+      >
+        {plan.units.toLocaleString()}
       </td>
-      <td className="right mono" title="One fresh world's marginal sale before its price stops paying">
-        {row.unitsPerWorld.toLocaleString()}
+      <td
+        className="right mono"
+        title="One fresh world's marginal sale before its price stops paying"
+      >
+        {plan.unitsPerWorld.toLocaleString()}
       </td>
       <td
         className="right mono dim"
         title={
-          row.worldLimited
-            ? `World ceiling reached (${row.worlds} worlds); the GE could supply more`
-            : `${row.worlds} world${row.worlds === 1 ? "" : "s"} needed`
+          plan.worldLimited
+            ? `World ceiling reached (${plan.worlds} worlds); the GE could supply more`
+            : `${plan.worlds} world${plan.worlds === 1 ? "" : "s"} needed`
         }
       >
-        {row.worlds.toLocaleString()}
-        {row.worldLimited && <span className="cell-note">world cap</span>}
+        {plan.worlds.toLocaleString()}
+        {plan.worldLimited && <span className="cell-note">world cap</span>}
       </td>
-      <td className="right mono">{formatGp(Math.round(row.totalCost))}</td>
-      <td className="right mono pos">{formatGp(Math.round(row.profit))}</td>
+      <td
+        className="right mono"
+        title={
+          plan.budgetLimited
+            ? "Capped by your available gold"
+            : "Coins paid on the GE"
+        }
+      >
+        {formatGp(Math.round(plan.totalCost))}
+        {plan.budgetLimited && <span className="cell-note">budget</span>}
+      </td>
+      <td className="right mono pos">{formatGp(Math.round(plan.profit))}</td>
       <td className="right mono dim" title={tripTitle}>
-        {data.tripSeconds === null ? "—" : formatDuration(data.tripSeconds)}
+        {plan.tripSeconds === null ? "—" : formatDuration(plan.tripSeconds)}
       </td>
       <td className="right mono strong" title={gpTitle}>
-        {data.gpPerHour === null ? "—" : formatGp(Math.round(data.gpPerHour))}
+        {plan.gpPerHour === null ? "—" : formatGp(Math.round(plan.gpPerHour))}
       </td>
     </tr>
   );

@@ -115,6 +115,7 @@ describe('rankSinks', () => {
     expect(opp?.units).toBe(100);
     expect(opp?.worlds).toBe(20);
     expect(opp?.worldLimited).toBe(false);
+    expect(opp?.budgetLimited).toBe(false);
     expect(opp?.profit).toBe(1200);
     expect(opp?.geTiles).toBe(10);
     expect(opp?.deltaPct).toBe(2);
@@ -245,6 +246,20 @@ describe('rankSinks', () => {
     ).toBe(0);
   });
 
+  it('honours the gold budget', () => {
+    const result = rankSinks(catalog([entry()]), market([quote()]), {
+      mode: 'pessimistic',
+      budgetGp: 1000,
+    });
+    const opp = result.opportunities[0];
+
+    expect(opp?.units).toBe(10); // 1000 gp / 100 per unit
+    expect(opp?.worlds).toBe(2);
+    expect(opp?.budgetLimited).toBe(true);
+    expect(opp?.totalCost).toBe(1000);
+    expect(opp?.profit).toBe(120);
+  });
+
   it('reports profit but an unknown gp/hour when the GE distance is unknown', () => {
     const result = rankSinks(
       catalog([entry({ geTiles: null })], null),
@@ -373,6 +388,7 @@ describe('rankSinks', () => {
       minVolume4h: 2,
       hopSeconds: 10,
       maxWorlds: 200,
+      budgetGp: 0,
     });
   });
 });

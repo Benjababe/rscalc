@@ -84,6 +84,8 @@ export interface ShopSinkOptions {
   hopSeconds?: number;
   /** Ceiling on worlds visited. Defaults to the shared 200-world assumption. */
   maxWorlds?: number;
+  /** Gold available. 0 or omitted means no budget cap. */
+  budgetGp?: number;
   /** Stock the shop starts at. Defaults to the row's base stock. */
   startStock?: number;
 }
@@ -97,6 +99,8 @@ export interface ShopSinkPlan {
   worlds: number;
   /** True when the world ceiling, not the GE cap, ended the plan. */
   worldLimited: boolean;
+  /** True when available gold, not the GE/world cap, ended the plan. */
+  budgetLimited: boolean;
   /** Coins paid on the GE. */
   totalCost: number;
   /** Coins the shops pay across every world. */
@@ -165,6 +169,7 @@ export function planShopSink(
     1,
     Math.floor(options.maxWorlds ?? DEFAULT_MAX_WORLDS),
   );
+  const budgetGp = Math.max(0, options.budgetGp ?? 0);
   const startStock = options.startStock ?? row.baseStock;
 
   // A fresh world: the marginal sale stops when the shop's next offer no longer
@@ -176,7 +181,14 @@ export function planShopSink(
 
   const unitsPerWorld = perWorld.units;
   const maxUnitsByWorlds = unitsPerWorld * maxWorlds;
-  const units = Math.min(purchaseCap4h, maxUnitsByWorlds);
+  const plannedUnits = Math.min(purchaseCap4h, maxUnitsByWorlds);
+  const unitsByBudget =
+    budgetGp > 0 && options.geCostPerUnit > 0
+      ? Math.floor(budgetGp / options.geCostPerUnit)
+      : Number.POSITIVE_INFINITY;
+  const units = Math.min(plannedUnits, unitsByBudget);
+  const budgetLimited =
+    Number.isFinite(unitsByBudget) && unitsByBudget < plannedUnits;
 
   const worlds = unitsPerWorld > 0 ? Math.ceil(units / unitsPerWorld) : 0;
   const fullWorlds = unitsPerWorld > 0 ? Math.floor(units / unitsPerWorld) : 0;
@@ -220,6 +232,7 @@ export function planShopSink(
     unitsPerWorld,
     worlds,
     worldLimited: unitsPerWorld > 0 && purchaseCap4h > maxUnitsByWorlds,
+    budgetLimited,
     totalCost,
     totalRevenue,
     profit,

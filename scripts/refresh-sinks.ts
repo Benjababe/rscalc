@@ -5,6 +5,7 @@
  *   pnpm sinks --mode=patient         # buy offers at the GE low and wait
  *   pnpm sinks --include-general-stores
  *   pnpm sinks --hop=8 --max-worlds=150
+ *   pnpm sinks --gold=5000000      # size plans to your available gold
  *   pnpm sinks --write                # emit both modes for the UI
  *
  * Items are collected from the GE as banknotes, so there are no inventory
@@ -55,6 +56,7 @@ interface Cli {
   secondsPerTile: number;
   hopSeconds: number;
   maxWorlds: number;
+  gold: number;
   write: boolean;
 }
 
@@ -78,6 +80,7 @@ function parseArgs(argv: string[]): Cli {
     secondsPerTile: 0.6,
     hopSeconds: DEFAULT_HOP_SECONDS,
     maxWorlds: DEFAULT_MAX_WORLDS,
+    gold: 0,
     write: false,
   };
 
@@ -116,6 +119,8 @@ function parseArgs(argv: string[]): Cli {
         1,
         Math.floor(nonNegativeNumber(arg.slice('--max-worlds='.length), '--max-worlds')),
       );
+    } else if (arg.startsWith('--gold=')) {
+      cli.gold = nonNegativeNumber(arg.slice('--gold='.length), '--gold');
     } else {
       throw new Error(`Unknown argument "${arg}". See the header of this file.`);
     }
@@ -140,6 +145,7 @@ async function main(): Promise<void> {
     secondsPerTile: cli.secondsPerTile,
     hopSeconds: cli.hopSeconds,
     maxWorlds: cli.maxWorlds,
+    budgetGp: cli.gold,
   };
 
   const ranking = rankSinks(catalog, market, { ...base, limit: cli.limit });
@@ -159,6 +165,7 @@ async function main(): Promise<void> {
   process.stdout.write(
     `general stores: ${cli.excludeGeneralStores ? 'excluded' : 'included'} | ` +
       `hop ${cli.hopSeconds}s | worlds ≤ ${cli.maxWorlds} | ` +
+      `gold ${cli.gold > 0 ? formatGp(cli.gold) : 'uncapped'} | ` +
       `GE origin: ${catalog.gePoint === null ? 'unknown' : `${catalog.gePoint.x},${catalog.gePoint.y} (mapID ${catalog.gePoint.mapID})`}\n`,
   );
   process.stdout.write(`${'='.repeat(132)}\n`);

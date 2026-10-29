@@ -238,6 +238,49 @@ describe('planShopSink', () => {
     expect(plan.gpPerHour).toBe(0);
   });
 
+  it('caps the plan at the gold available', () => {
+    const plan = planShopSink(BOBS_AXE, {
+      geCostPerUnit: 100,
+      purchaseCap4h: 12,
+      budgetGp: 1000,
+      ...TRIP,
+    });
+
+    // 1000 gp buys 10 units at 100 each; a world batch is 5.
+    expect(plan.units).toBe(10);
+    expect(plan.worlds).toBe(2);
+    expect(plan.budgetLimited).toBe(true);
+    expect(plan.totalCost).toBe(1000);
+    expect(plan.totalRevenue).toBe(2 * 560);
+    expect(plan.profit).toBe(120);
+  });
+
+  it('treats a zero gold budget as no cap', () => {
+    const plan = planShopSink(BOBS_AXE, {
+      geCostPerUnit: 100,
+      purchaseCap4h: 12,
+      budgetGp: 0,
+      ...TRIP,
+    });
+
+    expect(plan.units).toBe(12);
+    expect(plan.budgetLimited).toBe(false);
+  });
+
+  it('buys nothing when gold cannot cover one unit', () => {
+    const plan = planShopSink(BOBS_AXE, {
+      geCostPerUnit: 100,
+      purchaseCap4h: 12,
+      budgetGp: 99,
+      ...TRIP,
+    });
+
+    expect(plan.units).toBe(0);
+    expect(plan.budgetLimited).toBe(true);
+    expect(plan.timeSeconds).toBe(0);
+    expect(plan.gpPerHour).toBe(0);
+  });
+
   it('does not charge a price drop at an infinite-stock shop', () => {
     const infinite: ShopRow = {
       itemValue: 100,

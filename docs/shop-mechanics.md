@@ -457,9 +457,15 @@ repeated:
 ```text
 unitsPerWorld = planShopSale(fresh world, maxUnits = purchaseCap4h).units
 worlds        = ceil(units / unitsPerWorld)
-units         = min(purchaseCap4h, unitsPerWorld * maxWorlds)
+units         = min(purchaseCap4h, unitsPerWorld * maxWorlds,
+                    floor(budgetGp / geBuyPrice))
 totalRevenue  = fullWorlds * revenuePerWorld + remainder revenue
 ```
+
+`budgetGp` is the optional gold budget. **0 means no cap**, matching the
+shop → GE page's "gold 0 = do not size" convention; a plan cut by gold is
+marked `budgetLimited`. The browser pages share one `rscalc.budget` localStorage
+value, so the same gold amount sizes both directions.
 
 `maxWorlds` defaults to **200**, the same explicit ceiling as the shop → GE
 budget planner (`DEFAULT_MAX_WORLDS`). It is an assumption, not a sourced world

@@ -10,9 +10,9 @@ import { compact, formatGp, formatTime } from "./format";
 import { sellableAcrossWorlds, toShopRow } from "./opportunity";
 import { ShopBasketPanel } from "./ShopBasket";
 import {
-  BUDGET_STORAGE_KEY,
-  parseBudgetState,
-  serialiseBudgetState,
+  browserStore,
+  readStoredBudget,
+  writeStoredBudget,
   type BudgetState,
   type BudgetView,
 } from "./storage";
@@ -64,22 +64,15 @@ const BUDGET_SORTS: ReadonlySet<SortKey> = new Set<SortKey>([
 
 const DEFAULT_HOP_SECONDS = 10;
 
-function readStoredBudget(): BudgetState {
-  if (typeof window === "undefined") return parseBudgetState(null);
-  try {
-    return parseBudgetState(window.localStorage.getItem(BUDGET_STORAGE_KEY));
-  } catch {
-    return parseBudgetState(null);
-  }
-}
-
 export function ShopToGePage(): JSX.Element {
   const [mode, setMode] = useState<SellMode>("pessimistic");
   const [query, setQuery] = useState("");
   const [membersOnly, setMembersOnly] = useState(false);
   const [minVolume, setMinVolume] = useState(0);
   const [selectedShop, setSelectedShop] = useState<string | null>(null);
-  const [initialBudget] = useState<BudgetState>(readStoredBudget);
+  const [initialBudget] = useState<BudgetState>(() =>
+    readStoredBudget(browserStore()),
+  );
   const [gold, setGold] = useState(initialBudget.gold);
   const [view, setView] = useState<BudgetView>(initialBudget.view);
   const [hopSeconds, setHopSeconds] = useState(DEFAULT_HOP_SECONDS);
@@ -93,14 +86,7 @@ export function ShopToGePage(): JSX.Element {
   const budgetMode = gold > 0 && view === "budget";
 
   useEffect(() => {
-    try {
-      window.localStorage.setItem(
-        BUDGET_STORAGE_KEY,
-        serialiseBudgetState({ gold, view }),
-      );
-    } catch {
-      // localStorage can be unavailable (private mode); the UI still works.
-    }
+    writeStoredBudget({ gold, view }, browserStore());
   }, [gold, view]);
 
   const rows = useMemo<RowData[]>(() => {

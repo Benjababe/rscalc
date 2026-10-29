@@ -65,6 +65,8 @@ export interface SinkRankOptions {
   hopSeconds?: number;
   /** Ceiling on worlds visited. */
   maxWorlds?: number;
+  /** Gold available; 0 or omitted means no budget cap. */
+  budgetGp?: number;
   /** Cap the returned list. */
   limit?: number;
 }
@@ -92,6 +94,7 @@ export function rankSinks(
     1,
     Math.floor(options.maxWorlds ?? DEFAULT_MAX_WORLDS),
   );
+  const budgetGp = Math.max(0, options.budgetGp ?? 0);
 
   const best = new Map<string, ShopSinkOpportunity>();
 
@@ -134,6 +137,7 @@ export function rankSinks(
       secondsPerTile,
       hopSeconds,
       maxWorlds,
+      budgetGp,
       startStock: row.baseStock,
     });
     if (plan.units <= 0) continue;
@@ -173,6 +177,7 @@ export function rankSinks(
       unitsPerWorld: plan.unitsPerWorld,
       worlds: plan.worlds,
       worldLimited: plan.worldLimited,
+      budgetLimited: plan.budgetLimited,
       deltaPct: plan.deltaPct,
       priceDropPerUnit: plan.priceDropPerUnit,
       priceLimited: plan.priceLimited,
@@ -226,6 +231,7 @@ export function rankSinks(
       minVolume4h,
       hopSeconds,
       maxWorlds,
+      budgetGp,
     },
     count: limited.length,
     opportunities: limited,

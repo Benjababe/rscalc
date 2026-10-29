@@ -48,7 +48,7 @@ pnpm dev            # web UI at http://localhost:5173
 | `pnpm sinks` | GE → shop ranking in the terminal |
 | `pnpm sinks --write` | emit `data/shop-sinks.json` for the UI |
 | `pnpm dev` / `pnpm build` | web UI |
-| `pnpm test` / `pnpm typecheck` | 209 tests / `tsc --noEmit` |
+| `pnpm test` / `pnpm typecheck` | 217 tests / `tsc --noEmit` |
 
 `pnpm report` flags: `--mode=pessimistic|patient`, `--limit=N`, `--members`,
 `--min-volume4h=N`, `--min-margin=N`, `--infinite`, `--write`.
@@ -174,6 +174,12 @@ with `--max-worlds=N`. `gp / hour` is the slower of one GE↔shop trip plus the
 hops, and the GE supplying the units. A shop on another map shows `—` rather
 than a made-up trip.
 
+The **Gold available** field sizes every plan:
+`units = min(GE 4h supply, 200 worlds × batch, gold / GE buy price)`. A row cut
+by gold is marked **budget**, and clearing the field to 0 shows the uncapped
+plan. It is the **same localStorage value** as the shop → GE page, so the two
+directions share one gold amount.
+
 What this page deliberately does **not** claim:
 
 - **General stores are excluded.** They buy almost anything, but the wiki's
@@ -257,10 +263,12 @@ off-by-one that a naive implementation gets wrong). Beyond that, be aware:
 - **GE → shop: noted items, fresh worlds.** GE purchases are collected as
   banknotes, so there is no banking time: one GE↔shop trip plus one hop per
   world. Each world resets the shop's stock, so the marginal batch (driven by
-  the shop's `delta` price drop per unit) is repeated. Only the shop's default
-  stock is assumed on every world; destocking on a world you revisit is not
-  modelled. The 200-world ceiling is an assumption, and the travel distance is a
-  straight-line lower bound (teleports and obstacles are not modelled).
+  the shop's `delta` price drop per unit) is repeated. **Gold available** caps
+  the total at `floor(gold / GE price)`; it is the same localStorage value as the
+  shop → GE page, and 0 means no cap. Only the shop's default stock is assumed
+  on every world; destocking on a world you revisit is not modelled. The
+  200-world ceiling is an assumption, and the travel distance is a straight-line
+  lower bound (teleports and obstacles are not modelled).
 - **Travel to the shop is not modelled** on the shop → GE page, only hop time,
   bank trips and GE sell time.
 - **Illiquid items show stale GE prices.** If something trades twice a day, its

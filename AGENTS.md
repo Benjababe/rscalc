@@ -228,10 +228,13 @@ price. Two pages share one shell; the reverse direction has its own artifact.
   shop's stock, so the marginal batch is repeated; the plan stops at
   `min(purchaseCap4h, unitsPerWorld * 200)`. `time = max(trip + worlds * hop,
   units/purchaseCap4h * 4h)`. Unknown `geTiles` → `gpPerHour = null`.
+- The plan is also capped by available gold: `floor(gold / GE price)`, with
+  `budgetLimited` set when gold binds. Both browser pages share the same
+  `rscalc.budget` localStorage value; 0 means no cap.
 - UI: **GE → shop** tab (`#/ge-to-shop`); CLI: `pnpm sinks`.
 **Accept:** tests pin the published-buy-price rule, general-store exclusion,
-buy-limit cap, per-world batch, world-hop time, unknown-distance `null`, and
-deterministic ordering.
+buy-limit cap, per-world batch, world-hop time, gold budget, unknown-distance
+`null`, and deterministic ordering.
 
 ## Engineering conventions
 

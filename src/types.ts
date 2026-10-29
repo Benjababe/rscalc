@@ -288,6 +288,8 @@ export const ShopSinkOpportunitySchema = z.object({
   worlds: z.number().int(),
   /** True when the world ceiling, not the GE purchase cap, ended the plan. */
   worldLimited: z.boolean(),
+  /** True when available gold, not the GE/world cap, ended the plan. */
+  budgetLimited: z.boolean(),
   /** Shop price change per unit sold, as a percentage of item value. */
   deltaPct: z.number(),
   /** Nominal gp the shop's offer falls by for each extra unit sold. */
@@ -320,6 +322,8 @@ export const ShopSinkRankingSchema = z.object({
     hopSeconds: z.number(),
     /** Ceiling on worlds visited in this snapshot. */
     maxWorlds: z.number().int(),
+    /** Gold budget used for this snapshot; 0 means no budget cap. */
+    budgetGp: z.number(),
   }),
   count: z.number().int(),
   opportunities: z.array(ShopSinkOpportunitySchema),
