@@ -257,6 +257,37 @@ body {
   border-radius: 10px;
   overflow: auto;
   max-height: 74vh;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: #3d4451 var(--panel-2);
+}
+
+.tablewrap::-webkit-scrollbar,
+.basket-tablewrap::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.tablewrap::-webkit-scrollbar-track,
+.basket-tablewrap::-webkit-scrollbar-track {
+  background: var(--panel-2);
+}
+
+.tablewrap::-webkit-scrollbar-thumb,
+.basket-tablewrap::-webkit-scrollbar-thumb {
+  background: #3d4451;
+  border: 2px solid var(--panel-2);
+  border-radius: 10px;
+}
+
+.tablewrap::-webkit-scrollbar-thumb:hover,
+.basket-tablewrap::-webkit-scrollbar-thumb:hover {
+  background: #596273;
+}
+
+.tablewrap::-webkit-scrollbar-corner,
+.basket-tablewrap::-webkit-scrollbar-corner {
+  background: var(--panel-2);
 }
 
 .results-table {
@@ -719,6 +750,9 @@ thead th[title] {
   border: 1px solid var(--line);
   border-radius: 8px;
   max-height: 40vh;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: #3d4451 var(--panel-2);
 }
 
 .basket-table {
