@@ -432,20 +432,20 @@ tbody tr:hover {
 .budget-inputs {
   display: flex;
   gap: 18px;
-  align-items: flex-end;
+  align-items: center;
   flex-wrap: wrap;
 }
 
 .budget-inputs .toggle {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 5px;
-}
-
-.budget-inputs .toggle.inline {
   flex-direction: row;
   align-items: center;
   gap: 7px;
+}
+
+.budget-inputs .label {
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .field-control {
