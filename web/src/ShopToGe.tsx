@@ -752,16 +752,18 @@ function Row({
         >
           {row.shopName}
         </a>
-        <button
-          type="button"
-          className="shop-basket"
-          onClick={() => onSelectShop(row.shopPage)}
-          aria-label={`Open the multi-item basket for ${row.shopName}`}
-          title="Buy every profitable item from this shop in the same visits"
-        >
-          basket
-        </button>
-        <AccessBadge shopPage={row.shopPage} />
+        <div className="shop-actions">
+          <button
+            type="button"
+            className="shop-basket"
+            onClick={() => onSelectShop(row.shopPage)}
+            aria-label={`Open the multi-item basket for ${row.shopName}`}
+            title="Buy every profitable item from this shop in the same visits"
+          >
+            basket
+          </button>
+          <AccessBadge shopPage={row.shopPage} />
+        </div>
       </td>
       <td className="loc loc-col">{row.location ?? "—"}</td>
       <td className="right mono">

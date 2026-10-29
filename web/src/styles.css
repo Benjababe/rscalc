@@ -363,6 +363,19 @@ tbody tr:hover {
   color: #cfd4dc;
 }
 
+.shop-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.shop-actions .shop-basket,
+.shop-actions .access-badge {
+  margin-left: 0;
+}
+
 .wiki-link {
   color: var(--link);
   font-weight: 700;

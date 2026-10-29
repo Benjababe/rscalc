@@ -692,16 +692,18 @@ function Row({
         >
           {opp.shopName}
         </a>
-        <button
-          type="button"
-          className="shop-basket"
-          onClick={() => onSelectShop(opp.shopPage)}
-          aria-label={`Open the GE to shop basket for ${opp.shopName}`}
-          title="Buy every profitable item for this shop and sell them in the same worlds"
-        >
-          basket
-        </button>
-        <AccessBadge shopPage={opp.shopPage} />
+        <div className="shop-actions">
+          <button
+            type="button"
+            className="shop-basket"
+            onClick={() => onSelectShop(opp.shopPage)}
+            aria-label={`Open the GE to shop basket for ${opp.shopName}`}
+            title="Buy every profitable item for this shop and sell them in the same worlds"
+          >
+            basket
+          </button>
+          <AccessBadge shopPage={opp.shopPage} />
+        </div>
       </td>
       <td className="loc loc-col">{opp.location ?? "—"}</td>
       <td className="right mono">{formatGp(opp.geBuyPrice)}</td>
