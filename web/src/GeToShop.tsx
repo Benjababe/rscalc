@@ -313,23 +313,41 @@ export function GeToShopPage(): JSX.Element {
 
       <section className="controls budget">
         <div className="budget-inputs">
-          <label className="toggle">
-            <span className="label">Gold available</span>
-            <span className="field-control">
-              <input
-                className="num wide"
-                type="number"
-                min={0}
-                step={100_000}
-                value={gold}
-                onChange={(event) =>
-                  setGold(Math.max(0, Number(event.target.value) || 0))
-                }
-                aria-label="Gold available"
-              />
-              <span className="field-unit">gp</span>
-            </span>
-          </label>
+          <div className="gold-compartment">
+            <label className="toggle">
+              <span className="label">Gold available</span>
+              <span className="field-control">
+                <input
+                  className="num wide"
+                  type="number"
+                  min={0}
+                  step={100_000}
+                  value={gold}
+                  onChange={(event) =>
+                    setGold(Math.max(0, Number(event.target.value) || 0))
+                  }
+                  aria-label="Gold available"
+                />
+                <span className="field-unit">gp</span>
+              </span>
+            </label>
+
+            <div className="presets">
+              {[100_000, 1_000_000, 10_000_000, 100_000_000].map((amount) => (
+                <button
+                  key={amount}
+                  type="button"
+                  className={gold === amount ? "preset active" : "preset"}
+                  onClick={() => setGold(amount)}
+                >
+                  {compact(amount)}
+                </button>
+              ))}
+              <button type="button" className="preset" onClick={() => setGold(0)}>
+                Clear
+              </button>
+            </div>
+          </div>
 
           <label className="toggle">
             <span className="label">World hop</span>
@@ -366,22 +384,6 @@ export function GeToShopPage(): JSX.Element {
               <span className="field-unit">s / tile</span>
             </span>
           </label>
-
-          <div className="presets">
-            {[100_000, 1_000_000, 10_000_000, 100_000_000].map((amount) => (
-              <button
-                key={amount}
-                type="button"
-                className={gold === amount ? "preset active" : "preset"}
-                onClick={() => setGold(amount)}
-              >
-                {compact(amount)}
-              </button>
-            ))}
-            <button type="button" className="preset" onClick={() => setGold(0)}>
-              Clear
-            </button>
-          </div>
         </div>
 
         <p className="hint">
