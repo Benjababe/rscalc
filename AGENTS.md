@@ -69,6 +69,7 @@ src/api/wikiMap.ts     shop/bank coordinates (map bucket + Category:Banks pages)
 src/domain/tax.ts      GE tax rules
 src/domain/shopPrice.ts dynamic shop price formula (the game's exact math)
 src/domain/shopSink.ts  GE -> shop planner: decreasing sale curve, world hops, GE trip, gp/hour
+src/domain/sinkBasket.ts GE -> shop basket: shared worlds/trip, one gold budget, GE buy slots
 src/domain/profit.ts   arbitrage planner: marginal buy quantity, margin, gp/4h
 src/domain/budget.ts   gold-budget planner: worlds, banking, gp/hour
 src/domain/basket.ts   multi-item shop planner: shared hops/loads, GE sell slots
@@ -235,6 +236,23 @@ price. Two pages share one shell; the reverse direction has its own artifact.
 **Accept:** tests pin the published-buy-price rule, general-store exclusion,
 buy-limit cap, per-world batch, world-hop time, gold budget, unknown-distance
 `null`, and deterministic ordering.
+
+### M10 — GE → shop multi-item baskets ✅
+A shop visit can sell every profitable item for that shop, so the world hop and
+the single GE trip are shared rather than charged once per item.
+- `src/domain/sinkBasket.ts` allocates one gold budget across items by marginal
+  profit per coin, respecting each item's GE 4h purchase cap and the shared
+  200-world ceiling. Units repeat in per-world batches; the basket needs
+  `max(ceil(units_i / batch_i))` worlds, not the sum.
+- Items bought on the GE are noted: one GE↔shop trip, no inventory loads or
+  banking. Hop time is shared by every item in the basket.
+- GE buy offers fill concurrently up to the player's slots (members 8, free 3),
+  scheduled longest-first; time = max(trip + hops, buy makespan). Unknown
+  `geTiles` → `gpPerHour = null`.
+- UI: a **basket** button beside each shop opens the combined plan, using the
+  same gold/hop/travel inputs as the page.
+**Accept:** tests pin shared worlds, shared gold allocation, one GE trip, GE
+buy makespan, caps, unknown-distance `null`, and per-item ordering.
 
 ## Engineering conventions
 

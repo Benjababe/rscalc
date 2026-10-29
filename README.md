@@ -48,7 +48,7 @@ pnpm dev            # web UI at http://localhost:5173
 | `pnpm sinks` | GE → shop ranking in the terminal |
 | `pnpm sinks --write` | emit `data/shop-sinks.json` for the UI |
 | `pnpm dev` / `pnpm build` | web UI |
-| `pnpm test` / `pnpm typecheck` | 217 tests / `tsc --noEmit` |
+| `pnpm test` / `pnpm typecheck` | 227 tests / `tsc --noEmit` |
 
 `pnpm report` flags: `--mode=pessimistic|patient`, `--limit=N`, `--members`,
 `--min-volume4h=N`, `--min-margin=N`, `--infinite`, `--write`.
@@ -180,6 +180,13 @@ by gold is marked **budget**, and clearing the field to 0 shows the uncapped
 plan. It is the **same localStorage value** as the shop → GE page, so the two
 directions share one gold amount.
 
+Click **basket** beside a shop name to plan every profitable item for that shop
+together. The basket shares the world hops and the single GE↔shop trip, and
+allocates one gold budget across the items by marginal profit per coin. Its
+per-item table shows each batch, average shop price, spend and profit; GE buy
+offers are scheduled across the 8 member / 3 free offer slots. The basket is
+the combined plan, while the main table still ranks items one at a time.
+
 What this page deliberately does **not** claim:
 
 - **General stores are excluded.** They buy almost anything, but the wiki's
@@ -269,6 +276,14 @@ off-by-one that a naive implementation gets wrong). Beyond that, be aware:
   on every world; destocking on a world you revisit is not modelled. The
   200-world ceiling is an assumption, and the travel distance is a straight-line
   lower bound (teleports and obstacles are not modelled).
+- **GE → shop baskets share hops and one gold budget.** The basket needs
+  `max(ceil(units_i / batch_i))` worlds, not the sum over items, and one GE trip
+  because the items are noted. Gold is allocated greedily by marginal profit per
+  coin; the shared hop cost is not part of that ratio, so a marginal unit that
+  forces an extra world can look slightly better than it is. GE buy offers are
+  assumed to fill concurrently across the offer slots, with no competition or
+  collection travel. Per-item rows can show 0 units when the budget goes
+  elsewhere.
 - **Travel to the shop is not modelled** on the shop → GE page, only hop time,
   bank trips and GE sell time.
 - **Illiquid items show stale GE prices.** If something trades twice a day, its

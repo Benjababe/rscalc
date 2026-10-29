@@ -523,3 +523,30 @@ The planner assumes each visited world's shop is at default stock on arrival.
 Destock on a world you revisit is not modelled, so revisiting the same world is
 optimistic. The 200-world ceiling in §12.5 is an explicit assumption, not a
 sourced world count.
+
+### 12.7 Multi-item baskets
+
+A shop visit does not sell one item at a time. `src/domain/sinkBasket.ts` plans
+every profitable item for one shop together, so the world hops and the single
+GE ↔ shop trip are shared:
+
+- **Batch per world.** Each item keeps its own `unitsPerWorld` from §12.5. A
+  fresh world resets every item's stock, so each item's batch can be sold again
+  on the next hop.
+- **Shared worlds.** `worlds = max_i ceil(units_i / unitsPerWorld_i)`, not the
+  sum over items: one world visit can sell a batch of every item.
+- **Shared gold.** One budget is allocated by the next marginal unit's profit
+  per coin, respecting each item's GE 4h purchase cap and the shared world
+  ceiling. The greedy is explainable but not a proof of knapsack optimality;
+  it also ranks by unit efficiency without charging the shared hop cost, so a
+  unit that forces an extra world can look slightly better than it is.
+- **One GE trip, no banking.** Items bought on the GE are noted, so the basket
+  needs one GE ↔ shop round trip, plus `worlds × hopSeconds`. There are no
+  27-unit loads and no bank trips.
+- **Concurrent GE buys.** Each item's supply time is
+  `units_i / purchaseCap4h_i × 4h`; offers fill in parallel across the player's
+  GE slots (members 8, free 3), scheduled longest-first (LPT). Time is
+  `max(trip + hops, buyMakespan)`. Unknown `geTiles` ⇒ `gpPerHour = null`.
+
+The per-item table shows the batch, average shop price, spend and profit; the
+summary shows the shared worlds, hop time, GE supply time and total time.

@@ -16,6 +16,7 @@ import type {
 import { wikiUrl } from "../../src/util/wiki";
 import { compact, formatDuration, formatGp, formatTime } from "./format";
 import { toSinkShopRow } from "./opportunity";
+import { SinkBasketPanel } from "./SinkBasket";
 import {
   browserStore,
   readStoredBudget,
@@ -78,6 +79,7 @@ export function GeToShopPage(): JSX.Element {
   const [storedView] = useState(initialBudget.view);
   const [sortKey, setSortKey] = useState<SortKey>("gpPerHour");
   const [descending, setDescending] = useState(true);
+  const [selectedShop, setSelectedShop] = useState<string | null>(null);
 
   // The same key as the shop -> GE page: gold is shared, the view is preserved.
   useEffect(() => {
@@ -415,6 +417,17 @@ export function GeToShopPage(): JSX.Element {
         />
       </section>
 
+      {selectedShop !== null && (
+        <SinkBasketPanel
+          shopPage={selectedShop}
+          opportunities={ranking.opportunities}
+          gold={gold}
+          hopSeconds={hopSeconds}
+          secondsPerTile={secondsPerTile}
+          onClose={() => setSelectedShop(null)}
+        />
+      )}
+
       <div className="tablewrap">
         <table>
           <thead>
@@ -517,6 +530,7 @@ export function GeToShopPage(): JSX.Element {
                 key={`${entry.opp.itemId}-${entry.opp.shopPage}`}
                 data={entry}
                 rank={index + 1}
+                onSelectShop={setSelectedShop}
               />
             ))}
           </tbody>
@@ -609,9 +623,11 @@ export function GeToShopPage(): JSX.Element {
 function Row({
   data,
   rank,
+  onSelectShop,
 }: {
   data: RowData;
   rank: number;
+  onSelectShop: (shopPage: string) => void;
 }): JSX.Element {
   const { opp, plan } = data;
   const tripTitle =
@@ -651,6 +667,15 @@ function Row({
         >
           {opp.shopName}
         </a>
+        <button
+          type="button"
+          className="shop-basket"
+          onClick={() => onSelectShop(opp.shopPage)}
+          aria-label={`Open the GE to shop basket for ${opp.shopName}`}
+          title="Buy every profitable item for this shop and sell them in the same worlds"
+        >
+          basket
+        </button>
       </td>
       <td className="loc loc-col">{opp.location ?? "—"}</td>
       <td className="right mono">{formatGp(opp.geBuyPrice)}</td>
