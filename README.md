@@ -18,10 +18,10 @@ SHOP -> GE
 12 Banana              Solihib's Food Stall     11      51      1     39      1000  39,375
 
 GE -> SHOP
-#  Item                Shop                     GE buy  Shop pays  Qty  Spend    Profit   gp/hour
-1  Rune javelin        Oobapohk's Javelin Sto…  120     240→121    298  35,760   17,940   66,094
-4  Ruby necklace       Grum's Gold Exchange     911     1,522→913  15   13,665   4,601    47,745
-9  Rune warhammer      Skulgrimen's Battle Ge…  24,917  29,050→25,315  4  99,668  9,062  39,646
+#  Item                Shop                     GE buy  Shop pays   Qty   Batch Wrlds Spend      Profit    gp/hour
+1  Ruby necklace       Grum's Gold Exchan…   911     1,522→913   3000  15    200*  2,733,000  920,200   1,380,300
+2  Diamond necklace    Grum's Gold Exchan…   1,810   2,572→1,837 2200  11    200*  3,982,000  868,400   1,332,061
+3  Emerald necklace    Grum's Gold Exchan…   538     997→541     3400  17    200*  1,829,200  786,200   1,040,559
 ```
 
 ## Quick start
@@ -48,7 +48,7 @@ pnpm dev            # web UI at http://localhost:5173
 | `pnpm sinks` | GE → shop ranking in the terminal |
 | `pnpm sinks --write` | emit `data/shop-sinks.json` for the UI |
 | `pnpm dev` / `pnpm build` | web UI |
-| `pnpm test` / `pnpm typecheck` | 207 tests / `tsc --noEmit` |
+| `pnpm test` / `pnpm typecheck` | 209 tests / `tsc --noEmit` |
 
 `pnpm report` flags: `--mode=pessimistic|patient`, `--limit=N`, `--members`,
 `--min-volume4h=N`, `--min-margin=N`, `--infinite`, `--write`.
@@ -162,12 +162,17 @@ pnpm sinks --mode=patient         # resting buy offers at the GE low
 pnpm sinks --write                # emit data/shop-sinks.json for the UI
 ```
 
-The table shows the GE buy price, what the shop pays (first → last, falling as
-it fills), the marginal-driven quantity, spend, profit, inventory loads, the
-per-shop trip time and gp/hour. Travel is the shop's own straight-line distance
-to the Grand Exchange from the wiki map, doubled; a shop on another map shows
-`—` rather than a made-up trip. As with the shop → GE page, `gp / hour` is the
-slower of moving the loads and waiting for the GE to supply the units.
+The table shows the GE buy price, what the shop pays (first → last of one
+world's batch, falling as it fills), the batch one world absorbs, the total
+quantity across worlds, worlds, spend, profit, the GE trip and gp/hour. Items
+are collected from the GE as **banknotes**, so the whole purchase fits one
+inventory slot: there is no 27-unit load split and no banking. Each fresh world
+resets the shop's stock, so the same falling price curve can be sold again after
+a hop; `Qty` totals those worlds and `Worlds` is the hop count. The plan is
+capped at **200 worlds** (the same ceiling as the shop → GE planner); raise it
+with `--max-worlds=N`. `gp / hour` is the slower of one GE↔shop trip plus the
+hops, and the GE supplying the units. A shop on another map shows `—` rather
+than a made-up trip.
 
 What this page deliberately does **not** claim:
 
@@ -181,9 +186,11 @@ What this page deliberately does **not** claim:
   related item it does not stock is invisible; that would need a separate
   sourced list.
 
-The shop is assumed to be at default stock on arrival, so repeat runs from the
-same shop are optimistic; destock and restock timers are not modelled, and
-teleports are not either.
+The shop is assumed to be at default stock on each world, so the same batch is
+repeated across hops. Destocking between visits to the same world, restock
+timers and teleports are not modelled. The 200-world ceiling is an explicit
+assumption, not a sourced world count; a row marked **world cap** could sell
+more if you allowed more hops.
 
 ## Accuracy — read this before trusting a number
 
@@ -239,26 +246,28 @@ off-by-one that a naive implementation gets wrong). Beyond that, be aware:
 - **GE → shop: no tax, and the buy limit really binds.** Buying on the GE is
   untaxed and a shop sale is not a GE trade, so neither leg pays the 2% tax. In
   this direction you are the buyer, so `min(GE buy limit, 24h volume/6)` caps the
-  quantity per 4-hour window; that is also why `Qty` is small for high-value
-  items with tight limits.
+  total quantity per 4-hour window. `Qty` is the total across worlds, `Batch` is
+  one fresh world, and the plan stops at `min(GE cap, 200 worlds × batch)`.
 - **GE → shop: "the shop buys it" is sourced, not inferred.** A row is only
   included when the wiki publishes a positive `store_buy_price`. The multiplier
   alone is not enough: Eblis's ancient staff lists a 100% buy multiplier but
   `buy=N/A` (`hidebuy=y`), and the shop refuses the item. General stores are
   excluded by `Category:General stores`; only items a shop stocks are visible,
   so a specialist buying an unlisted related item is a known gap.
-- **GE → shop: one price curve per arrival.** The shop's stock is assumed at its
-  default level, so its buy price falls as you sell; repeat runs from the same
-  shop are optimistic because destocking between runs is not modelled. GE → shop
-  travel is the shop's own straight-line distance from the Grand Exchange,
-  doubled; shops on another map show `—` for gp/hour rather than an invented
-  trip, and teleports/obstacles are not modelled.
+- **GE → shop: noted items, fresh worlds.** GE purchases are collected as
+  banknotes, so there is no banking time: one GE↔shop trip plus one hop per
+  world. Each world resets the shop's stock, so the marginal batch (driven by
+  the shop's `delta` price drop per unit) is repeated. Only the shop's default
+  stock is assumed on every world; destocking on a world you revisit is not
+  modelled. The 200-world ceiling is an assumption, and the travel distance is a
+  straight-line lower bound (teleports and obstacles are not modelled).
 - **Travel to the shop is not modelled** on the shop → GE page, only hop time,
   bank trips and GE sell time.
 - **Illiquid items show stale GE prices.** If something trades twice a day, its
   `low` may be wildly out of date. Filter with `--min-volume4h`.
 - **Not modelled:** teleport costs, competition from other players,
   instance/quest access requirements, and destocking/restocking between runs.
+  The GE → shop world count is capped at an explicit 200, not a sourced total.
 
 ## Project layout
 

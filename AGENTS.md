@@ -68,7 +68,7 @@ src/api/wikiItems.ts   item stackability from the infobox
 src/api/wikiMap.ts     shop/bank coordinates (map bucket + Category:Banks pages)
 src/domain/tax.ts      GE tax rules
 src/domain/shopPrice.ts dynamic shop price formula (the game's exact math)
-src/domain/shopSink.ts  GE -> shop planner: decreasing sale curve, loads, GE trip, gp/hour
+src/domain/shopSink.ts  GE -> shop planner: decreasing sale curve, world hops, GE trip, gp/hour
 src/domain/profit.ts   arbitrage planner: marginal buy quantity, margin, gp/4h
 src/domain/budget.ts   gold-budget planner: worlds, banking, gp/hour
 src/domain/basket.ts   multi-item shop planner: shared hops/loads, GE sell slots
@@ -222,13 +222,15 @@ price. Two pages share one shell; the reverse direction has its own artifact.
   `store_buy_price`; `N/A` means it refuses the item even if the buy multiplier
   is non-zero. General stores are excluded by `Category:General stores`, never
   by name. Only items in a shop's stock table are considered.
-- Time: 27 non-stackable units per load, 1 slot per stackable item, one GE round
-  trip per load at the shop's own `geTiles` (same mapID rule as banks), and
-  `time = max(loads * trip, units/purchaseCap4h * 4h)`. Unknown `geTiles` →
-  `gpPerHour = null`.
+- Time: items are collected from the GE as banknotes, so there is no 27-unit
+  load split and no banking. One GE round trip at the shop's own `geTiles`
+  (same mapID rule as banks) plus one hop per world. Each world resets the
+  shop's stock, so the marginal batch is repeated; the plan stops at
+  `min(purchaseCap4h, unitsPerWorld * 200)`. `time = max(trip + worlds * hop,
+  units/purchaseCap4h * 4h)`. Unknown `geTiles` → `gpPerHour = null`.
 - UI: **GE → shop** tab (`#/ge-to-shop`); CLI: `pnpm sinks`.
 **Accept:** tests pin the published-buy-price rule, general-store exclusion,
-buy-limit cap, stack/mixed loads, mode mapping, unknown-distance `null`, and
+buy-limit cap, per-world batch, world-hop time, unknown-distance `null`, and
 deterministic ordering.
 
 ## Engineering conventions

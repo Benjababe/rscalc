@@ -276,17 +276,22 @@ export const ShopSinkOpportunitySchema = z.object({
   margin: z.number(),
   marginPct: z.number(),
 
-  /** True only when the wiki states the item stacks; null is charged as loose. */
-  stackable: z.boolean().nullable(),
   /** GE 4h buy limit. Here it really is a purchase cap. */
   geBuyLimit: z.number().int().nullable(),
   /** 4h slice of the 24h volume on this mode's side of the book. */
   volume4h: z.number(),
   /** min(geBuyLimit, volume4h): what the GE can supply in 4h. */
   purchaseCap4h: z.number().int(),
-  /** Inventory loads needed, and the non-stackable load size. */
-  loads: z.number().int(),
-  unitsPerLoad: z.number().int(),
+  /** Units one fresh world absorbs before its next price stops paying. */
+  unitsPerWorld: z.number().int(),
+  /** Worlds needed to sell `units`; each hop resets the shop's stock. */
+  worlds: z.number().int(),
+  /** True when the world ceiling, not the GE purchase cap, ended the plan. */
+  worldLimited: z.boolean(),
+  /** Shop price change per unit sold, as a percentage of item value. */
+  deltaPct: z.number(),
+  /** Nominal gp the shop's offer falls by for each extra unit sold. */
+  priceDropPerUnit: z.number(),
   /** True when the shop's price curve, not the purchase cap, ended the sale. */
   priceLimited: z.boolean(),
   /** True when the marginal unit already paid the 10%-of-value floor. */
@@ -311,6 +316,10 @@ export const ShopSinkRankingSchema = z.object({
     membersOnly: z.boolean(),
     minProfit: z.number(),
     minVolume4h: z.number(),
+    /** Seconds charged for each world hop in this snapshot. */
+    hopSeconds: z.number(),
+    /** Ceiling on worlds visited in this snapshot. */
+    maxWorlds: z.number().int(),
   }),
   count: z.number().int(),
   opportunities: z.array(ShopSinkOpportunitySchema),

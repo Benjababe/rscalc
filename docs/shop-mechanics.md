@@ -436,36 +436,63 @@ the shop's stock so the price falls, and never selling a zero-margin unit. The
 10%-of-value floor (§4) means an overstocked shop's offer eventually stops
 falling. That is why `planShopSale` requires a `maxUnits` bound: with a floor
 price above the GE cost, an unbounded loop would never terminate. The bound is
-the GE purchase cap above.
+the GE purchase cap above; §12.5 repeats that batch across worlds.
 
 The shop's buy price at default stock is validated against the wiki's own
 published `store_buy_price`: the formula matches every finite-stock row except a
 1 gp rounding edge on a general-store row (excluded) and infinite-stock reward
 shops (excluded by default).
 
-### 12.5 Inventory and trip time
+### 12.5 Notes, world hops and trip time
 
-The inventory rule is §10 with the legs swapped: 27 non-stackable units per load
-(28 slots minus the coin stack), and a stackable item occupies one slot for the
-whole quantity.
+GE purchases are collected as **banknotes**, so a non-stackable item still takes
+one inventory slot for the whole quantity. There are no 27-unit loads and no
+banking trips in this direction. What limits the plan is world hopping: shop
+stock is per world, so each fresh world resets the shop to its default stock and
+the same falling price curve can be sold again.
+
+The marginal sale of §12.4 is therefore computed once for a fresh world and
+repeated:
 
 ```text
-loads        = units == 0 ? 0 : stackable ? 1 : ceil(units / 27)
+unitsPerWorld = planShopSale(fresh world, maxUnits = purchaseCap4h).units
+worlds        = ceil(units / unitsPerWorld)
+units         = min(purchaseCap4h, unitsPerWorld * maxWorlds)
+totalRevenue  = fullWorlds * revenuePerWorld + remainder revenue
+```
+
+`maxWorlds` defaults to **200**, the same explicit ceiling as the shop → GE
+budget planner (`DEFAULT_MAX_WORLDS`). It is an assumption, not a sourced world
+count; `pnpm sinks --max-worlds=N` changes it for a build, and a row where it
+binds is marked `worldLimited` and "world cap" in the UI. Without a ceiling the
+GE buy limit can imply thousands of worlds, which is not a realisable plan.
+
+Each unit sold lowers the shop's next offer by `value * delta / 1000` — the
+stored `delta` is 10× the displayed percentage, so `delta = 20` is 2.0% of value
+per unit, i.e. 4 gp on a 200 gp item. The row carries `deltaPct` and
+`priceDropPerUnit` so this is auditable; it is exactly what caps
+`unitsPerWorld`.
+
+Time is one GE ↔ shop round trip plus one hop per world:
+
+```text
 tripSeconds  = 2 * geTiles * secondsPerTile + handoverSeconds
-timeSeconds  = max(loads * tripSeconds, units / purchaseCap4h * 4 * 3600)
+timeSeconds  = max(tripSeconds + worlds * hopSeconds,
+                   units / purchaseCap4h * 4 * 3600)
 gpPerHour    = profit * 3600 / timeSeconds
 ```
+
+`hopSeconds` defaults to 10s (the shared `DEFAULT_HOP_SECONDS`); the UI exposes
+it and the travel speed, and recomputes the rate from the row's own `geTiles`.
+No banking time is charged. Where the wiki map gives no GE distance (another
+map, or no coordinates), `geTiles` is `null` and `gpPerHour` is `null` — the
+planner reports profit but never invents a trip.
 
 `geTiles` is the shop's own straight-line distance to the Grand Exchange, sourced
 from the wiki map with the same map rules as banks (§10.1): same `mapID` first,
 a 40-tile cross-map fallback, and `mapID = -1` never treated as a shared map.
 The origin is the Grand Exchange page's `{{Map}}` point (`3165, 3490`, mapID 0 at
 the time of writing), fetched by `scripts/refresh-shops.ts`.
-
-Where the wiki map gives no GE distance (another map, or no coordinates),
-`geTiles` is `null` and `gpPerHour` is `null` — the planner reports profit per
-load but never invents a trip. Distances are straight-line lower bounds; obstacle
-routing, teleports and other players are not modelled.
 
 ### 12.6 Only shops that publish a buy price count
 
@@ -486,5 +513,7 @@ Two consequences, both stated in the UI:
 - A specialist shop buying a related item it does not stock is invisible here.
   Adding it would need a separate sourced list of what each shop buys.
 
-The planner assumes the shop is at default stock on arrival. Destock between runs
-is not modelled, so repeat runs from the same shop are optimistic.
+The planner assumes each visited world's shop is at default stock on arrival.
+Destock on a world you revisit is not modelled, so revisiting the same world is
+optimistic. The 200-world ceiling in §12.5 is an explicit assumption, not a
+sourced world count.

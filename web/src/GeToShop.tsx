@@ -1,5 +1,10 @@
 import { useMemo, useState } from "react";
 
+import {
+  DEFAULT_HOP_SECONDS,
+  DEFAULT_SECONDS_PER_TILE,
+} from "../../src/domain/budget";
+import { DEFAULT_SINK_HANDOVER_SECONDS } from "../../src/domain/shopSink";
 import type {
   SellMode,
   ShopSinkOpportunity,
@@ -16,7 +21,8 @@ type SortKey =
   | "profit"
   | "spend"
   | "units"
-  | "loads"
+  | "unitsPerWorld"
+  | "worlds"
   | "margin"
   | "marginPct"
   | "geBuyPrice"
@@ -24,14 +30,23 @@ type SortKey =
   | "geTiles"
   | "itemName";
 
+interface RowData {
+  row: ShopSinkOpportunity;
+  /** Recomputed with the user's travel speed; null when the distance is unknown. */
+  tripSeconds: number | null;
+  timeSeconds: number;
+  gpPerHour: number | null;
+}
+
 const MODE_LABEL: Record<SellMode, string> = {
   pessimistic: "Instant buy (GE high)",
   patient: "Patient buy (GE low)",
 };
 
 /**
- * GE -> shop: buy on the Grand Exchange, sell the units to a shop whose stock
- * table publishes a buy price. Static snapshot; no network calls.
+ * GE -> shop: buy on the Grand Exchange, sell the noted stack to a shop whose
+ * stock table publishes a buy price, hopping worlds so each one resets the
+ * shop's stock. Static snapshot; no network calls.
  */
 // SAFETY: `data/shop-sinks.json` is only written by `scripts/refresh-sinks.ts`,
 // which validates the payload with `ShopSinksPayloadSchema` first.
@@ -43,12 +58,16 @@ export function GeToShopPage(): JSX.Element {
   const [membersOnly, setMembersOnly] = useState(false);
   const [minProfit, setMinProfit] = useState(0);
   const [minVolume, setMinVolume] = useState(0);
+  const [hopSeconds, setHopSeconds] = useState(DEFAULT_HOP_SECONDS);
+  const [secondsPerTile, setSecondsPerTile] = useState(
+    DEFAULT_SECONDS_PER_TILE,
+  );
   const [sortKey, setSortKey] = useState<SortKey>("gpPerHour");
   const [descending, setDescending] = useState(true);
 
   const ranking = DATA[mode];
 
-  const rows = useMemo<ShopSinkOpportunity[]>(() => {
+  const rows = useMemo<RowData[]>(() => {
     const needle = query.trim().toLowerCase();
 
     const filtered = ranking.opportunities.filter((opp) => {
@@ -63,28 +82,55 @@ export function GeToShopPage(): JSX.Element {
       );
     });
 
-    const measure = (row: ShopSinkOpportunity): number | null => {
+    // The artifact's gp/hour assumes the build's hop and travel defaults. Both
+    // are interface/movement assumptions, not sourced per-shop data, so the UI
+    // recomputes the time from the row's own distance and world count.
+    const computed: RowData[] = filtered.map((row) => {
+      const tripSeconds =
+        row.geTiles === null
+          ? null
+          : 2 * row.geTiles * secondsPerTile + DEFAULT_SINK_HANDOVER_SECONDS;
+      const hopSecondsTotal = row.worlds * hopSeconds;
+      const travelSeconds =
+        tripSeconds === null ? 0 : tripSeconds + hopSecondsTotal;
+      const buySeconds =
+        row.purchaseCap4h > 0
+          ? (row.units / row.purchaseCap4h) * 4 * 3600
+          : 0;
+      const timeSeconds = Math.max(travelSeconds, buySeconds);
+      const gpPerHour =
+        tripSeconds === null
+          ? null
+          : timeSeconds > 0
+            ? (row.profit * 3600) / timeSeconds
+            : 0;
+      return { row, tripSeconds, timeSeconds, gpPerHour };
+    });
+
+    const measure = (entry: RowData): number | null => {
       switch (sortKey) {
         case "gpPerHour":
-          return row.gpPerHour;
+          return entry.gpPerHour;
         case "profit":
-          return row.profit;
+          return entry.row.profit;
         case "spend":
-          return row.totalCost;
+          return entry.row.totalCost;
         case "units":
-          return row.units;
-        case "loads":
-          return row.loads;
+          return entry.row.units;
+        case "unitsPerWorld":
+          return entry.row.unitsPerWorld;
+        case "worlds":
+          return entry.row.worlds;
         case "margin":
-          return row.margin;
+          return entry.row.margin;
         case "marginPct":
-          return row.marginPct;
+          return entry.row.marginPct;
         case "geBuyPrice":
-          return row.geBuyPrice;
+          return entry.row.geBuyPrice;
         case "shopAvgPrice":
-          return row.shopAvgPrice;
+          return entry.row.shopAvgPrice;
         case "geTiles":
-          return row.geTiles;
+          return entry.row.geTiles;
         case "itemName":
           return null;
         default:
@@ -92,11 +138,11 @@ export function GeToShopPage(): JSX.Element {
       }
     };
 
-    return [...filtered].sort((a, b) => {
+    return computed.sort((a, b) => {
       if (sortKey === "itemName") {
         return descending
-          ? b.itemName.localeCompare(a.itemName)
-          : a.itemName.localeCompare(b.itemName);
+          ? b.row.itemName.localeCompare(a.row.itemName)
+          : a.row.itemName.localeCompare(b.row.itemName);
       }
 
       const aValue = measure(a);
@@ -111,11 +157,21 @@ export function GeToShopPage(): JSX.Element {
         return descending ? bValue - aValue : aValue - bValue;
       }
 
-      const byShop = a.shopName.localeCompare(b.shopName);
+      const byShop = a.row.shopName.localeCompare(b.row.shopName);
       if (byShop !== 0) return byShop;
-      return a.itemName.localeCompare(b.itemName);
+      return a.row.itemName.localeCompare(b.row.itemName);
     });
-  }, [ranking, query, membersOnly, minProfit, minVolume, sortKey, descending]);
+  }, [
+    ranking,
+    query,
+    membersOnly,
+    minProfit,
+    minVolume,
+    hopSeconds,
+    secondsPerTile,
+    sortKey,
+    descending,
+  ]);
 
   if (ranking.opportunities.length === 0) {
     return (
@@ -129,7 +185,7 @@ export function GeToShopPage(): JSX.Element {
     );
   }
 
-  const bestRate = rows.reduce<ShopSinkOpportunity | undefined>((best, row) => {
+  const bestRate = rows.reduce<RowData | undefined>((best, row) => {
     if (row.gpPerHour === null) return best;
     if (best === undefined) return row;
     return row.gpPerHour > (best.gpPerHour ?? Number.NEGATIVE_INFINITY)
@@ -137,12 +193,13 @@ export function GeToShopPage(): JSX.Element {
       : best;
   }, undefined);
 
-  const bestProfit = rows.reduce<ShopSinkOpportunity | undefined>(
-    (best, row) => (best === undefined || row.profit > best.profit ? row : best),
+  const bestProfit = rows.reduce<RowData | undefined>(
+    (best, row) =>
+      best === undefined || row.row.profit > best.row.profit ? row : best,
     undefined,
   );
 
-  const shopCount = new Set(rows.map((row) => row.shopPage)).size;
+  const shopCount = new Set(rows.map((entry) => entry.row.shopPage)).size;
 
   function toggleSort(key: SortKey): void {
     if (key === sortKey) setDescending((d) => !d);
@@ -197,17 +254,17 @@ export function GeToShopPage(): JSX.Element {
 
         <label
           className="toggle"
-          title="Minimum total profit for one planned sale"
+          title="Minimum total profit for the planned sale"
         >
-          Min profit / run
+          Min profit
           <input
             className="num"
             type="number"
             min={0}
-            step={100}
+            step={1000}
             value={minProfit}
             onChange={(event) => setMinProfit(Number(event.target.value) || 0)}
-            aria-label="Minimum profit per run"
+            aria-label="Minimum total profit"
           />
         </label>
 
@@ -215,7 +272,7 @@ export function GeToShopPage(): JSX.Element {
           className="toggle"
           title="Minimum units the GE can supply in a 4h window (buy limit and 24h volume)"
         >
-          Min 4h volume
+          Min 4h supply
           <input
             className="num"
             type="number"
@@ -228,24 +285,54 @@ export function GeToShopPage(): JSX.Element {
         </label>
       </section>
 
-      <p className="hint">
-        Buy on the GE at{" "}
-        <strong>{mode === "pessimistic" ? "high" : "low"}</strong> and sell to a
-        shop that publishes a buy price. <strong>General stores are excluded</strong>{" "}
-        for now. A shop pays less for every unit it takes, so <strong>Qty</strong>{" "}
-        stops where its next price no longer beats what you paid; the GE buy limit
-        and 24h volume cap the purchase too. No GE tax applies on either leg. The
-        origin is the Grand Exchange at{" "}
-        {DATA.gePoint === null ? (
-          <strong>an unknown location</strong>
-        ) : (
-          <strong>
-            {DATA.gePoint.x}, {DATA.gePoint.y}
-          </strong>
-        )}
-        ; trip time is the slower of walking the loads and waiting for the GE to
-        supply them.
-      </p>
+      <section className="controls budget">
+        <div className="budget-inputs">
+          <label className="toggle">
+            <span className="label">World hop</span>
+            <input
+              className="num"
+              type="number"
+              min={0}
+              step={1}
+              value={hopSeconds}
+              onChange={(event) =>
+                setHopSeconds(Math.max(0, Number(event.target.value) || 0))
+              }
+              aria-label="World hop time in seconds"
+            />
+            s
+          </label>
+
+          <label className="toggle">
+            <span className="label">Travel speed</span>
+            <input
+              className="num"
+              type="number"
+              min={0}
+              step={0.05}
+              value={secondsPerTile}
+              onChange={(event) =>
+                setSecondsPerTile(Math.max(0, Number(event.target.value) || 0))
+              }
+              aria-label="Seconds per game tile"
+            />
+            s / tile
+          </label>
+        </div>
+
+        <p className="hint">
+          Buy on the GE at{" "}
+          <strong>{mode === "pessimistic" ? "high" : "low"}</strong> and sell to
+          a shop that publishes a buy price. <strong>General stores are excluded</strong>{" "}
+          for now. Items are collected as <strong>banknotes</strong>, so the
+          whole purchase fits one inventory slot and there is no banking. Each
+          fresh world resets the shop's stock to default: one GE↔shop trip plus{" "}
+          <strong>{hopSeconds}s</strong> per world hop, with travel at{" "}
+          <strong>{secondsPerTile}s</strong> per tile. The shop's offer falls by
+          its <strong>delta%</strong> for every unit sold, which is what caps the
+          batch on each world.
+        </p>
+      </section>
 
       <section className="stats">
         <Stat label="Flips" value={rows.length.toLocaleString()} />
@@ -258,21 +345,21 @@ export function GeToShopPage(): JSX.Element {
           }
           title={
             bestRate
-              ? `${bestRate.itemName} at ${bestRate.shopName}`
+              ? `${bestRate.row.itemName} at ${bestRate.row.shopName}`
               : "No flip has a known Grand Exchange distance"
           }
           accent
         />
         <Stat
-          label="Best profit / run"
+          label="Best profit"
           value={
             bestProfit === undefined
               ? "—"
-              : `${formatGp(Math.round(bestProfit.profit))} gp`
+              : `${formatGp(Math.round(bestProfit.row.profit))} gp`
           }
           title={
             bestProfit
-              ? `${bestProfit.itemName} at ${bestProfit.shopName}`
+              ? `${bestProfit.row.itemName} at ${bestProfit.row.shopName}`
               : undefined
           }
         />
@@ -310,7 +397,7 @@ export function GeToShopPage(): JSX.Element {
                 onClick={() => toggleSort("shopAvgPrice")}
                 active={sortKey === "shopAvgPrice"}
                 desc={descending}
-                title="Average shop price across the planned units; it falls as the shop fills"
+                title="Average shop price across one world's batch; it falls as the shop fills"
                 right
               />
               <Th
@@ -326,7 +413,23 @@ export function GeToShopPage(): JSX.Element {
                 onClick={() => toggleSort("units")}
                 active={sortKey === "units"}
                 desc={descending}
-                title="Units worth selling, capped by the shop price curve and the GE 4h purchase cap"
+                title="Total units sold across every world, capped by the GE purchase limit"
+                right
+              />
+              <Th
+                label="Batch"
+                onClick={() => toggleSort("unitsPerWorld")}
+                active={sortKey === "unitsPerWorld"}
+                desc={descending}
+                title="Units one fresh world absorbs before its next price stops paying"
+                right
+              />
+              <Th
+                label="Worlds"
+                onClick={() => toggleSort("worlds")}
+                active={sortKey === "worlds"}
+                desc={descending}
+                title="Worlds hopped; each one resets the shop's stock"
                 right
               />
               <Th
@@ -342,15 +445,7 @@ export function GeToShopPage(): JSX.Element {
                 onClick={() => toggleSort("profit")}
                 active={sortKey === "profit"}
                 desc={descending}
-                title="Coins received from the shop minus the GE spend"
-                right
-              />
-              <Th
-                label="Loads"
-                onClick={() => toggleSort("loads")}
-                active={sortKey === "loads"}
-                desc={descending}
-                title="Inventory loads; 27 non-stackable units each, one slot for a stackable item"
+                title="Coins received from the shops minus the GE spend"
                 right
               />
               <Th
@@ -358,7 +453,7 @@ export function GeToShopPage(): JSX.Element {
                 onClick={() => toggleSort("geTiles")}
                 active={sortKey === "geTiles"}
                 desc={descending}
-                title="One Grand Exchange round trip: straight-line distance × 2 at the chosen walking speed"
+                title="One Grand Exchange round trip; world hops are separate"
                 right
               />
               <Th
@@ -366,14 +461,19 @@ export function GeToShopPage(): JSX.Element {
                 onClick={() => toggleSort("gpPerHour")}
                 active={sortKey === "gpPerHour"}
                 desc={descending}
-                title="Profit ÷ the slower of travel and GE supply time; — when the distance is unknown"
+                title="Profit ÷ the slower of travel plus hops and GE supply time; — when the distance is unknown"
                 right
               />
             </tr>
           </thead>
           <tbody>
-            {rows.slice(0, 300).map((row, index) => (
-              <Row key={`${row.itemId}-${row.shopPage}`} row={row} rank={index + 1} />
+            {rows.slice(0, 300).map((entry, index) => (
+              <Row
+                key={`${entry.row.itemId}-${entry.row.shopPage}`}
+                data={entry}
+                rank={index + 1}
+                hopSeconds={hopSeconds}
+              />
             ))}
           </tbody>
         </table>
@@ -395,50 +495,54 @@ export function GeToShopPage(): JSX.Element {
             mode: <strong>instant buy</strong> pays the latest <code>high</code>{" "}
             and is the number to trust; <strong>patient buy</strong> rests an
             offer at the latest <code>low</code> and may never fill. There is no
-            GE tax on either leg — the 2% tax applies only to GE sales. The shop
-            pays less for every unit it takes, and never less than 10% of the
-            item's value, so the plan stops at the marginal unit that no longer
-            beats the GE cost. The first and last shop prices are shown in the
-            cell's tooltip; the cell itself is the average across the quantity.
+            GE tax on either leg — the 2% tax applies only to GE sales.
           </p>
           <p>
-            <strong>Qty</strong> is bounded by the GE, not the shop: the
-            4-hour buy limit and the 24h traded volume on this mode's side of the
-            book, split into a 4-hour slice. Unlike the shop → GE page, the buy
-            limit is a real purchase cap here. A GE buy limit is reported as
-            metadata elsewhere; here it directly limits the plan.
+            <strong>The price falls as you sell.</strong> A shop pays less for
+            every unit it takes: the <strong>delta%</strong> is the share of the
+            item's value lost per unit (shown under the shop price as the drop
+            per unit), and the offer never falls below 10% of value. The batch is
+            the marginal sale that still beats the GE cost; a zero-margin unit is
+            never sold. The shop is assumed to be at default stock when you
+            arrive on each world.
           </p>
           <p>
-            <strong>Loads and time.</strong> A backpack holds 28 items; the coin
-            stack you buy offers with takes one slot, so a load carries 27
-            non-stackable units. Stackable items occupy one slot for the whole
-            stack. Each load costs a Grand Exchange round trip whose length is
-            this shop's own straight-line distance to the GE, doubled, at the
-            travel speed assumed by the data build — not a global trip time.
-            Time is the slower of walking those loads and waiting for the GE to
-            supply the units. Where the wiki map gives no GE distance (another
-            map, or no coordinates), <strong>gp / hour</strong> is shown as{" "}
+            <strong>Notes remove banking; worlds reset the shop.</strong> GE
+            purchases are collected as banknotes, so the whole quantity takes one
+            inventory slot and there is no 27-unit load or bank trip. Instead,
+            each fresh world resets that shop's stock, so the same falling price
+            curve can be sold again after a hop. <strong>Qty</strong> totals the
+            worlds, <strong>Batch</strong> is one world, and <strong>Worlds</strong>{" "}
+            shows how many hops that takes. The plan is capped at{" "}
+            <strong>200 worlds</strong> (the same ceiling as the shop → GE
+            budget planner); a row marked <strong>world cap</strong> could sell
+            more if you allowed more hops.
+          </p>
+          <p>
+            <strong>Time.</strong> One GE↔shop round trip (this shop's own
+            straight-line distance, doubled, plus a 3s interface handover), plus
+            the world-hop time you set, versus the GE supplying the units under
+            the 4h buy limit and 24h volume. The slower of the two is used. No
+            banking time is charged. Where the wiki map gives no GE distance
+            (another map, or no coordinates), <strong>gp / hour</strong> is{" "}
             <strong>—</strong> rather than assuming a trip.
           </p>
           <p>
             <strong>Only shops that publish a buy price are included.</strong>{" "}
             The wiki writes <code>N/A</code> when a shop does not buy an item at
             all (Eblis's ancient staff is one), even though its buy multiplier can
-            still be non-zero. We require the published price. The stock table
-            only covers items the shop stocks, so this page cannot see a
-            specialist shop buying a related item it does not list, and{" "}
+            still be non-zero. The stock table only covers items the shop stocks,
+            so a specialist buying a related unlisted item is invisible, and{" "}
             <strong>general stores are excluded</strong>: they buy almost
             anything, but their table only describes what they sell. Both are
             known gaps, not silent assumptions.
           </p>
           <p>
-            Shop stock is assumed to be at its default level on arrival. In
-            practice a shop fills up as you sell and slowly destocks afterwards,
-            so repeat runs from the same shop are optimistic; restock and destock
-            timers are not modelled. Distances are straight-line tiles, not a
-            walking route, so corners, obstacles and teleports are not modelled
-            and the trip is a lower bound. Other players competing for the same
-            shop are not modelled either.
+            Distances are straight-line tiles, not a walking route, so corners,
+            obstacles and teleports are not modelled and the trip is a lower
+            bound. Other players competing for the same shop, and destocking
+            between visits to the same world, are not modelled either. The
+            200-world ceiling is an explicit assumption, not a sourced count.
           </p>
         </details>
       </footer>
@@ -447,21 +551,28 @@ export function GeToShopPage(): JSX.Element {
 }
 
 function Row({
-  row,
+  data,
   rank,
+  hopSeconds,
 }: {
-  row: ShopSinkOpportunity;
+  data: RowData;
   rank: number;
+  hopSeconds: number;
 }): JSX.Element {
+  const row = data.row;
   const tripTitle =
-    row.geTiles === null
+    data.tripSeconds === null
       ? "No Grand Exchange distance on this shop's map, so travel time is unknown"
-      : `${Math.round(row.geTiles).toLocaleString()} tiles each way, ${Math.round(
-          row.tripSeconds ?? 0,
-        )}s round trip`;
+      : `${Math.round(row.geTiles ?? 0).toLocaleString()} tiles each way, ${Math.round(
+          data.tripSeconds,
+        )}s round trip, plus ${row.worlds} hop${row.worlds === 1 ? "" : "s"} × ${hopSeconds}s`;
   const shopTitle = `Pays ${formatGp(row.shopFirstUnitPrice)} for the first unit and ${formatGp(
     row.shopLastUnitPrice,
-  )} for the last; average ${formatGp(Math.round(row.shopAvgPrice))}. The price falls as the shop fills.`;
+  )} for the last on a fresh world; average ${formatGp(Math.round(row.shopAvgPrice))}. Each unit sold lowers the offer by ${row.priceDropPerUnit.toFixed(1)} gp (${row.deltaPct.toFixed(1)}% of value).`;
+  const gpTitle =
+    data.gpPerHour === null
+      ? "The GE distance is unknown, so the hourly rate is not computed"
+      : `Total time ${formatDuration(data.timeSeconds)} for ${row.units.toLocaleString()} units across ${row.worlds} worlds`;
 
   return (
     <tr>
@@ -492,38 +603,41 @@ function Row({
       <td className="right mono" title={shopTitle}>
         {formatGp(Math.round(row.shopAvgPrice))}
         <span className="cell-note">
-          {formatGp(row.shopFirstUnitPrice)} → {formatGp(row.shopLastUnitPrice)}
+          {formatGp(row.shopFirstUnitPrice)} → {formatGp(row.shopLastUnitPrice)}{" "}
+          · −{row.deltaPct.toFixed(1)}%/unit
         </span>
       </td>
-      <td className="right mono pos" title={row.atFloor ? "The last unit already paid the 10%-of-value floor" : undefined}>
+      <td
+        className="right mono pos"
+        title={row.atFloor ? "The last unit already paid the 10%-of-value floor" : undefined}
+      >
         {formatGp(Math.round(row.margin))}
         <span className="cell-note">{row.marginPct.toFixed(1)}%</span>
       </td>
-      <td className="right mono strong">{row.units.toLocaleString()}</td>
-      <td className="right mono">{formatGp(Math.round(row.totalCost))}</td>
-      <td className="right mono pos">{formatGp(Math.round(row.profit))}</td>
+      <td className="right mono strong" title="Total across worlds, bounded by the GE 4h purchase cap">
+        {row.units.toLocaleString()}
+      </td>
+      <td className="right mono" title="One fresh world's marginal sale before its price stops paying">
+        {row.unitsPerWorld.toLocaleString()}
+      </td>
       <td
         className="right mono dim"
         title={
-          row.stackable === true
-            ? "Stackable: one inventory slot holds the whole quantity"
-            : `Non-stackable: ${row.unitsPerLoad} units per inventory load`
+          row.worldLimited
+            ? `World ceiling reached (${row.worlds} worlds); the GE could supply more`
+            : `${row.worlds} world${row.worlds === 1 ? "" : "s"} needed`
         }
       >
-        {row.loads.toLocaleString()}
+        {row.worlds.toLocaleString()}
+        {row.worldLimited && <span className="cell-note">world cap</span>}
       </td>
+      <td className="right mono">{formatGp(Math.round(row.totalCost))}</td>
+      <td className="right mono pos">{formatGp(Math.round(row.profit))}</td>
       <td className="right mono dim" title={tripTitle}>
-        {row.tripSeconds === null ? "—" : formatDuration(row.tripSeconds)}
+        {data.tripSeconds === null ? "—" : formatDuration(data.tripSeconds)}
       </td>
-      <td
-        className="right mono strong"
-        title={
-          row.gpPerHour === null
-            ? "Bank-distance equivalent unknown for the GE → shop trip, so the hourly rate is not computed"
-            : `Buy time ${formatDuration(row.timeSeconds)} for ${row.units.toLocaleString()} units`
-        }
-      >
-        {row.gpPerHour === null ? "—" : formatGp(Math.round(row.gpPerHour))}
+      <td className="right mono strong" title={gpTitle}>
+        {data.gpPerHour === null ? "—" : formatGp(Math.round(data.gpPerHour))}
       </td>
     </tr>
   );

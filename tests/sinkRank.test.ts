@@ -100,7 +100,7 @@ describe('buy-side mode mapping', () => {
 });
 
 describe('rankSinks', () => {
-  it('produces a GE -> shop opportunity', () => {
+  it('produces a GE -> shop opportunity repeated across worlds', () => {
     const result = rankSinks(catalog([entry()]), market([quote()]), {
       mode: 'pessimistic',
     });
@@ -111,11 +111,14 @@ describe('rankSinks', () => {
     expect(opp?.shopName).toBe("Bob's Brilliant Axes");
     expect(opp?.geBuyPrice).toBe(100);
     expect(opp?.shopFirstUnitPrice).toBe(120);
-    expect(opp?.units).toBe(5);
-    expect(opp?.profit).toBe(60);
+    expect(opp?.unitsPerWorld).toBe(5);
+    expect(opp?.units).toBe(100);
+    expect(opp?.worlds).toBe(20);
+    expect(opp?.worldLimited).toBe(false);
+    expect(opp?.profit).toBe(1200);
     expect(opp?.geTiles).toBe(10);
-    expect(opp?.loads).toBe(1);
-    expect(opp?.unitsPerLoad).toBe(27);
+    expect(opp?.deltaPct).toBe(2);
+    expect(opp?.priceDropPerUnit).toBe(4);
     expect(result.mode).toBe('pessimistic');
   });
 
@@ -126,8 +129,10 @@ describe('rankSinks', () => {
     const opp = result.opportunities[0];
 
     expect(opp?.geBuyPrice).toBe(90);
-    expect(opp?.units).toBe(8); // 120, 116, … 92; 88 is not > 90
-    expect(opp?.profit).toBe(128);
+    expect(opp?.unitsPerWorld).toBe(8); // 120, 116, … 92; 88 is not > 90
+    expect(opp?.units).toBe(100);
+    expect(opp?.worlds).toBe(13); // 12 full worlds + 4 units
+    expect(opp?.profit).toBe(1632);
     expect(opp?.volume4h).toBe(500); // floor(3000 / 6)
   });
 
@@ -207,6 +212,8 @@ describe('rankSinks', () => {
       mode: 'pessimistic',
     });
     expect(result.opportunities[0]?.units).toBe(2);
+    expect(result.opportunities[0]?.unitsPerWorld).toBe(2);
+    expect(result.opportunities[0]?.worlds).toBe(1);
     expect(result.opportunities[0]?.purchaseCap4h).toBe(2);
   });
 
@@ -233,7 +240,7 @@ describe('rankSinks', () => {
     expect(
       rankSinks(catalog([entry()]), market([quote()]), {
         mode: 'pessimistic',
-        minProfit: 61,
+        minProfit: 1201,
       }).count,
     ).toBe(0);
   });
@@ -245,13 +252,14 @@ describe('rankSinks', () => {
       { mode: 'pessimistic' },
     );
     const opp = result.opportunities[0];
-    expect(opp?.profit).toBe(60);
+    expect(opp?.units).toBe(100);
+    expect(opp?.profit).toBe(1200);
     expect(opp?.geTiles).toBeNull();
     expect(opp?.tripSeconds).toBeNull();
     expect(opp?.gpPerHour).toBeNull();
   });
 
-  it('charges a load for stackability unknown, one for a stack', () => {
+  it('does not split a noted item into 27-unit loads', () => {
     const flat = entry({
       itemValue: 200,
       buyMultiplier: 1000,
@@ -259,23 +267,35 @@ describe('rankSinks', () => {
       baseStock: 0,
       storeBuyPrice: 200,
     });
-    const options = { mode: 'pessimistic' as const };
-    const q = quote({ high: 100, limit: 30, highVolume24h: 600 });
-
-    const loose = rankSinks(catalog([flat]), market([q]), options)
-      .opportunities[0];
-    expect(loose?.units).toBe(30);
-    expect(loose?.stackable).toBe(false);
-    expect(loose?.loads).toBe(2);
-
-    const stacked = rankSinks(
+    const result = rankSinks(
       catalog([flat]),
-      market([{ ...q, stackable: true }]),
-      options,
-    ).opportunities[0];
-    expect(stacked?.units).toBe(30);
-    expect(stacked?.stackable).toBe(true);
-    expect(stacked?.loads).toBe(1);
+      market([quote({ high: 100, limit: 30, highVolume24h: 600 })]),
+      { mode: 'pessimistic' },
+    );
+    const opp = result.opportunities[0];
+    expect(opp?.units).toBe(30);
+    expect(opp?.unitsPerWorld).toBe(30);
+    expect(opp?.worlds).toBe(1);
+    expect(opp?.profit).toBe(3000);
+  });
+
+  it('includes hop time and stops at the world ceiling', () => {
+    const result = rankSinks(
+      catalog([entry()]),
+      market([
+        quote({ limit: 100_000, highVolume24h: 600_000 }),
+      ]),
+      { mode: 'pessimistic' },
+    );
+    const opp = result.opportunities[0];
+
+    // 200 worlds × 5 units; travel (15s + 2000s hops) beats GE supply (144s).
+    expect(opp?.units).toBe(1000);
+    expect(opp?.unitsPerWorld).toBe(5);
+    expect(opp?.worlds).toBe(200);
+    expect(opp?.worldLimited).toBe(true);
+    expect(opp?.timeSeconds).toBe(2015);
+    expect(opp?.gpPerHour).toBeCloseTo(21_439.2, 0);
   });
 
   it('keeps one deterministic row per shop and item', () => {
@@ -290,6 +310,7 @@ describe('rankSinks', () => {
   });
 
   it('sorts by gp/hour with unknown times last, then profit', () => {
+    const limitFree = quote({ limit: 100_000, highVolume24h: 600_000 });
     const fast = entry({ shopPage: 'Fast.', shopName: 'Fast', geTiles: 1 });
     const slow = entry({ shopPage: 'Slow.', shopName: 'Slow', geTiles: 500 });
     const unknown = entry({
@@ -297,14 +318,10 @@ describe('rankSinks', () => {
       shopName: 'Unknown',
       geTiles: null,
     });
-    const fastQuote = quote({ id: 1, name: 'A' });
-    const slowQuote = quote({ id: 1, name: 'A' });
 
-    const result = rankSinks(
-      catalog([slow, unknown, fast]),
-      market([fastQuote, slowQuote]),
-      { mode: 'pessimistic' },
-    );
+    const result = rankSinks(catalog([slow, unknown, fast]), market([limitFree]), {
+      mode: 'pessimistic',
+    });
 
     expect(result.opportunities.map((o) => o.shopName)).toEqual([
       'Fast',
@@ -341,7 +358,7 @@ describe('rankSinks', () => {
     ).toBe(1);
   });
 
-  it('echoes the filters and prices timestamp', () => {
+  it('echoes the filters, hop assumptions and prices timestamp', () => {
     const result = rankSinks(catalog([entry()]), market([quote()]), {
       mode: 'pessimistic',
       minProfit: 5,
@@ -354,6 +371,8 @@ describe('rankSinks', () => {
       membersOnly: false,
       minProfit: 5,
       minVolume4h: 2,
+      hopSeconds: 10,
+      maxWorlds: 200,
     });
   });
 });

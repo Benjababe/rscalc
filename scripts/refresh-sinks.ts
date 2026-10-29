@@ -4,7 +4,12 @@
  *   pnpm sinks                        # top 25, pessimistic (instant buy at high)
  *   pnpm sinks --mode=patient         # buy offers at the GE low and wait
  *   pnpm sinks --include-general-stores
+ *   pnpm sinks --hop=8 --max-worlds=150
  *   pnpm sinks --write                # emit both modes for the UI
+ *
+ * Items are collected from the GE as banknotes, so there are no inventory
+ * loads or banking trips. Each world resets the shop's stock, so the plan is
+ * one GE <-> shop trip plus one hop per extra world.
  *
  * This script makes **no network calls**: it reads the catalogue
  * (`data/shops.json`, which carries the GE distance per shop) and the market
@@ -21,6 +26,7 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 import { rankSinks, type SinkRankOptions } from '../src/engine/sinkRank.js';
+import { DEFAULT_HOP_SECONDS, DEFAULT_MAX_WORLDS } from '../src/domain/budget.js';
 import { readJsonFile } from '../src/util/json.js';
 import {
   MarketSnapshotSchema,
@@ -47,6 +53,8 @@ interface Cli {
   includeInfinite: boolean;
   excludeGeneralStores: boolean;
   secondsPerTile: number;
+  hopSeconds: number;
+  maxWorlds: number;
   write: boolean;
 }
 
@@ -68,6 +76,8 @@ function parseArgs(argv: string[]): Cli {
     includeInfinite: false,
     excludeGeneralStores: true,
     secondsPerTile: 0.6,
+    hopSeconds: DEFAULT_HOP_SECONDS,
+    maxWorlds: DEFAULT_MAX_WORLDS,
     write: false,
   };
 
@@ -99,6 +109,13 @@ function parseArgs(argv: string[]): Cli {
         arg.slice('--speed='.length),
         '--speed',
       );
+    } else if (arg.startsWith('--hop=')) {
+      cli.hopSeconds = nonNegativeNumber(arg.slice('--hop='.length), '--hop');
+    } else if (arg.startsWith('--max-worlds=')) {
+      cli.maxWorlds = Math.max(
+        1,
+        Math.floor(nonNegativeNumber(arg.slice('--max-worlds='.length), '--max-worlds')),
+      );
     } else {
       throw new Error(`Unknown argument "${arg}". See the header of this file.`);
     }
@@ -121,6 +138,8 @@ async function main(): Promise<void> {
     minProfit: cli.minProfit,
     minVolume4h: cli.minVolume4h,
     secondsPerTile: cli.secondsPerTile,
+    hopSeconds: cli.hopSeconds,
+    maxWorlds: cli.maxWorlds,
   };
 
   const ranking = rankSinks(catalog, market, { ...base, limit: cli.limit });
@@ -139,20 +158,23 @@ async function main(): Promise<void> {
   );
   process.stdout.write(
     `general stores: ${cli.excludeGeneralStores ? 'excluded' : 'included'} | ` +
+      `hop ${cli.hopSeconds}s | worlds ≤ ${cli.maxWorlds} | ` +
       `GE origin: ${catalog.gePoint === null ? 'unknown' : `${catalog.gePoint.x},${catalog.gePoint.y} (mapID ${catalog.gePoint.mapID})`}\n`,
   );
   process.stdout.write(`${'='.repeat(132)}\n`);
   process.stdout.write(
     pad('#', 3) +
-      pad('Item', 24) +
-      pad('Shop', 22) +
-      pad('GE buy', 9) +
-      pad('Shop pays', 14) +
-      pad('Qty', 6) +
+      pad('Item', 22) +
+      pad('Shop', 20) +
+      pad('GE buy', 8) +
+      pad('Shop pays', 13) +
+      pad('Qty', 7) +
+      pad('Batch', 6) +
+      pad('Wrlds', 6) +
       pad('Spend', 11) +
       pad('Profit', 11) +
-      pad('gp/hour', 12) +
-      pad('Loc', 18) +
+      pad('gp/hour', 11) +
+      pad('Loc', 12) +
       '\n',
   );
   process.stdout.write(`${'-'.repeat(130)}\n`);
@@ -168,30 +190,34 @@ async function main(): Promise<void> {
         : `${formatGp(opp.shopFirstUnitPrice)}→${formatGp(opp.shopLastUnitPrice)}`;
     process.stdout.write(
       pad(String(index + 1), 3) +
-        pad(truncate(opp.itemName, 23), 24) +
-        pad(truncate(opp.shopName, 21), 22) +
-        pad(formatGp(opp.geBuyPrice), 9) +
-        pad(shopPays, 14) +
-        pad(String(opp.units), 6) +
+        pad(truncate(opp.itemName, 21), 22) +
+        pad(truncate(opp.shopName, 19), 20) +
+        pad(formatGp(opp.geBuyPrice), 8) +
+        pad(shopPays, 13) +
+        pad(String(opp.units), 7) +
+        pad(String(opp.unitsPerWorld), 6) +
+        pad(`${opp.worlds}${opp.worldLimited ? '*' : ''}`, 6) +
         pad(formatGp(Math.round(opp.totalCost)), 11) +
         pad(formatGp(Math.round(opp.profit)), 11) +
         pad(
           opp.gpPerHour === null
             ? '—'
             : formatGp(Math.round(opp.gpPerHour)),
-          12,
+          11,
         ) +
-        pad(truncate(opp.location ?? '-', 17), 18) +
+        pad(truncate(opp.location ?? '-', 11), 12) +
         '\n',
     );
   });
 
   process.stdout.write(`${'-'.repeat(130)}\n`);
   process.stdout.write(
-    'GE buy = price paid per unit (no tax on purchases). Shop pays = first→last unit,\n' +
-      'falling as the shop fills. Qty is bounded by the shop price curve and the GE\n' +
-      '4h buy limit/volume. Rows without a published shop buy price are excluded,\n' +
-      'and gp/hour is — when the shop has no known distance from the Grand Exchange.\n',
+    'GE buy = price paid per unit (no tax on purchases). Shop pays = first→last unit of\n' +
+      'one world batch; each extra unit lowers the offer by delta% of value. Items are\n' +
+      'noted, so there are no banking trips: one GE↔shop trip plus one hop per world.\n' +
+      'Qty totals all worlds, Batch is one fresh world, and Wrlds * means the world\n' +
+      'ceiling bound before the GE purchase cap. gp/hour is — when the GE distance is\n' +
+      'unknown. Rows without a published shop buy price are excluded.\n',
   );
 
   if (cli.write) {

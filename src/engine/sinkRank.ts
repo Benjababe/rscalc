@@ -20,6 +20,7 @@
  */
 
 import { isGeneralStore, planShopSink } from '../domain/shopSink.js';
+import { DEFAULT_HOP_SECONDS, DEFAULT_MAX_WORLDS } from '../domain/budget.js';
 import { toShopRow } from './rank.js';
 import type {
   MarketQuote,
@@ -60,6 +61,10 @@ export interface SinkRankOptions {
   minVolume4h?: number;
   /** Seconds per tile for the GE -> shop trip. */
   secondsPerTile?: number;
+  /** Seconds charged for each world hop. */
+  hopSeconds?: number;
+  /** Ceiling on worlds visited. */
+  maxWorlds?: number;
   /** Cap the returned list. */
   limit?: number;
 }
@@ -81,6 +86,11 @@ export function rankSinks(
   const secondsPerTile = Math.max(
     0,
     options.secondsPerTile ?? DEFAULT_SECONDS_PER_TILE,
+  );
+  const hopSeconds = Math.max(0, options.hopSeconds ?? DEFAULT_HOP_SECONDS);
+  const maxWorlds = Math.max(
+    1,
+    Math.floor(options.maxWorlds ?? DEFAULT_MAX_WORLDS),
   );
 
   const best = new Map<string, ShopSinkOpportunity>();
@@ -122,7 +132,8 @@ export function rankSinks(
       purchaseCap4h,
       geTiles: entry.geTiles,
       secondsPerTile,
-      stackable: quote.stackable,
+      hopSeconds,
+      maxWorlds,
       startStock: row.baseStock,
     });
     if (plan.units <= 0) continue;
@@ -156,12 +167,14 @@ export function rankSinks(
       margin: plan.marginPerUnit,
       marginPct: (plan.marginPerUnit / geBuyPrice) * 100,
 
-      stackable: quote.stackable,
       geBuyLimit: quote.limit,
       volume4h,
-      purchaseCap4h: plan.purchaseCap4h,
-      loads: plan.loads,
-      unitsPerLoad: plan.unitsPerLoad,
+      purchaseCap4h,
+      unitsPerWorld: plan.unitsPerWorld,
+      worlds: plan.worlds,
+      worldLimited: plan.worldLimited,
+      deltaPct: plan.deltaPct,
+      priceDropPerUnit: plan.priceDropPerUnit,
       priceLimited: plan.priceLimited,
       atFloor: plan.atFloor,
 
@@ -211,6 +224,8 @@ export function rankSinks(
       membersOnly,
       minProfit,
       minVolume4h,
+      hopSeconds,
+      maxWorlds,
     },
     count: limited.length,
     opportunities: limited,
