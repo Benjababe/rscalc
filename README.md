@@ -91,8 +91,9 @@ prices.runescape.wiki/api/v2     ─┴─► data/shops.json + data/market.json
                         pnpm report / pnpm sinks        web UI (both pages)
 ```
 
-The browser never makes a network call: it renders a static snapshot, so the
-site is deployable as plain files.
+The browser never calls an external API: it renders static snapshots. The two
+page modules and their data are code-split, so each direction loads only its own
+snapshot, and the site is still deployable as plain files.
 
 ## Budget mode (web UI)
 

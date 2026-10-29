@@ -166,8 +166,9 @@ negative margin. Sort by gp/4h, then margin, then name.
 **Accept:** deterministic output; tests pin filtering and ordering.
 
 ### M4 — UI ✅
-Static React table over `data/opportunities.json` (both sell modes). Zero network
-calls from the browser. Shows "data as of", the pessimistic/patient toggle, and
+Static React table over `data/opportunities.json` (both sell modes). No external
+API calls from the browser; the page modules and their data snapshots are
+code-split so each direction loads only its own artifact. Shows "data as of", the pessimistic/patient toggle, and
 budget sizing with per-shop bank time, travel speed and `—` for unknown distances.
 
 ### M5 — Ingestion ✅

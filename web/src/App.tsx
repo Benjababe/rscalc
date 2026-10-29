@@ -1,7 +1,5 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 
-import { GeToShopPage } from "./GeToShop";
-import { ShopToGePage } from "./ShopToGe";
 import {
   DEFAULT_PAGE,
   PAGE_LABELS,
@@ -10,6 +8,13 @@ import {
   parsePageHash,
   type Page,
 } from "./route";
+
+const ShopToGePage = lazy(() =>
+  import("./ShopToGe").then((module) => ({ default: module.ShopToGePage })),
+);
+const GeToShopPage = lazy(() =>
+  import("./GeToShop").then((module) => ({ default: module.GeToShopPage })),
+);
 
 /**
  * The shell: header, page tabs and attribution. Each page owns its data
@@ -40,8 +45,8 @@ export function App(): JSX.Element {
           <h1>rscalc</h1>
           <p className="sub">
             Arbitrage between OSRS shops and the Grand Exchange, priced from the
-            Wiki's real-time API. Both directions are static snapshots: this
-            site makes no network calls.
+            Wiki's real-time API. Both directions are static snapshots, so the
+            site makes no external API calls.
           </p>
         </div>
         <nav className="pages" aria-label="Calculator direction">
@@ -59,12 +64,22 @@ export function App(): JSX.Element {
         </nav>
       </header>
 
-      {page === "ge-to-shop" ? <GeToShopPage /> : <ShopToGePage />}
+      <Suspense
+        fallback={
+          <div className="page">
+            <p className="empty" role="status">
+              Loading calculator…
+            </p>
+          </div>
+        }
+      >
+        {page === "ge-to-shop" ? <GeToShopPage /> : <ShopToGePage />}
+      </Suspense>
 
       <footer className="footer">
         <p className="attribution">
           Item names and icons © Jagex. Wiki data CC BY-SA. Geo data from the
-          OSRS Wiki map. This page makes no network calls.
+          OSRS Wiki map. The snapshots are static; no external API calls.
         </p>
       </footer>
     </div>
