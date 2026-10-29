@@ -491,7 +491,34 @@ export function ShopToGePage(): JSX.Element {
       )}
 
       <div className="tablewrap">
-        <table>
+        <table className="results-table">
+          <colgroup>
+            <col className="num-col" style={{ width: 44 }} />
+            <col style={{ width: 210 }} />
+            <col style={{ width: 220 }} />
+            <col className="loc-col" style={{ width: 150 }} />
+            <col style={{ width: 100 }} />
+            <col style={{ width: 90 }} />
+            <col className="tax-col" style={{ width: 70 }} />
+            <col style={{ width: 90 }} />
+            {budgetMode ? (
+              <>
+                <col style={{ width: 90 }} />
+                <col style={{ width: 110 }} />
+                <col style={{ width: 70 }} />
+                <col style={{ width: 150 }} />
+                <col style={{ width: 110 }} />
+                <col style={{ width: 110 }} />
+              </>
+            ) : (
+              <>
+                <col style={{ width: 90 }} />
+                <col style={{ width: 90 }} />
+                <col style={{ width: 110 }} />
+                <col style={{ width: 110 }} />
+              </>
+            )}
+          </colgroup>
           <thead>
             <tr>
               <th className="num-col">#</th>

@@ -259,6 +259,23 @@ body {
   max-height: 74vh;
 }
 
+.results-table {
+  table-layout: fixed;
+}
+
+.results-table thead th {
+  white-space: normal;
+}
+
+.results-table .item,
+.results-table .shop {
+  overflow-wrap: anywhere;
+}
+
+.results-table .loc {
+  white-space: normal;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -550,6 +567,11 @@ thead th[title] {
   .tax-col {
     display: none;
   }
+
+  .results-table col.loc-col,
+  .results-table col.tax-col {
+    visibility: collapse;
+  }
 }
 
 @media (max-width: 720px) {
@@ -559,6 +581,10 @@ thead th[title] {
 
   .num-col {
     display: none;
+  }
+
+  .results-table col.num-col {
+    visibility: collapse;
   }
 
   .app {
