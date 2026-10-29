@@ -1,0 +1,46 @@
+import { describe, expect, it } from 'vitest';
+import {
+  DEFAULT_PAGE,
+  PAGE_LABELS,
+  PAGES,
+  pageHash,
+  parsePageHash,
+} from '../web/src/route.js';
+
+describe('parsePageHash', () => {
+  it('defaults to the shop -> GE page', () => {
+    for (const hash of ['', '#', '#/', '#nonsense', '#/not-a-page']) {
+      expect(parsePageHash(hash)).toBe(DEFAULT_PAGE);
+    }
+  });
+
+  it('recognises the GE -> shop page with or without the slash', () => {
+    for (const hash of [
+      '#/ge-to-shop',
+      '#ge-to-shop',
+      '#/ge-to-shop/',
+      '#/GE-TO-SHOP',
+      '  #/ge-to-shop  ',
+    ]) {
+      expect(parsePageHash(hash)).toBe('ge-to-shop');
+    }
+  });
+
+  it('recognises an explicit shop -> GE hash', () => {
+    expect(parsePageHash('#/shop-to-ge')).toBe('shop-to-ge');
+  });
+});
+
+describe('pageHash', () => {
+  it('round-trips every page', () => {
+    for (const page of PAGES) {
+      expect(parsePageHash(pageHash(page))).toBe(page);
+    }
+  });
+
+  it('names both pages', () => {
+    for (const page of PAGES) {
+      expect(PAGE_LABELS[page].length).toBeGreaterThan(0);
+    }
+  });
+});

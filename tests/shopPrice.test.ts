@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buyTotalCost,
   planPurchase,
+  planShopSale,
   sellTotalRevenue,
   shopUnitBuyPrice,
   shopUnitSellPrice,
@@ -192,5 +193,90 @@ describe('planPurchase', () => {
   it('respects an explicit maxUnits cap', () => {
     const plan = planPurchase(BOBS_AXE, 10_000, { maxUnits: 2 });
     expect(plan.units).toBe(2);
+  });
+});
+
+describe('planShopSale', () => {
+  // Selling to Bob's: 120, 116, 112, 108, 104, 100, … then the 20 gp floor.
+  it('sells while the shop price is strictly above the GE cost', () => {
+    const plan = planShopSale(BOBS_AXE, 100, { maxUnits: 100 });
+    expect(plan.units).toBe(5); // 120, 116, 112, 108, 104; 100 is not > 100
+    expect(plan.firstUnitRevenue).toBe(120);
+    expect(plan.lastUnitRevenue).toBe(104);
+    expect(plan.totalRevenue).toBe(560);
+    expect(plan.totalCost).toBe(500);
+    expect(plan.profit).toBe(60);
+    expect(plan.stoppedAtMargin).toBe(true);
+    expect(plan.atFloor).toBe(false);
+  });
+
+  it('never takes a zero-margin unit', () => {
+    // The first unit pays exactly what the GE charged.
+    const plan = planShopSale(BOBS_AXE, 120, { maxUnits: 100 });
+    expect(plan.units).toBe(0);
+    expect(plan.profit).toBe(0);
+    expect(plan.stoppedAtMargin).toBe(true);
+  });
+
+  it('stops at the 10%-of-value floor when the GE cost is below it', () => {
+    const floorPrice = trunc(BOBS_AXE.itemValue * 0.1);
+    expect(floorPrice).toBe(20);
+    const plan = planShopSale(BOBS_AXE, 20, { maxUnits: 100 });
+    expect(plan.units).toBe(25); // stock 3 -> 27; the 28th unit pays 20
+    expect(plan.lastUnitRevenue).toBe(24);
+    expect(plan.atFloor).toBe(false);
+  });
+
+  it('is cap-limited, not margin-limited, when the floor beats the cost', () => {
+    const plan = planShopSale(BOBS_AXE, 1, { maxUnits: 30 });
+    expect(plan.units).toBe(30);
+    expect(plan.stoppedAtMargin).toBe(false);
+    expect(plan.atFloor).toBe(true);
+    expect(plan.lastUnitRevenue).toBe(20);
+    expect(plan.totalRevenue).toBe(sellTotalRevenue(BOBS_AXE, 30, 3));
+  });
+
+  it('matches sellTotalRevenue for any accepted quantity', () => {
+    for (const units of [1, 5, 13, 25]) {
+      for (const stock of [0, 3, 9]) {
+        const plan = planShopSale(BOBS_AXE, 1, {
+          startStock: stock,
+          maxUnits: units,
+        });
+        expect(plan.totalRevenue).toBe(sellTotalRevenue(BOBS_AXE, units, stock));
+      }
+    }
+  });
+
+  it('honours startStock', () => {
+    const plan = planShopSale(BOBS_AXE, 100, { startStock: 7, maxUnits: 10 });
+    expect(plan.units).toBe(1);
+    expect(plan.firstUnitRevenue).toBe(104);
+  });
+
+  it('sells at the flat price at an infinite-stock shop', () => {
+    const infinite: ShopRow = {
+      itemValue: 100,
+      sellMultiplier: 1000,
+      buyMultiplier: 600,
+      delta: 10,
+      baseStock: 0,
+      infiniteStock: true,
+    };
+    const plan = planShopSale(infinite, 50, { maxUnits: 5 });
+    expect(plan.units).toBe(5);
+    expect(plan.firstUnitRevenue).toBe(60);
+    expect(plan.lastUnitRevenue).toBe(60);
+    expect(plan.profit).toBe(50);
+    expect(plan.stoppedAtMargin).toBe(false);
+  });
+
+  it('returns nothing for a non-positive cost or a zero cap', () => {
+    for (const cost of [0, -5, Number.NaN]) {
+      const plan = planShopSale(BOBS_AXE, cost, { maxUnits: 100 });
+      expect(plan.units).toBe(0);
+      expect(plan.profit).toBe(0);
+    }
+    expect(planShopSale(BOBS_AXE, 100, { maxUnits: 0 }).units).toBe(0);
   });
 });

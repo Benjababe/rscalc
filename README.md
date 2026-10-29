@@ -1,18 +1,27 @@
 # rscalc
 
-Shop → Grand Exchange profit calculator for Old School RuneScape.
+Shop ↔ Grand Exchange profit calculator for Old School RuneScape.
 
-Answers one question well: **if I buy this item from this shop and sell it on the
-GE, what is the realistic profit, and what is it worth per hour?**
+Two questions, one sourced model: **if I buy this item from this shop and sell it
+on the GE**, and **if I buy on the GE and sell to a shop** — what is the
+realistic profit, and what is it worth per hour?
 
-Works for all **593 shops** in the game, 3,595 priceable shop/item pairs.
+Works for all **593 shops** in the game, 3,595 priceable shop → GE pairs, and
+603 GE → shop flips at the last build.
 
 ```text
+SHOP -> GE
 #  Item                Shop                     Buy     Sell    Tax   Margin  Qty   gp/4h
 1  Limestone brick     Razmire Builders Merch…  115     189     3     71      1000  71,350
 4  Bronze knife        Arcuani's Archery Supp…  5       33      0     28      2000  55,500
 8  Raw herring         Frankie's Fishing Empo…  22      204     4     178     250   44,500
 12 Banana              Solihib's Food Stall     11      51      1     39      1000  39,375
+
+GE -> SHOP
+#  Item                Shop                     GE buy  Shop pays  Qty  Spend    Profit   gp/hour
+1  Rune javelin        Oobapohk's Javelin Sto…  120     240→121    298  35,760   17,940   66,094
+4  Ruby necklace       Grum's Gold Exchange     911     1,522→913  15   13,665   4,601    47,745
+9  Rune warhammer      Skulgrimen's Battle Ge…  24,917  29,050→25,315  4  99,668  9,062  39,646
 ```
 
 ## Quick start
@@ -35,14 +44,25 @@ pnpm dev            # web UI at http://localhost:5173
 | `pnpm report` | ranked CLI table |
 | `pnpm report --mode=patient` | price against GE `high` instead of `low` |
 | `pnpm report --shop="<name>" --gold=N` | one shop's multi-item basket |
-| `pnpm report --write` | also emit `data/opportunities.json` for the UI |
+| `pnpm report --write` | emit `data/opportunities.json` for the UI |
+| `pnpm sinks` | GE → shop ranking in the terminal |
+| `pnpm sinks --write` | emit `data/shop-sinks.json` for the UI |
 | `pnpm dev` / `pnpm build` | web UI |
-| `pnpm test` / `pnpm typecheck` | 155 tests / `tsc --noEmit` |
+| `pnpm test` / `pnpm typecheck` | 207 tests / `tsc --noEmit` |
 
 `pnpm report` flags: `--mode=pessimistic|patient`, `--limit=N`, `--members`,
 `--min-volume4h=N`, `--min-margin=N`, `--infinite`, `--write`.
 The basket flags are `--shop="<name>"`, `--gold=N`, `--hop=N` (seconds) and
 `--speed=N` (seconds per tile); `--infinite` also applies to a basket.
+
+`pnpm sinks` flags: `--mode=pessimistic|patient`, `--limit=N`, `--members`,
+`--min-profit=N`, `--min-volume4h=N`, `--speed=N`, `--infinite`,
+`--include-general-stores`, `--write`. It reads the two data artifacts and makes
+no network calls, so build the UI data with:
+
+```sh
+pnpm report --write && pnpm sinks --write
+```
 
 ## No API keys
 
@@ -59,12 +79,13 @@ can reach you about your traffic.
 Special:Bucket?bucket=storeline  ─┐
 prices.runescape.wiki/api/v2     ─┴─► data/shops.json + data/market.json
                                               │
-                                    src/engine/rank.ts
-                                              │
-                                    data/opportunities.json
-                                              │
-                              ┌───────────────┴───────────────┐
-                        pnpm report                        web UI
+                        ┌─────────────────────┴─────────────────────┐
+              src/engine/rank.ts                        src/engine/sinkRank.ts
+                        │                                     │
+          data/opportunities.json                   data/shop-sinks.json
+                        │                                     │
+                        └───────────────┬─────────────────────┘
+                        pnpm report / pnpm sinks        web UI (both pages)
 ```
 
 The browser never makes a network call: it renders a static snapshot, so the
@@ -128,6 +149,42 @@ available from the CLI:
 pnpm report --shop="Lundail's Arena-side Rune Shop" --gold=100000
 ```
 
+## GE → shop (web UI + CLI)
+
+Use the **GE → shop** tab (or `#/ge-to-shop`) to answer the reverse question:
+which items are cheaper on the Grand Exchange than a shop will pay for them?
+No GE tax applies on either leg, and the GE buy limit is a real purchase cap
+here, because you are the one buying.
+
+```sh
+pnpm sinks                        # top 25, instant buy at the GE high
+pnpm sinks --mode=patient         # resting buy offers at the GE low
+pnpm sinks --write                # emit data/shop-sinks.json for the UI
+```
+
+The table shows the GE buy price, what the shop pays (first → last, falling as
+it fills), the marginal-driven quantity, spend, profit, inventory loads, the
+per-shop trip time and gp/hour. Travel is the shop's own straight-line distance
+to the Grand Exchange from the wiki map, doubled; a shop on another map shows
+`—` rather than a made-up trip. As with the shop → GE page, `gp / hour` is the
+slower of moving the loads and waiting for the GE to supply the units.
+
+What this page deliberately does **not** claim:
+
+- **General stores are excluded.** They buy almost anything, but the wiki's
+  stock table only describes what they sell, so "buys anything" cannot be
+  derived from the data. Exclusion is by `Category:General stores`, not by name.
+- **Only items with a published shop buy price count.** The wiki writes `N/A`
+  when a shop does not buy an item (Eblis's ancient staff is the standard trap),
+  even though the buy multiplier can still be non-zero.
+- Only items in a shop's stock table are considered. A specialist shop buying a
+  related item it does not stock is invisible; that would need a separate
+  sourced list.
+
+The shop is assumed to be at default stock on arrival, so repeat runs from the
+same shop are optimistic; destock and restock timers are not modelled, and
+teleports are not either.
+
 ## Accuracy — read this before trusting a number
 
 The maths is a direct port of the wiki's own `Module:Shop calculator`, and the
@@ -179,23 +236,40 @@ off-by-one that a naive implementation gets wrong). Beyond that, be aware:
   shop itself is still not modelled. Items whose wiki page does not state
   stackability are treated as non-stackable, which lowers gp/hour rather than
   inflating it.
-- **Travel to the shop is not modelled**, only hop time, bank trips and GE
-  sell time.
+- **GE → shop: no tax, and the buy limit really binds.** Buying on the GE is
+  untaxed and a shop sale is not a GE trade, so neither leg pays the 2% tax. In
+  this direction you are the buyer, so `min(GE buy limit, 24h volume/6)` caps the
+  quantity per 4-hour window; that is also why `Qty` is small for high-value
+  items with tight limits.
+- **GE → shop: "the shop buys it" is sourced, not inferred.** A row is only
+  included when the wiki publishes a positive `store_buy_price`. The multiplier
+  alone is not enough: Eblis's ancient staff lists a 100% buy multiplier but
+  `buy=N/A` (`hidebuy=y`), and the shop refuses the item. General stores are
+  excluded by `Category:General stores`; only items a shop stocks are visible,
+  so a specialist buying an unlisted related item is a known gap.
+- **GE → shop: one price curve per arrival.** The shop's stock is assumed at its
+  default level, so its buy price falls as you sell; repeat runs from the same
+  shop are optimistic because destocking between runs is not modelled. GE → shop
+  travel is the shop's own straight-line distance from the Grand Exchange,
+  doubled; shops on another map show `—` for gp/hour rather than an invented
+  trip, and teleports/obstacles are not modelled.
+- **Travel to the shop is not modelled** on the shop → GE page, only hop time,
+  bank trips and GE sell time.
 - **Illiquid items show stale GE prices.** If something trades twice a day, its
   `low` may be wildly out of date. Filter with `--min-volume4h`.
-- **Not modelled:** travel to the shop, teleport costs, competition from other
-  players, instance/quest access requirements, shop gold limits when *selling*
-  to shops.
+- **Not modelled:** teleport costs, competition from other players,
+  instance/quest access requirements, and destocking/restocking between runs.
 
 ## Project layout
 
 ```text
 src/api/       HTTP gateway (UA, 1 req/s, TTL cache, backoff) + typed clients
-src/domain/   shopPrice.ts (game maths), tax.ts, profit.ts, budget.ts, basket.ts — pure, no I/O
-src/engine/    rank.ts — joins catalogue × prices × volume
+src/domain/   shopPrice.ts (game maths), shopSink.ts (GE -> shop), tax.ts, profit.ts,
+              budget.ts, basket.ts, bankTrip.ts — pure, no I/O
+src/engine/    rank.ts (shop -> GE), sinkRank.ts (GE -> shop) — join catalogue × prices
 src/types.ts   zod schemas for every artifact
-scripts/       refresh-shops, refresh-market, report, smoke
-web/           Vite + React table
+scripts/       refresh-shops, refresh-market, report, refresh-sinks, smoke
+web/           Vite + React: shop -> GE and GE -> shop pages
 data/          generated JSON (committed so the UI builds offline)
 docs/          shop-mechanics.md, data-sources.md, tooling-notes.md
 ```

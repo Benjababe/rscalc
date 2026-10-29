@@ -212,6 +212,97 @@ export function sellTotalRevenue(
 }
 
 // ---------------------------------------------------------------------------
+// Optimal sale planning (GE -> shop)
+// ---------------------------------------------------------------------------
+
+export interface SalePlan {
+  /** Units worth selling to the shop. */
+  units: number;
+  /** Coins the shop pays for all of them. */
+  totalRevenue: number;
+  /** Coins you paid on the GE for those units (`units * geCostPerUnit`). */
+  totalCost: number;
+  /** `totalRevenue - totalCost`. */
+  profit: number;
+  /** What the shop paid for the first and the marginal (last) unit. */
+  firstUnitRevenue: number;
+  lastUnitRevenue: number;
+  /** True when the next unit's shop price no longer beat the GE cost. */
+  stoppedAtMargin: boolean;
+  /** True when the last accepted unit was paid at the 10%-of-value floor. */
+  atFloor: boolean;
+}
+
+/**
+ * How many units of one GE purchase are worth selling to a shop.
+ *
+ * This is the mirror of `planPurchase`: the shop's offer *falls* with every unit
+ * you sell it, so the rule is marginal — keep selling while the next unit's
+ * price is still strictly greater than what you paid on the GE. A zero-margin
+ * unit is never sold, matching the purchase side.
+ *
+ * No GE tax applies in either direction here: the tax is charged on GE *sales*,
+ * not purchases, and selling to a shop is not a GE trade. See
+ * `docs/shop-mechanics.md` §4 (shop pays) and §7 (tax).
+ *
+ * `maxUnits` is required on purpose. Selling is not bounded by stock the way
+ * buying is: once an overstocked shop reaches the 10%-of-value floor its offer
+ * stops falling, so an unprofitable floor price would make this loop forever.
+ * The caller must supply the real bound (GE buy limit, 4h volume, inventory).
+ */
+export function planShopSale(
+  row: ShopRow,
+  geCostPerUnit: number,
+  options: { startStock?: number; maxUnits: number },
+): SalePlan {
+  const maxUnits = Math.max(0, Math.floor(options.maxUnits));
+  const empty: SalePlan = {
+    units: 0,
+    totalRevenue: 0,
+    totalCost: 0,
+    profit: 0,
+    firstUnitRevenue: 0,
+    lastUnitRevenue: 0,
+    stoppedAtMargin: maxUnits > 0,
+    atFloor: false,
+  };
+
+  if (!(geCostPerUnit > 0) || maxUnits <= 0) return empty;
+
+  let stock = options.startStock ?? row.baseStock;
+  const floor = trunc(row.itemValue * 0.1);
+  let units = 0;
+  let totalRevenue = 0;
+  let firstUnitRevenue = 0;
+  let lastUnitRevenue = 0;
+  let atFloor = false;
+
+  for (let i = 0; i < maxUnits; i += 1) {
+    const unitRevenue = shopUnitSellPrice(row, stock);
+    if (unitRevenue <= geCostPerUnit) break;
+
+    units += 1;
+    totalRevenue += unitRevenue;
+    if (units === 1) firstUnitRevenue = unitRevenue;
+    lastUnitRevenue = unitRevenue;
+    atFloor = unitRevenue <= floor;
+    if (!row.infiniteStock) stock += 1;
+  }
+
+  const totalCost = units * geCostPerUnit;
+  return {
+    units,
+    totalRevenue,
+    totalCost,
+    profit: totalRevenue - totalCost,
+    firstUnitRevenue,
+    lastUnitRevenue,
+    stoppedAtMargin: units < maxUnits,
+    atFloor,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Optimal purchase planning
 // ---------------------------------------------------------------------------
 

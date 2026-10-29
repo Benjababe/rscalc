@@ -51,10 +51,28 @@ Two things that cost time to discover:
   `api.php?action=bucket` requires a `query` parameter that rejects arrays.
   We parse the HTML table by *header name*, so a column reorder fails loudly.
 
+`store_buy_price` is also the evidence for the reverse (GE → shop) calculator:
+the wiki publishes it only for items the shop actually buys at default stock, and
+writes `N/A` when it does not — Eblis's ancient staff is the example, with
+`hidebuy=y` and `buy=N/A` even though its `store_buy_multiplier` is 1000. The
+sink engine therefore requires a published, positive buy price; the multiplier
+alone would invent a buyer. See `docs/shop-mechanics.md` §12.6.
+
+`store_sell_price` and `store_buy_price` can differ from
+`item value × multiplier` for rows with a per-item price override (for example
+Eblis's ancient staff sells for 80,000 despite a 100% multiplier and a 100,000
+value). The *buy* prices were cross-checked against the formula and match for
+finite-stock rows, apart from a 1 gp floor edge on an excluded general-store
+row.
+
 ## 3. Wiki MediaWiki API — `oldschool.runescape.wiki/api.php`
 
 Used for shop categories and item stackability (`prop=categories`, batched 50
 titles/request).
+
+Shop categories are filtered to `/shop|store/i` so that both `Magic shops` and
+`Category:General stores` survive. The GE → shop page excludes general stores by
+that category rather than by shop name. See §12.6 of `docs/shop-mechanics.md`.
 
 Note: this wiki has **no Cargo** (`action=cargoquery` returns
 `Unrecognized value for parameter "action"`), and `Special:Buckets` (plural) does
@@ -78,24 +96,28 @@ rather than understating it. See `docs/shop-mechanics.md` §10 for the time mode
 
 Template: <https://oldschool.runescape.wiki/w/Template:Infobox_Item>
 
-### 3.2 Shop and bank coordinates
+### 3.2 Shop, bank and Grand Exchange coordinates
 
 | Source | Purpose | TTL | Cost |
 |---|---|---|---|
 | `Special:Bucket?bucket=map` | centre `{x,y,plane,mapID}` for shop pages | 24h | 2,177 rows / 5 requests |
 | `Category:Banks` (`list=categorymembers`) | bank page titles | 24h | 1 request |
 | `prop=revisions` on those titles | the `Map` template's coordinates | 24h | ~2 requests |
+| `prop=revisions` on `Grand Exchange` | the GE's `Map` template coordinate | 24h | 1 request |
 
 Only pages whose map template passes `bucket=yes` are in the map bucket, which
-covers the shops (588/593) but almost none of the banks. Banks are therefore
-read from their infobox wikitext. `mapID` separates the overworld (0) from
-underground and instanced maps, and comes from the bucket's `options` cell for
-shops and from the `mapID=` parameter for banks.
+covers the shops (588/593) but almost none of the banks. Banks and the Grand
+Exchange are therefore read from their infobox wikitext. `mapID` separates the
+overworld (0) from underground and instanced maps, and comes from the bucket's
+`options` cell for shops and from the `mapID=` parameter for banks.
 
 Distances are computed in `src/domain/bankTrip.ts`: same `mapID` first, then a
 cross-map fallback limited to 40 tiles. Shops with no usable bank are stored
-with `bankTiles: null` and never assigned a made-up trip. See
-`docs/shop-mechanics.md` §10.1.
+with `bankTiles: null` and never assigned a made-up trip. The GE origin is
+stored once as `gePoint`, and each shop gets its own `geTiles` from the same
+`mapDistanceTiles` rule; shops on another map (127/593 at the last build) are
+`null`, which is why the GE → shop page shows `—` for their gp/hour. See
+`docs/shop-mechanics.md` §10.1 and §12.5.
 
 ## 4. Deliberately not used
 

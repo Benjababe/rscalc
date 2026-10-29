@@ -377,6 +377,10 @@ const CategoriesResponseSchema = z.object({
  * One batched `prop=categories` call per 50 titles, so this is ~10 requests for
  * the whole game and stays well inside the 1 req/s budget.
  *
+ * Categories containing "shop" or "store" are kept. The store half is needed
+ * for `Category:General stores`, which the GE -> shop planner excludes by
+ * category rather than by guessing from shop names.
+ *
  * https://oldschool.runescape.wiki/api.php?action=query&prop=categories
  */
 export async function fetchShopTypes(
@@ -411,7 +415,7 @@ export async function fetchShopTypes(
     for (const page of parsed.data.query?.pages ?? []) {
       const categories = (page.categories ?? [])
         .map((category) => category.title.replace(/^Category:/, ''))
-        .filter((category) => /shop/i.test(category));
+        .filter((category) => /shop|store/i.test(category));
       result.set(page.title, categories);
     }
   }

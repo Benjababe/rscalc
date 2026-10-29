@@ -5,7 +5,8 @@ Shop → Grand Exchange profit calculator for Old School RuneScape.
 ## Mission
 
 Given a shop and an item, answer: **can I buy it from that shop and sell it on the
-GE for profit, and how much is that worth per 4 hours / per hour?**
+GE for profit, and how much is that worth per 4 hours / per hour?** And the
+reverse: **can I buy it on the GE and sell it to a shop for profit?**
 
 Correctness of the shop pricing formula, the GE tax and the travel-time model
 matters more than UI polish. A wrong number presented confidently is the worst
@@ -29,6 +30,11 @@ possible outcome for this project.
   rather than guessing. Do not interpolate, do not "fill in" a plausible number.
   Unknown stackability is stored as `null` and charged conservatively as
   non-stackable.
+- **A shop buys an item only when the wiki says so.** Require a positive
+  published `store_buy_price`; `N/A` means the shop refuses the item even when
+  `store_buy_multiplier` is non-zero (Eblis's ancient staff). General stores are
+  excluded from the GE → shop page by `Category:General stores`, never by name,
+  until their "buys anything" behaviour has its own sourced model.
 - **Never replace a per-shop quantity with a global default.** Bank travel is per
   shop and derived from the wiki map. The only allowed global values are game or
   interface constants: movement speed and the bank handover. A single global
@@ -62,16 +68,20 @@ src/api/wikiItems.ts   item stackability from the infobox
 src/api/wikiMap.ts     shop/bank coordinates (map bucket + Category:Banks pages)
 src/domain/tax.ts      GE tax rules
 src/domain/shopPrice.ts dynamic shop price formula (the game's exact math)
+src/domain/shopSink.ts  GE -> shop planner: decreasing sale curve, loads, GE trip, gp/hour
 src/domain/profit.ts   arbitrage planner: marginal buy quantity, margin, gp/4h
 src/domain/budget.ts   gold-budget planner: worlds, banking, gp/hour
 src/domain/basket.ts   multi-item shop planner: shared hops/loads, GE sell slots
-src/domain/bankTrip.ts nearest-bank join + per-shop trip seconds
+src/domain/bankTrip.ts nearest-bank join + per-shop trip seconds (shared with the GE trip)
 src/engine/rank.ts     joins catalog × prices × volume × stackability
+src/engine/sinkRank.ts joins for GE -> shop; buy limit as a purchase cap,
+                       general-store exclusion, published buy prices only
 src/types.ts           shared domain types and zod schemas
 scripts/refresh-shops.ts   build data/shops.json (storeline + map + banks)
 scripts/refresh-market.ts  build data/market.json (prices + stackability)
 scripts/report.ts          CLI report; --write emits opportunities.json;
                            --shop prints one shop's multi-item basket
+scripts/refresh-sinks.ts   GE -> shop ranking; --write emits shop-sinks.json
 scripts/smoke.ts           connectivity + schema check
 web/                       Vite + React UI (reads static data only)
 data/                      generated JSON (committed so the UI works offline)
@@ -87,10 +97,13 @@ data/shops.json          593 shops / 5,657 stock rows; pricing parameters plus
 data/market.json         GE quotes for the 1,239 items the catalogue references;
                          includes stackable
 data/opportunities.json  both sell modes, full lists, consumed by the UI
+data/shop-sinks.json     GE -> shop flips for both buy modes, consumed by the UI
 ```
 
 Coverage at the last refresh: 526/593 shops have a bank distance (5 have no map
-coordinates, 62 have no bank on their map). The rest are `null` by design.
+coordinates, 62 have no bank on their map) and 461/593 have a Grand Exchange
+distance (127 more are on another map). The rest are `null` by design. The GE ->
+shop page excludes general stores and rows without a published shop buy price.
 
 ## Commands
 
@@ -103,6 +116,7 @@ pnpm build:data     # both
 pnpm report --write # data/opportunities.json (both modes)
 pnpm report --shop="Lundail's Arena-side Rune Shop" --gold=100000
                     # one shop's multi-item basket
+pnpm sinks --write  # data/shop-sinks.json (both buy modes)
 pnpm build          # UI bundle
 ```
 
@@ -193,6 +207,29 @@ and bank loads are shared rather than charged once per item.
   `pnpm report --shop="<name>" --gold=N`.
 **Accept:** tests pin shared hops, shared/mixed bank loads, unknown bank → `null`
 only when a trip is needed, GE slot batching, caps, and the allocation rule.
+
+### M9 — GE → shop (reverse arbitrage) ✅
+Buy on the Grand Exchange, sell to a shop whose stock table publishes a buy
+price. Two pages share one shell; the reverse direction has its own artifact.
+- `planShopSale` mirrors `planPurchase`: sell while the shop's next price is
+  strictly above the GE cost, incrementing its stock, floored at 10% of value.
+  `maxUnits` is mandatory because the floor can make an unbounded loop.
+- Buy modes: pessimistic = instant buy at GE `high` + `highVolume24h`; patient =
+  resting offer at `low` + `lowVolume24h`. No GE tax on either leg. The GE buy
+  limit is a genuine purchase cap here:
+  `purchaseCap4h = min(limit, floor(volume24h/6))`.
+- A shop only counts as buying an item when the wiki publishes a positive
+  `store_buy_price`; `N/A` means it refuses the item even if the buy multiplier
+  is non-zero. General stores are excluded by `Category:General stores`, never
+  by name. Only items in a shop's stock table are considered.
+- Time: 27 non-stackable units per load, 1 slot per stackable item, one GE round
+  trip per load at the shop's own `geTiles` (same mapID rule as banks), and
+  `time = max(loads * trip, units/purchaseCap4h * 4h)`. Unknown `geTiles` →
+  `gpPerHour = null`.
+- UI: **GE → shop** tab (`#/ge-to-shop`); CLI: `pnpm sinks`.
+**Accept:** tests pin the published-buy-price rule, general-store exclusion,
+buy-limit cap, stack/mixed loads, mode mapping, unknown-distance `null`, and
+deterministic ordering.
 
 ## Engineering conventions
 

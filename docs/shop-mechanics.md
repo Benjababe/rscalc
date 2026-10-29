@@ -387,3 +387,104 @@ pnpm report --shop="Lundail's Arena-side Rune Shop" --gold=100000
 
 `tests/basket.test.ts` pins the shared-hop, shared-load, mixed-stackability,
 unknown-bank, GE-slot and allocation behaviour.
+
+## 12. GE → shop (buying on the GE, selling to a shop)
+
+The same shop formula runs in reverse. This direction is exposed on the **GE →
+shop** page and built by `pnpm sinks --write` into `data/shop-sinks.json`; the
+pure planner is `src/domain/shopSink.ts` and the join is `src/engine/sinkRank.ts`.
+
+### 12.1 Which mode is which
+
+Mode names keep their player-facing meaning — the *worse* price is pessimistic:
+
+- **pessimistic** = instant buy at GE `high` (guaranteed fill, worst price)
+- **patient** = resting buy offer at GE `low` (better price, may never fill)
+
+The volume side flips relative to §9, because we are now the buyer. An instant
+buy is filled by sellers hitting the high side, so it uses `highVolume24h`; a
+resting low offer is filled by instant sellers, so it uses `lowVolume24h`.
+`src/engine/sinkRank.ts` maps both explicitly and deliberately does not reuse the
+sell-side helpers in `src/domain/profit.ts`.
+
+### 12.2 No tax
+
+The 2% GE tax in §7 applies to **GE sales**. Buying on the GE is untaxed, and
+selling to a shop is not a GE trade, so neither leg is taxed:
+
+```text
+profit = shopRevenue - units * geBuyPrice
+```
+
+### 12.3 The buy limit is a purchase cap here
+
+Unlike the shop → GE direction (§9), we are the player doing the buying, so the
+GE buy limit genuinely bounds the plan:
+
+```text
+purchaseCap4h = min(geBuyLimit ?? ∞, floor(volume24h / 6))
+```
+
+A missing buy limit is "no limit", not zero. The 4h volume slice still guards
+against stale, illiquid prices.
+
+### 12.4 Marginal sale, capped by an explicit quantity
+
+`planShopSale` is the mirror of `planPurchase` (§3): it sells the k-th unit only
+while the shop's next offer is **strictly greater** than the GE cost, incrementing
+the shop's stock so the price falls, and never selling a zero-margin unit. The
+10%-of-value floor (§4) means an overstocked shop's offer eventually stops
+falling. That is why `planShopSale` requires a `maxUnits` bound: with a floor
+price above the GE cost, an unbounded loop would never terminate. The bound is
+the GE purchase cap above.
+
+The shop's buy price at default stock is validated against the wiki's own
+published `store_buy_price`: the formula matches every finite-stock row except a
+1 gp rounding edge on a general-store row (excluded) and infinite-stock reward
+shops (excluded by default).
+
+### 12.5 Inventory and trip time
+
+The inventory rule is §10 with the legs swapped: 27 non-stackable units per load
+(28 slots minus the coin stack), and a stackable item occupies one slot for the
+whole quantity.
+
+```text
+loads        = units == 0 ? 0 : stackable ? 1 : ceil(units / 27)
+tripSeconds  = 2 * geTiles * secondsPerTile + handoverSeconds
+timeSeconds  = max(loads * tripSeconds, units / purchaseCap4h * 4 * 3600)
+gpPerHour    = profit * 3600 / timeSeconds
+```
+
+`geTiles` is the shop's own straight-line distance to the Grand Exchange, sourced
+from the wiki map with the same map rules as banks (§10.1): same `mapID` first,
+a 40-tile cross-map fallback, and `mapID = -1` never treated as a shared map.
+The origin is the Grand Exchange page's `{{Map}}` point (`3165, 3490`, mapID 0 at
+the time of writing), fetched by `scripts/refresh-shops.ts`.
+
+Where the wiki map gives no GE distance (another map, or no coordinates),
+`geTiles` is `null` and `gpPerHour` is `null` — the planner reports profit per
+load but never invents a trip. Distances are straight-line lower bounds; obstacle
+routing, teleports and other players are not modelled.
+
+### 12.6 Only shops that publish a buy price count
+
+The storeline table lists what a shop sells, so "listed" is not by itself proof
+that the shop buys the item. The wiki publishes `store_buy_price` for rows the
+shop actually buys at default stock, and writes `N/A` when it does not (Eblis's
+ancient staff is the clear example: `{{StoreTableHead|hidebuy=y}}` plus
+`buy=N/A`, while its `store_buy_multiplier` is still 1000). The engine therefore
+requires a published, positive `store_buy_price`; the multiplier alone must never
+be read as "yes".
+
+Two consequences, both stated in the UI:
+
+- **General stores are excluded** (`Category:General stores`). They buy almost
+  anything, but their stock table only describes what they sell, so "buys
+  anything" cannot be derived from this data. Exclusion is by the wiki category,
+  never by shop name.
+- A specialist shop buying a related item it does not stock is invisible here.
+  Adding it would need a separate sourced list of what each shop buys.
+
+The planner assumes the shop is at default stock on arrival. Destock between runs
+is not modelled, so repeat runs from the same shop are optimistic.

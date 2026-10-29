@@ -33,6 +33,44 @@ function distance(a: MapPoint, b: MapPoint): number {
   return Math.hypot(b.x - a.x, b.y - a.y);
 }
 
+/**
+ * Straight-line distance in tiles, or null when the two points are not on a
+ * comparable map.
+ *
+ * Same rule as the bank join: a shared `mapID` is always comparable, and a
+ * different map is accepted only when the coordinates are nearly identical
+ * (`CROSS_MAP_TRUST_TILES`). `mapID = -1` is the wiki's custom-map sentinel and
+ * is never treated as a real shared map.
+ */
+export function mapDistanceTiles(
+  from: MapPoint,
+  to: MapPoint,
+  options: { crossMapTrustTiles?: number } = {},
+): number | null {
+  const tiles = distance(from, to);
+  if (from.mapID === to.mapID && from.mapID >= 0) return tiles;
+
+  const trust = options.crossMapTrustTiles ?? CROSS_MAP_TRUST_TILES;
+  return tiles <= trust ? tiles : null;
+}
+
+/**
+ * Seconds for a there-and-back trip: walk there, walk back, plus the interface.
+ *
+ * The same shape as a bank trip; only the destination differs. `secondsPerTile`
+ * is the movement-speed assumption (0.6 walking, 0.3 running) and
+ * `handoverSeconds` covers using the interface at the far end.
+ *
+ * https://oldschool.runescape.wiki/w/Game_tick
+ */
+export function roundTripSeconds(
+  tiles: number,
+  secondsPerTile: number,
+  handoverSeconds: number,
+): number {
+  return 2 * tiles * secondsPerTile + handoverSeconds;
+}
+
 function consider(
   best: NearestBank | null,
   bankPage: string,
@@ -90,5 +128,5 @@ export function bankTripSeconds(
   secondsPerTile: number,
   handoverSeconds: number,
 ): number {
-  return 2 * tiles * secondsPerTile + handoverSeconds;
+  return roundTripSeconds(tiles, secondsPerTile, handoverSeconds);
 }

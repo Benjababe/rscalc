@@ -31,7 +31,8 @@ import {
   type RawStoreLine,
 } from '../src/api/storeBucket.js';
 import { fetchBankTitles, fetchMapPoints, fetchPageMapPoints } from '../src/api/wikiMap.js';
-import { nearestBankFor } from '../src/domain/bankTrip.js';
+import { mapDistanceTiles, nearestBankFor } from '../src/domain/bankTrip.js';
+import { isGeneralStore } from '../src/domain/shopSink.js';
 import { ShopCatalogSchema, type ShopEntry } from '../src/types.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -66,40 +67,77 @@ async function main(): Promise<void> {
     `  ${bankPoints.points.size}/${bankTitles.length} banks located (${bankPoints.requests} requests)`,
   );
 
+  // The Grand Exchange is the origin of every GE -> shop trip. Its map template
+  // is the only sourced way to get that point; if it is missing we store null
+  // and the sink planner reports gp/hour as unknown rather than guessing.
+  log('locating the Grand Exchange...');
+  const ge = await fetchPageMapPoints(['Grand Exchange']);
+  const gePoint = ge.points.get('Grand Exchange') ?? null;
+  log(
+    gePoint === null
+      ? '  WARNING: no usable map template; GE -> shop distances will be null'
+      : `  Grand Exchange at ${gePoint.x},${gePoint.y} (mapID ${gePoint.mapID})`,
+  );
+
   // One distance per shop page, shared by every row that shop sells. Shops
   // with no map point, or with no bank in their coordinate space, stay null:
   // the budget planner then refuses to invent a bank time for them.
   const bankByShop = new Map<
     string,
-    { bankTiles: number | null; nearestBank: string | null }
+    {
+      bankTiles: number | null;
+      nearestBank: string | null;
+      geTiles: number | null;
+    }
   >();
   let withoutCoordinates = 0;
   let withoutBank = 0;
+  let withoutGeDistance = 0;
 
   for (const page of shopTitles) {
     const point = map.points.get(page);
     if (point === undefined) {
       withoutCoordinates += 1;
-      bankByShop.set(page, { bankTiles: null, nearestBank: null });
+      bankByShop.set(page, {
+        bankTiles: null,
+        nearestBank: null,
+        geTiles: null,
+      });
       continue;
     }
+
+    const geTiles =
+      gePoint === null ? null : mapDistanceTiles(point, gePoint);
+    if (geTiles === null) withoutGeDistance += 1;
 
     const nearest = nearestBankFor(point, bankPoints.points);
     if (nearest === null) {
       withoutBank += 1;
-      bankByShop.set(page, { bankTiles: null, nearestBank: null });
+      bankByShop.set(page, {
+        bankTiles: null,
+        nearestBank: null,
+        geTiles: geTiles === null ? null : round1(geTiles),
+      });
       continue;
     }
 
     bankByShop.set(page, {
-      bankTiles: Math.round(nearest.tiles * 10) / 10,
+      bankTiles: round1(nearest.tiles),
       nearestBank: nearest.bankPage,
+      geTiles: geTiles === null ? null : round1(geTiles),
     });
   }
 
   log(
     `  ${shopTitles.length - withoutCoordinates - withoutBank}/${shopTitles.length} shops have a bank distance ` +
       `(${withoutCoordinates} without coordinates, ${withoutBank} without a bank on their map)`,
+  );
+  log(
+    gePoint === null
+      ? `  ${shopTitles.length - withoutCoordinates}/${shopTitles.length} shops have a GE distance ` +
+          '(0: the Grand Exchange has no usable map point)'
+      : `  ${shopTitles.length - withoutCoordinates - withoutGeDistance}/${shopTitles.length} shops have a GE distance ` +
+          `(${withoutCoordinates} without coordinates, ${withoutGeDistance} of the rest on another map)`,
   );
 
   const entries: ShopEntry[] = [];
@@ -111,6 +149,7 @@ async function main(): Promise<void> {
     const bank = bankByShop.get(line.shopPage) ?? {
       bankTiles: null,
       nearestBank: null,
+      geTiles: null,
     };
 
     entries.push({
@@ -131,6 +170,7 @@ async function main(): Promise<void> {
       restockTicks: parseIntCell(line.restockRaw),
       bankTiles: bank.bankTiles,
       nearestBank: bank.nearestBank,
+      geTiles: bank.geTiles,
       storeSellPrice: line.storeSellPrice,
       storeBuyPrice: line.storeBuyPrice,
       currency: line.currency,
@@ -140,6 +180,7 @@ async function main(): Promise<void> {
   const catalog = ShopCatalogSchema.parse({
     generatedAt: new Date(fetchedAt).toISOString(),
     source: 'https://oldschool.runescape.wiki/w/Special:Bucket?bucket=storeline',
+    gePoint,
     shopCount: shopTitles.length,
     entries,
   });
@@ -157,6 +198,8 @@ async function main(): Promise<void> {
   log(`  infinite stock:   ${entries.filter((e) => e.infiniteStock).length}`);
   log(`  non-Coins:        ${entries.filter((e) => e.currency.toLowerCase() !== 'coins').length}`);
   log(`  with bank distance: ${entries.filter((e) => e.bankTiles !== null).length}`);
+  log(`  with GE distance:   ${entries.filter((e) => e.geTiles !== null).length}`);
+  log(`  general-store rows: ${entries.filter((e) => isGeneralStore(e.shopTypes)).length}`);
   log(`  elapsed:          ${((Date.now() - started) / 1000).toFixed(1)}s`);
 }
 
@@ -171,6 +214,11 @@ function normaliseItemName(raw: string): string {
 
 function relative(absolute: string): string {
   return absolute.slice(ROOT.length + 1).replace(/\\/g, '/');
+}
+
+/** One decimal place is the precision the bank distance already uses. */
+function round1(value: number): number {
+  return Math.round(value * 10) / 10;
 }
 
 function log(message: string): void {

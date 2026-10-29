@@ -26,6 +26,7 @@ function entry(overrides: Partial<ShopEntry> = {}): ShopEntry {
     restockTicks: 100,
     bankTiles: null,
     nearestBank: null,
+    geTiles: null,
     storeSellPrice: 200,
     storeBuyPrice: 120,
     currency: 'Coins',
@@ -57,6 +58,7 @@ function catalog(entries: ShopEntry[]): ShopCatalog {
   return {
     generatedAt: '2026-01-01T00:00:00.000Z',
     source: 'test',
+    gePoint: null,
     shopCount: new Set(entries.map((e) => e.shopPage)).size,
     entries,
   };

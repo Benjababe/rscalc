@@ -19,6 +19,13 @@ export interface MapPoint {
   mapID: number;
 }
 
+/** Runtime shape of a map point, used by the catalogue and sink payloads. */
+export const MapPointSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  mapID: z.number().int(),
+});
+
 // ---------------------------------------------------------------------------
 // Shop catalogue
 // ---------------------------------------------------------------------------
@@ -68,6 +75,12 @@ export const ShopEntrySchema = z.object({
   bankTiles: z.number().nullable(),
   /** Wiki page title of that bank. Null whenever `bankTiles` is null. */
   nearestBank: z.string().nullable(),
+  /**
+   * Straight-line distance from the Grand Exchange to this shop, in tiles.
+   * Sourced from the wiki map; null when the shop is on another map or has no
+   * coordinates. Used by the GE -> shop planner, never defaulted.
+   */
+  geTiles: z.number().nullable(),
   /** Price the shop charges at equilibrium, as published. */
   storeSellPrice: z.number().int().nullable(),
   /** Price the shop pays at equilibrium, as published. */
@@ -79,6 +92,8 @@ export type ShopEntry = z.infer<typeof ShopEntrySchema>;
 export const ShopCatalogSchema = z.object({
   generatedAt: z.string(),
   source: z.string(),
+  /** Location of the Grand Exchange, the origin of every GE -> shop trip. */
+  gePoint: MapPointSchema.nullable(),
   shopCount: z.number().int(),
   entries: z.array(ShopEntrySchema),
 });
@@ -216,3 +231,99 @@ export const RankingSchema = z.object({
   opportunities: z.array(OpportunitySchema),
 });
 export type Ranking = z.infer<typeof RankingSchema>;
+
+// ---------------------------------------------------------------------------
+// GE -> shop sinks
+// ---------------------------------------------------------------------------
+
+/**
+ * One (item, shop) pair where buying on the GE and selling to the shop can
+ * profit. The GE buy limit genuinely caps purchases here, and no tax applies
+ * on either leg. See `src/domain/shopSink.ts`.
+ */
+export const ShopSinkOpportunitySchema = z.object({
+  itemId: z.number().int(),
+  itemName: z.string(),
+  shopPage: z.string(),
+  shopName: z.string(),
+  soldBy: z.string().nullable(),
+  location: z.string().nullable(),
+  members: z.boolean(),
+  shopTypes: z.array(z.string()),
+
+  /** Pricing parameters, passed through so the UI can explain the curve. */
+  itemValue: z.number().int(),
+  buyMultiplier: z.number(),
+  delta: z.number(),
+  baseStock: z.number().int().nullable(),
+  infiniteStock: z.boolean(),
+
+  /** GE price paid per unit: `high` for an instant buy, `low` for a patient one. */
+  geBuyPrice: z.number().int(),
+  /** What the shop pays for the first, last and average unit. */
+  shopFirstUnitPrice: z.number().int(),
+  shopLastUnitPrice: z.number().int(),
+  shopAvgPrice: z.number(),
+
+  /** Units bought on the GE and sold to the shop. */
+  units: z.number().int(),
+  /** Coins paid on the GE (no tax). */
+  totalCost: z.number(),
+  /** Coins received from the shop (no tax). */
+  totalRevenue: z.number(),
+  profit: z.number(),
+  /** Average profit per unit, and as a percentage of the GE cost. */
+  margin: z.number(),
+  marginPct: z.number(),
+
+  /** True only when the wiki states the item stacks; null is charged as loose. */
+  stackable: z.boolean().nullable(),
+  /** GE 4h buy limit. Here it really is a purchase cap. */
+  geBuyLimit: z.number().int().nullable(),
+  /** 4h slice of the 24h volume on this mode's side of the book. */
+  volume4h: z.number(),
+  /** min(geBuyLimit, volume4h): what the GE can supply in 4h. */
+  purchaseCap4h: z.number().int(),
+  /** Inventory loads needed, and the non-stackable load size. */
+  loads: z.number().int(),
+  unitsPerLoad: z.number().int(),
+  /** True when the shop's price curve, not the purchase cap, ended the sale. */
+  priceLimited: z.boolean(),
+  /** True when the marginal unit already paid the 10%-of-value floor. */
+  atFloor: z.boolean(),
+
+  /** Straight-line GE distance, per-trip seconds and the plan's total time. */
+  geTiles: z.number().nullable(),
+  tripSeconds: z.number().nullable(),
+  timeSeconds: z.number(),
+  /** Null when a trip is needed but the GE distance is unknown. */
+  gpPerHour: z.number().nullable(),
+});
+export type ShopSinkOpportunity = z.infer<typeof ShopSinkOpportunitySchema>;
+
+export const ShopSinkRankingSchema = z.object({
+  generatedAt: z.string(),
+  pricesAsOf: z.string(),
+  mode: SellModeSchema,
+  filters: z.object({
+    excludeGeneralStores: z.boolean(),
+    includeInfiniteStock: z.boolean(),
+    membersOnly: z.boolean(),
+    minProfit: z.number(),
+    minVolume4h: z.number(),
+  }),
+  count: z.number().int(),
+  opportunities: z.array(ShopSinkOpportunitySchema),
+});
+export type ShopSinkRanking = z.infer<typeof ShopSinkRankingSchema>;
+
+/** Both sell modes plus the shared GE origin, as consumed by the UI. */
+export const ShopSinksPayloadSchema = z.object({
+  generatedAt: z.string(),
+  pricesAsOf: z.string(),
+  /** Null when the wiki map could not locate the Grand Exchange. */
+  gePoint: MapPointSchema.nullable(),
+  pessimistic: ShopSinkRankingSchema,
+  patient: ShopSinkRankingSchema,
+});
+export type ShopSinksPayload = z.infer<typeof ShopSinksPayloadSchema>;

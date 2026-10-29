@@ -67,6 +67,49 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* page navigation */
+.pages {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.page-tab {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--dim);
+  border-radius: 8px;
+  padding: 9px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.page-tab:hover {
+  color: var(--text);
+  border-color: #3d4451;
+}
+
+.page-tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #1a1a1a;
+  font-weight: 600;
+}
+
+.pagebar {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 12px;
+}
+
+.cell-note {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  color: var(--dim);
+  white-space: nowrap;
+}
+
 .label {
   color: var(--dim);
   font-size: 11px;
