@@ -225,7 +225,11 @@ export function ShopToGePage(): JSX.Element {
         case "margin":
           return row.margin;
         case "avgCost":
-          return row.avgCost;
+          return budgetMode
+            ? row.plan !== undefined && row.plan.units > 0
+              ? row.plan.avgCost
+              : null
+            : row.avgCost;
         case "sellPrice":
           return row.sellPrice;
         case "itemName":
@@ -834,7 +838,10 @@ export function ShopToGePage(): JSX.Element {
               GE sell time) and excludes travel to the shop. Clicking{" "}
               <strong>basket</strong> beside a shop buys every profitable item
               there together: those world hops and bank loads are shared, so the
-              basket's gp / hour is usually higher than any single row's.
+              basket's gp / hour is usually higher than any single row's. A{" "}
+              <strong>—</strong> unit cost means there was no budget plan at
+              this gold, usually because the item has no sellable 4h volume;
+              the tooltip and the shop view show the per-visit cost instead.
             </p>
           ) : (
             <p>
@@ -958,11 +965,41 @@ function Row({
         <td className="loc loc-col">{row.location ?? "—"}</td>
       )}
       {visible.has("unitCost") && (
-        <td className="right mono">
-          {formatGp(
-            Math.round(
-              plan !== undefined && budgetMode ? plan.avgCost : row.avgCost,
-            ),
+        <td
+          className="right mono"
+          title={
+            budgetMode && plan !== undefined && plan.units === 0
+              ? `No budget plan (${
+                  row.volume4h === 0
+                    ? "no 4h GE volume"
+                    : plan.marginLimited
+                      ? "the shop price no longer beats the GE"
+                      : plan.budgetLimited
+                        ? "available gold is below one unit"
+                        : "no plan at this gold"
+                }). One full shop visit averages ${formatGp(
+                  Math.round(row.avgCost),
+                )} gp per unit.`
+              : undefined
+          }
+        >
+          {budgetMode && plan !== undefined && plan.units === 0
+            ? "—"
+            : formatGp(
+                Math.round(
+                  plan !== undefined && budgetMode ? plan.avgCost : row.avgCost,
+                ),
+              )}
+          {budgetMode && plan !== undefined && plan.units === 0 && (
+            <span className="cell-note">
+              {row.volume4h === 0
+                ? "no 4h volume"
+                : plan.marginLimited
+                  ? "no margin"
+                  : plan.budgetLimited
+                    ? "gold too low"
+                    : "no plan"}
+            </span>
           )}
         </td>
       )}
