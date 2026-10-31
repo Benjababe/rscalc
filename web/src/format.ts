@@ -2,6 +2,8 @@
 
 import { formatLocalTime } from "../../src/util/time";
 
+export { formatSourceDateTime } from "../../src/util/time";
+
 export function formatGp(value: number): string {
   return value.toLocaleString("en-US");
 }

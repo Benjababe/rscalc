@@ -17,7 +17,7 @@ import type {
 import { wikiUrl } from "../../src/util/wiki";
 import { AccessBadge } from "./AccessBadge";
 import { accessFor } from "./access";
-import { compact, formatDuration, formatGp, formatTime } from "./format";
+import { compact, formatDuration, formatGp, formatSourceDateTime, formatTime } from "./format";
 import { toSinkShopRow } from "./opportunity";
 import { SinkBasketPanel } from "./SinkBasket";
 import {
@@ -260,8 +260,15 @@ export function GeToShopPage(): JSX.Element {
       <div className="pagebar">
         <div className="asof">
           <span className="label">GE prices as of</span>
-          <strong>{formatTime(ranking.pricesAsOf)}</strong>
-          <span className="label">built {formatTime(DATA.generatedAt)}</span>
+          <strong title={formatSourceDateTime(ranking.pricesAsOf)}>
+            {formatTime(ranking.pricesAsOf)}
+          </strong>
+          <span
+            className="label"
+            title={formatSourceDateTime(DATA.generatedAt)}
+          >
+            built {formatTime(DATA.generatedAt)}
+          </span>
         </div>
       </div>
 

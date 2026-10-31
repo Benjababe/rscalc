@@ -11,7 +11,7 @@ import {
   capActionsPerHour,
 } from "../../src/domain/processTime";
 import { wikiUrl } from "../../src/util/wiki";
-import { compact, formatGp, formatTime } from "./format";
+import { compact, formatGp, formatSourceDateTime, formatTime } from "./format";
 import {
   browserStore,
   readStoredBudget,
@@ -331,8 +331,15 @@ export function ProcessingPage(): JSX.Element {
       <div className="pagebar">
         <div className="asof">
           <span className="label">GE prices as of</span>
-          <strong>{formatTime(ranking.pricesAsOf)}</strong>
-          <span className="label">built {formatTime(DATA.generatedAt)}</span>
+          <strong title={formatSourceDateTime(ranking.pricesAsOf)}>
+            {formatTime(ranking.pricesAsOf)}
+          </strong>
+          <span
+            className="label"
+            title={formatSourceDateTime(DATA.generatedAt)}
+          >
+            built {formatTime(DATA.generatedAt)}
+          </span>
         </div>
       </div>
 

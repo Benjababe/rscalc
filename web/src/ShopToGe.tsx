@@ -9,7 +9,7 @@ import {
 import { wikiUrl } from "../../src/util/wiki";
 import { AccessBadge } from "./AccessBadge";
 import { accessFor } from "./access";
-import { compact, formatGp, formatTime } from "./format";
+import { compact, formatGp, formatSourceDateTime, formatTime } from "./format";
 import { sellableAcrossWorlds, toShopRow } from "./opportunity";
 import { ShopBasketPanel } from "./ShopBasket";
 import {
@@ -304,8 +304,15 @@ export function ShopToGePage(): JSX.Element {
       <div className="pagebar">
         <div className="asof">
           <span className="label">GE prices as of</span>
-          <strong>{formatTime(ranking.pricesAsOf)}</strong>
-          <span className="label">built {formatTime(DATA.generatedAt)}</span>
+          <strong title={formatSourceDateTime(ranking.pricesAsOf)}>
+            {formatTime(ranking.pricesAsOf)}
+          </strong>
+          <span
+            className="label"
+            title={formatSourceDateTime(DATA.generatedAt)}
+          >
+            built {formatTime(DATA.generatedAt)}
+          </span>
         </div>
       </div>
 
