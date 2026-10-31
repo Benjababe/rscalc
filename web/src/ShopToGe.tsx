@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Opportunity, Ranking, SellMode } from "../../src/types";
 import {
+  DEFAULT_MAX_WORLDS,
   DEFAULT_SECONDS_PER_TILE,
   planWithBudget,
   type BudgetPlan,
@@ -150,6 +151,7 @@ export function ShopToGePage(): JSX.Element {
   const [gold, setGold] = useState(initialBudget.gold);
   const [view, setView] = useState<BudgetView>(initialBudget.view);
   const [hopSeconds, setHopSeconds] = useState(DEFAULT_HOP_SECONDS);
+  const [maxWorlds, setMaxWorlds] = useState(DEFAULT_MAX_WORLDS);
   const [secondsPerTile, setSecondsPerTile] = useState(
     DEFAULT_SECONDS_PER_TILE,
   );
@@ -193,6 +195,7 @@ export function ShopToGePage(): JSX.Element {
             // "price" is a stale trade, yielding fantasy gp/hour.
             plan: planWithBudget(toShopRow(opp), opp.netSellPerUnit, gold, {
               hopSeconds,
+              maxWorlds,
               bankTiles: opp.bankTiles,
               secondsPerTile,
               stackable: opp.stackable,
@@ -258,6 +261,7 @@ export function ShopToGePage(): JSX.Element {
     budgetMode,
     gold,
     hopSeconds,
+    maxWorlds,
     secondsPerTile,
     sortKey,
     descending,
@@ -445,6 +449,29 @@ export function ShopToGePage(): JSX.Element {
             </span>
           </label>
 
+          <label
+            className="toggle"
+            title="Maximum worlds you are willing to hop. The shop is assumed available on each one."
+          >
+            <span className="label">Max worlds</span>
+            <span className="field-control">
+              <input
+                className="num"
+                type="number"
+                min={1}
+                step={1}
+                value={maxWorlds}
+                onChange={(event) =>
+                  setMaxWorlds(
+                    Math.max(1, Math.floor(Number(event.target.value) || 1)),
+                  )
+                }
+                aria-label="Maximum worlds to hop"
+              />
+              <span className="field-unit">worlds</span>
+            </span>
+          </label>
+
           <label className="toggle">
             <span className="label">Travel speed</span>
             <span className="field-control">
@@ -470,13 +497,15 @@ export function ShopToGePage(): JSX.Element {
               Sizing buys for <strong>{formatGp(gold)} gp</strong> ·{" "}
               <strong>{hopSeconds}s</strong> hop ·{" "}
               <strong>{secondsPerTile}s</strong> per tile. Each world resets to
-              full default stock; stackable goods skip banking.
+              full default stock (up to <strong>{maxWorlds} worlds</strong>);
+              stackable goods skip banking.
             </>
           ) : gold > 0 ? (
             <>
               Showing per-shop-visit quantities. <strong>gp / hour</strong> is
               sized to <strong>{formatGp(gold)} gp</strong> at{" "}
-              <strong>{secondsPerTile}s</strong> per tile.
+              <strong>{secondsPerTile}s</strong> per tile, up to{" "}
+              <strong>{maxWorlds} worlds</strong>.
             </>
           ) : (
             <>Enter gold to size buys across world hops.</>
@@ -569,6 +598,7 @@ export function ShopToGePage(): JSX.Element {
           mode={mode}
           gold={gold}
           hopSeconds={hopSeconds}
+          maxWorlds={maxWorlds}
           secondsPerTile={secondsPerTile}
           onClose={() => setSelectedShop(null)}
         />
@@ -786,9 +816,10 @@ export function ShopToGePage(): JSX.Element {
               <strong>Banks</strong> is how many trips to the bank the loads need;
               the seconds beside it are that shop's own round trip, and the bank
               used is shown beneath. Each world is assumed to be at full default
-              stock, so the price curve restarts every hop. A backpack holds 28
-              items; coins take one slot, so a load carries 27 non-stackable
-              items. Distances come from the wiki map and are travelled at{" "}
+              stock, so the price curve restarts every hop. The plan is capped at
+              your <strong>Max worlds</strong> setting ({maxWorlds}). A backpack
+              holds 28 items; coins take one slot, so a load carries 27
+              non-stackable items. Distances come from the wiki map and are travelled at{" "}
               <strong>{secondsPerTile}s per tile</strong>; stackable items never
               need a bank. Where the wiki map gives no bank for a shop, gp / hour
               is shown as <strong>—</strong> rather than assuming a trip.{" "}
@@ -807,10 +838,11 @@ export function ShopToGePage(): JSX.Element {
               that quantity capped by 24h traded volume; the GE buy limit is a
               per-player purchase cap and does not cap sales.{" "}
               <strong>gp / hour</strong> uses your current gold available and the
-              same per-shop bank time as budget mode; it shows <strong>—</strong>{" "}
-              when gold is 0 or the bank distance is unknown. Clicking{" "}
-              <strong>basket</strong> beside a shop buys every profitable item
-              there together, sharing world hops and bank loads.
+              same per-shop bank time as budget mode, capped at your{" "}
+              <strong>Max worlds</strong> setting ({maxWorlds}); it shows{" "}
+              <strong>—</strong> when gold is 0 or the bank distance is unknown.
+              Clicking <strong>basket</strong> beside a shop buys every profitable
+              item there together, sharing world hops and bank loads.
             </p>
           )}
           <p>

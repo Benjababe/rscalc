@@ -250,12 +250,14 @@ price. Two pages share one shell; the reverse direction has its own artifact.
   load split and no banking. One GE round trip at the shop's own `geTiles`
   (same mapID rule as banks) plus one hop per world. Each world resets the
   shop's stock, so the marginal batch is repeated; the plan stops at
-  `min(purchaseCap4h, unitsPerWorld * 200)`. `time = max(trip + worlds * hop,
+  `min(purchaseCap4h, unitsPerWorld * maxWorlds)` (default 200, editable in
+  the UI). `time = max(trip + worlds * hop,
   units/purchaseCap4h * 4h)`. Unknown `geTiles` → `gpPerHour = null`.
 - The plan is also capped by available gold: `floor(gold / GE price)`, with
   `budgetLimited` set when gold binds. Both browser pages share the same
   `rscalc.budget` localStorage value; 0 means no cap.
-- UI: **GE → shop** tab (`#/ge-to-shop`); CLI: `pnpm sinks`.
+- UI: **GE → shop** tab (`#/ge-to-shop`), with a **Max worlds** input; CLI:
+  `pnpm sinks --max-worlds=N`.
 **Accept:** tests pin the published-buy-price rule, general-store exclusion,
 buy-limit cap, per-world batch, world-hop time, gold budget, unknown-distance
 `null`, and deterministic ordering.
@@ -265,7 +267,8 @@ A shop visit can sell every profitable item for that shop, so the world hop and
 the single GE trip are shared rather than charged once per item.
 - `src/domain/sinkBasket.ts` allocates one gold budget across items by marginal
   profit per coin, respecting each item's GE 4h purchase cap and the shared
-  200-world ceiling. Units repeat in per-world batches; the basket needs
+  `maxWorlds` ceiling (default 200, editable in the UI). Units repeat in
+  per-world batches; the basket needs
   `max(ceil(units_i / batch_i))` worlds, not the sum.
 - Items bought on the GE are noted: one GE↔shop trip, no inventory loads or
   banking. Hop time is shared by every item in the basket.

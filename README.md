@@ -191,13 +191,13 @@ are collected from the GE as **banknotes**, so the whole purchase fits one
 inventory slot: there is no 27-unit load split and no banking. Each fresh world
 resets the shop's stock, so the same falling price curve can be sold again after
 a hop; `Qty` totals those worlds and `Worlds` is the hop count. The plan is
-capped at **200 worlds** (the same ceiling as the shop → GE planner); raise it
-with `--max-worlds=N`. `gp / hour` is the slower of one GE↔shop trip plus the
+capped at your **Max worlds** setting (default **200**, the same ceiling as the
+shop → GE planner); change it in the UI or with `--max-worlds=N`. `gp / hour` is the slower of one GE↔shop trip plus the
 hops, and the GE supplying the units. A shop on another map shows `—` rather
 than a made-up trip.
 
 The **Gold available** field sizes every plan:
-`units = min(GE 4h supply, 200 worlds × batch, gold / GE buy price)`. A row cut
+`units = min(GE 4h supply, max worlds × batch, gold / GE buy price)`. A row cut
 by gold is marked **budget**, and clearing the field to 0 shows the uncapped
 plan. It is the **same localStorage value** as the shop → GE page, so the two
 directions share one gold amount.
@@ -235,7 +235,7 @@ The shop is assumed to be at default stock on each world, so the same batch is
 repeated across hops. Destocking between visits to the same world, restock
 timers and teleports are not modelled. The 200-world ceiling is an explicit
 assumption, not a sourced world count; a row marked **world cap** could sell
-more if you allowed more hops.
+more if you raised **Max worlds**.
 
 ## Item processing (web UI + CLI)
 
@@ -341,7 +341,7 @@ off-by-one that a naive implementation gets wrong). Beyond that, be aware:
   untaxed and a shop sale is not a GE trade, so neither leg pays the 2% tax. In
   this direction you are the buyer, so `min(GE buy limit, 24h volume/6)` caps the
   total quantity per 4-hour window. `Qty` is the total across worlds, `Batch` is
-  one fresh world, and the plan stops at `min(GE cap, 200 worlds × batch)`.
+  one fresh world, and the plan stops at `min(GE cap, max worlds × batch)`.
 - **GE → shop: "the shop buys it" is sourced, not inferred.** A row is only
   included when the wiki publishes a positive `store_buy_price`. The multiplier
   alone is not enough: Eblis's ancient staff lists a 100% buy multiplier but

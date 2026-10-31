@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import {
   DEFAULT_HOP_SECONDS,
+  DEFAULT_MAX_WORLDS,
   DEFAULT_SECONDS_PER_TILE,
 } from "../../src/domain/budget";
 import {
@@ -95,6 +96,7 @@ export function GeToShopPage(): JSX.Element {
   const [minProfit, setMinProfit] = useState(0);
   const [minVolume, setMinVolume] = useState(0);
   const [hopSeconds, setHopSeconds] = useState(DEFAULT_HOP_SECONDS);
+  const [maxWorlds, setMaxWorlds] = useState(DEFAULT_MAX_WORLDS);
   const [secondsPerTile, setSecondsPerTile] = useState(
     DEFAULT_SECONDS_PER_TILE,
   );
@@ -138,6 +140,7 @@ export function GeToShopPage(): JSX.Element {
         geTiles: opp.geTiles,
         secondsPerTile,
         hopSeconds,
+        maxWorlds,
         budgetGp: gold,
         startStock: opp.baseStock ?? 0,
       });
@@ -209,6 +212,7 @@ export function GeToShopPage(): JSX.Element {
     minProfit,
     minVolume,
     hopSeconds,
+    maxWorlds,
     secondsPerTile,
     gold,
     sortKey,
@@ -402,6 +406,29 @@ export function GeToShopPage(): JSX.Element {
             </span>
           </label>
 
+          <label
+            className="toggle"
+            title="Maximum worlds you are willing to hop. The shop is assumed available on each one."
+          >
+            <span className="label">Max worlds</span>
+            <span className="field-control">
+              <input
+                className="num"
+                type="number"
+                min={1}
+                step={1}
+                value={maxWorlds}
+                onChange={(event) =>
+                  setMaxWorlds(
+                    Math.max(1, Math.floor(Number(event.target.value) || 1)),
+                  )
+                }
+                aria-label="Maximum worlds to hop"
+              />
+              <span className="field-unit">worlds</span>
+            </span>
+          </label>
+
           <label className="toggle">
             <span className="label">Travel speed</span>
             <span className="field-control">
@@ -427,7 +454,9 @@ export function GeToShopPage(): JSX.Element {
           a shop that publishes a buy price. <strong>General stores are excluded</strong>{" "}
           for now. Items are collected as <strong>banknotes</strong>, so there is
           no banking: one GE↔shop trip plus <strong>{hopSeconds}s</strong> per
-          world hop, with travel at <strong>{secondsPerTile}s</strong> per tile.
+          world hop (up to <strong>{maxWorlds} worlds</strong>), with travel at{" "}
+          <strong>{secondsPerTile}s</strong> per tile. The shop is assumed
+          available on every world you visit.
           The shop's offer falls by its <strong>delta%</strong> for every unit
           sold, which caps the batch on each world.{" "}
           {gold > 0 ? (
@@ -483,6 +512,7 @@ export function GeToShopPage(): JSX.Element {
           opportunities={ranking.opportunities}
           gold={gold}
           hopSeconds={hopSeconds}
+          maxWorlds={maxWorlds}
           secondsPerTile={secondsPerTile}
           onClose={() => setSelectedShop(null)}
         />
@@ -676,14 +706,18 @@ export function GeToShopPage(): JSX.Element {
             each fresh world resets that shop's stock, so the same falling price
             curve can be sold again after a hop. <strong>Qty</strong> totals the
             worlds, <strong>Batch</strong> is one world, and <strong>Worlds</strong>{" "}
-            shows how many hops that takes. The plan is capped at{" "}
-            <strong>200 worlds</strong> (the same ceiling as the shop → GE
-            budget planner); a row marked <strong>world cap</strong> could sell
-            more if you allowed more hops.
+            shows how many hops that takes. The plan is capped at your{" "}
+            <strong>Max worlds</strong> setting (currently{" "}
+            <strong>{maxWorlds}</strong>); each world is assumed to have the shop
+            available. A row marked <strong>world cap</strong> could sell more if
+            you allowed more hops.
           </p>
           <p>
             <strong>Gold available</strong> sizes every plan:{" "}
-            <code>units = min(GE 4h supply, 200 worlds × batch, gold / GE buy price)</code>
+            <code>
+              units = min(GE 4h supply, {maxWorlds} worlds × batch, gold / GE buy
+              price)
+            </code>
             . Spend never exceeds the amount you enter, and a row marked{" "}
             <strong>budget</strong> was cut by gold rather than by supply.
             Clearing the field to 0 shows the uncapped plan. The amount is the
@@ -713,8 +747,9 @@ export function GeToShopPage(): JSX.Element {
             Distances are straight-line tiles, not a walking route, so corners,
             obstacles and teleports are not modelled and the trip is a lower
             bound. Other players competing for the same shop, and destocking
-            between visits to the same world, are not modelled either. The
-            200-world ceiling is an explicit assumption, not a sourced count.
+            between visits to the same world, are not modelled either. The{" "}
+            <strong>Max worlds</strong> cap is your explicit assumption (200 by
+            default), not a sourced count.
           </p>
           <p>
             A <strong>locked</strong> badge marks a shop with a known access

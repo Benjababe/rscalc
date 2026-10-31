@@ -17,6 +17,7 @@ interface ShopBasketPanelProps {
   mode: SellMode;
   gold: number;
   hopSeconds: number;
+  maxWorlds: number;
   secondsPerTile: number;
   onClose: () => void;
 }
@@ -35,6 +36,7 @@ export function ShopBasketPanel({
   mode,
   gold,
   hopSeconds,
+  maxWorlds,
   secondsPerTile,
   onClose,
 }: ShopBasketPanelProps): JSX.Element {
@@ -75,10 +77,11 @@ export function ShopBasketPanel({
     () =>
       planShopBasket(items, gold, {
         hopSeconds,
+        maxWorlds,
         bankTiles,
         secondsPerTile,
       }),
-    [items, gold, hopSeconds, bankTiles, secondsPerTile],
+    [items, gold, hopSeconds, maxWorlds, bankTiles, secondsPerTile],
   );
 
   const shopName = shopOpportunities[0]?.shopName ?? shopPage;
@@ -300,7 +303,8 @@ export function ShopBasketPanel({
             <strong>Buy</strong> is the basket's allocation for this shop, not
             the per-item table's gp/hour. World hops and bank loads are paid
             once: {plan.worlds} world{plan.worlds === 1 ? "" : "s"} and{" "}
-            {plan.bankTrips} bank trip{plan.bankTrips === 1 ? "" : "s"}.{" "}
+            {plan.bankTrips} bank trip{plan.bankTrips === 1 ? "" : "s"} (capped
+            at your <strong>Max worlds</strong> setting of {maxWorlds}).{" "}
             {plan.nonStackableUnits > 0 ? (
               <>
                 {plan.stackableSlots} stackable item type

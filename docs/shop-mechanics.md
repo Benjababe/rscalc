@@ -317,7 +317,7 @@ worlds = number of visits in which the basket buys at least one unit
 The planner fills a world with every affordable profitable unit first. If the
 budget cannot clear a full world, it takes marginal units by profit per coin,
 then hops again while the leftover can still buy a fresh world's first unit (up
-to `maxWorlds`, default 200). The single-item planner does not hop after its
+to `maxWorlds`, default 200; the web UI exposes it as **Max worlds**). The single-item planner does not hop after its
 final partial world; the basket planner does, because a fresh world resets the
 cheapest unit price.
 
@@ -469,8 +469,9 @@ value, so the same gold amount sizes both directions.
 
 `maxWorlds` defaults to **200**, the same explicit ceiling as the shop → GE
 budget planner (`DEFAULT_MAX_WORLDS`). It is an assumption, not a sourced world
-count; `pnpm sinks --max-worlds=N` changes it for a build, and a row where it
-binds is marked `worldLimited` and "world cap" in the UI. Without a ceiling the
+count; the web UI exposes it as **Max worlds**, and `pnpm sinks --max-worlds=N`
+changes it for a build. A row where it binds is marked `worldLimited` and
+"world cap" in the UI. Without a ceiling the
 GE buy limit can imply thousands of worlds, which is not a realisable plan.
 
 Each unit sold lowers the shop's next offer by `value * delta / 1000` — the
@@ -521,7 +522,7 @@ Two consequences, both stated in the UI:
 
 The planner assumes each visited world's shop is at default stock on arrival.
 Destock on a world you revisit is not modelled, so revisiting the same world is
-optimistic. The 200-world ceiling in §12.5 is an explicit assumption, not a
+optimistic. The `maxWorlds` ceiling in §12.5 is an explicit assumption, not a
 sourced world count.
 
 ### 12.7 Multi-item baskets

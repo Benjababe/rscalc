@@ -16,6 +16,7 @@ interface SinkBasketPanelProps {
   opportunities: ShopSinkOpportunity[];
   gold: number;
   hopSeconds: number;
+  maxWorlds: number;
   secondsPerTile: number;
   onClose: () => void;
 }
@@ -33,6 +34,7 @@ export function SinkBasketPanel({
   opportunities,
   gold,
   hopSeconds,
+  maxWorlds,
   secondsPerTile,
   onClose,
 }: SinkBasketPanelProps): JSX.Element {
@@ -69,9 +71,10 @@ export function SinkBasketPanel({
       planShopSinkBasket(items, gold, {
         geTiles,
         hopSeconds,
+        maxWorlds,
         secondsPerTile,
       }),
-    [items, gold, geTiles, hopSeconds, secondsPerTile],
+    [items, gold, geTiles, hopSeconds, maxWorlds, secondsPerTile],
   );
 
   const shopName = shopRows[0]?.shopName ?? shopPage;
@@ -294,9 +297,10 @@ export function SinkBasketPanel({
             {plan.offerSlots} concurrent offer slot
             {plan.offerSlots === 1 ? "" : "s"} (members 8, free 3);{" "}
             <strong>Total time</strong> is the slower of that and the trip plus
-            hops. The shop is assumed to be at default stock on every world, and
-            straight-line distance ignores obstacles and teleports. The
-            200-world ceiling still applies.
+            hops. The shop is assumed to be at default stock and available on
+            every world, and straight-line distance ignores obstacles and
+            teleports. World hops are capped at your{" "}
+            <strong>Max worlds</strong> setting ({maxWorlds}).
           </p>
         </>
       )}
