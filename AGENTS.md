@@ -1,16 +1,18 @@
 # AGENTS.md — rscalc
 
-Shop → Grand Exchange profit calculator for Old School RuneScape.
+Shop, Grand Exchange and item-processing profit calculator for Old School RuneScape.
 
 ## Mission
 
 Given a shop and an item, answer: **can I buy it from that shop and sell it on the
 GE for profit, and how much is that worth per 4 hours / per hour?** And the
-reverse: **can I buy it on the GE and sell it to a shop for profit?**
+reverse: **can I buy it on the GE and sell it to a shop for profit?** And a third
+direction: **can I buy an item on the GE, process it deterministically, and sell
+the result back to the GE for profit?**
 
-Correctness of the shop pricing formula, the GE tax and the travel-time model
-matters more than UI polish. A wrong number presented confidently is the worst
-possible outcome for this project.
+Correctness of the shop pricing formula, the GE tax, the travel-time model and
+the recipe/time model matters more than UI polish. A wrong number presented
+confidently is the worst possible outcome for this project.
 
 ## Ground rules (non-negotiable)
 
@@ -42,6 +44,13 @@ possible outcome for this project.
 - **An unknown bank distance must not produce a time-derived number.** The budget
   planner reports `gpPerHour = null` and the UI shows `—`; it never charges an
   invented trip.
+- **Recipes come from the wiki's `Special:Bucket?bucket=recipe`, never from a
+  hand-invented list.** Only deterministic recipes are priced. Cooking is
+  excluded (burn chance), and any recipe whose `quantitynote` mentions a chance,
+  average, range or level scaling is excluded. Fractional quantities are
+  excluded. An unpriced or untradeable item removes the recipe; it is never
+  estimated. The bucket exposes only the primary output — do not invent a
+  secondary one. See `docs/processing.md`.
 - All money is integer gp. Truncate (floor) at the same points the game does —
   see `docs/shop-mechanics.md`. Never round differently than the source formula.
 
@@ -66,6 +75,7 @@ src/api/wikiTable.ts   shared HTML table extraction (columns by header name)
 src/api/wikiPages.ts   batched page wikitext (redirects + normalisation)
 src/api/wikiItems.ts   item stackability from the infobox
 src/api/wikiMap.ts     shop/bank coordinates (map bucket + Category:Banks pages)
+src/api/wikiRecipes.ts recipe bucket parser (Special:Bucket?bucket=recipe)
 src/domain/tax.ts      GE tax rules
 src/domain/shopPrice.ts dynamic shop price formula (the game's exact math)
 src/domain/shopSink.ts  GE -> shop planner: decreasing sale curve, world hops, GE trip, gp/hour
@@ -78,12 +88,15 @@ src/domain/shopAccess.ts  curated access rules -> per-shop access entries; looku
 src/engine/rank.ts     joins catalog × prices × volume × stackability
 src/engine/sinkRank.ts joins for GE -> shop; buy limit as a purchase cap,
                        general-store exclusion, published buy prices only
+src/engine/processRank.ts joins deterministic recipes x GE quotes; per-action
+                       profit, input buy caps, output volume caps, ticks
 src/types.ts           shared domain types and zod schemas
 scripts/refresh-shops.ts   build data/shops.json (storeline + map + banks)
 scripts/refresh-market.ts  build data/market.json (prices + stackability)
 scripts/report.ts          CLI report; --write emits opportunities.json;
                            --shop prints one shop's multi-item basket
 scripts/refresh-sinks.ts   GE -> shop ranking; --write emits shop-sinks.json
+scripts/refresh-process.ts recipe bucket + prices -> data/process.json (both modes)
 scripts/refresh-access.ts  apply scripts/shopAccessRules.ts; emits shop-access.json
 scripts/shopAccessRules.ts curated, cited shop access rules and exceptions
 scripts/smoke.ts           connectivity + schema check
@@ -103,6 +116,8 @@ data/market.json         GE quotes for the 1,239 items the catalogue references;
 data/opportunities.json  both sell modes, full lists, consumed by the UI
 data/shop-sinks.json     GE -> shop flips for both buy modes, consumed by the UI
 data/shop-access.json    per-shop known access requirements (177 pages), cited
+data/process.json        deterministic processing recipes for both price modes,
+                         with inputs, output, fees, caps and tick time
 ```
 
 Coverage at the last refresh: 526/593 shops have a bank distance (5 have no map
@@ -119,11 +134,12 @@ pnpm shops          # data/shops.json (cold cache: ~35s incl. map + banks)
 pnpm market         # data/market.json (cold cache: ~30s incl. stackability)
 pnpm access         # data/shop-access.json (offline; curated rules)
 pnpm build:data     # shops + market
-pnpm refresh        # shops + access + market + both UI rankings
+pnpm refresh        # shops + access + market + all three UI rankings
 pnpm report --write # data/opportunities.json (both modes)
 pnpm report --shop="Lundail's Arena-side Rune Shop" --gold=100000
                     # one shop's multi-item basket
 pnpm sinks --write  # data/shop-sinks.json (both buy modes)
+pnpm process        # data/process.json (recipe bucket + prices; both modes)
 pnpm build          # UI bundle
 ```
 
@@ -279,6 +295,35 @@ table is curated and every entry cites a wiki page.
 artifact/schema validity against the catalogue, and the unknown-is-not-accessible
 rule.
 
+### M12 — Item processing ✅
+Adds a third direction: buy an item on the GE, transform it with a deterministic
+recipe, and sell the result back to the GE.
+- `src/api/wikiRecipes.ts` reads the wiki's structured `bucket=recipe` table
+  (written by `Template:Recipe` / `Module:Recipe`), parses the HTML by header
+  name and zod-validates `production_json`. Coins in a recipe are a fee, not a
+  GE item. The bucket stores only the primary output; that limitation is
+  documented rather than guessed around.
+- `src/engine/processRank.ts` prices both modes: instant (buy `high`, sell
+  `low`) and patient (buy `low`, sell `high`). The output leg pays the GE tax;
+  the input leg does not. Input actions are capped by the GE buy limit and 24h
+  volume, output actions by 24h volume only. Ticks are converted at 0.6s each;
+  a zero-tick action is 8 actions per tick per `Module:Recipe`; missing ticks
+  leave `gpPerHour` null. A player-entered `maxActionsPerHour` cap (0 = the
+  recipe rate) can only slow a recipe down; the UI exposes it as **Actions /
+  hour cap**.
+- Deterministic-only filter: Cooking is excluded, as are recipes whose wiki
+  quantity note mentions a chance/average/range/level scaling, fractional
+  quantities, and any recipe with an unpriced leg. Skill levels are displayed
+  but not checked; banking and travel to the facility are not modelled.
+- `scripts/refresh-process.ts` writes `data/process.json`; the UI tab is
+  `#/processing` and shares `rscalc.budget` with the other pages. The gold
+  budget caps actions by `floor(gold / spendPerAction)`.
+**Accept:** tests pin the bucket parser (header-by-name, coins, ticks, notes,
+  dedupe, malformed rows), both price modes, tax, fees, input buy-limit caps,
+  output-volume caps (not the output buy limit), unknown ticks → `null`,
+  deterministic-only exclusions, skill-less facility work, members filtering
+  and exact ordering.
+
 ## Engineering conventions
 
 - Validate every external JSON shape with zod. Never `as`. Never `any`.
@@ -290,6 +335,11 @@ rule.
   no I/O and no network access.
 - Shop access is a curated, cited table, never inferred from names or absence.
   Unknown stays absent (not "accessible"); every entry carries a wiki URL.
+- Processing recipes are sourced from the wiki bucket and filtered to
+  deterministic transformations. Never turn a `quantitynote` saying chance,
+  average or level scaling into a single expected value; exclude the recipe or
+  model the distribution explicitly with a sourced formula. Never use the
+  output's GE buy limit as a sell cap.
 - Every game-mechanic claim carries a URL citation, in code or in `docs/`.
 - Every price value is tagged with the timestamp it came from.
 - Prices are `number` (gp). Max is well under `Number.MAX_SAFE_INTEGER`.

@@ -373,3 +373,101 @@ export const ShopSinksPayloadSchema = z.object({
   patient: ShopSinkRankingSchema,
 });
 export type ShopSinksPayload = z.infer<typeof ShopSinksPayloadSchema>;
+
+// ---------------------------------------------------------------------------
+// Item processing
+// ---------------------------------------------------------------------------
+
+/**
+ * One leg of a processing recipe, priced for the selected mode. `volume4h` is
+ * the side of the book the leg takes liquidity from: the buy side for inputs,
+ * the sell side for the output. `price` is per unit, not per action.
+ */
+export const ProcessItemSchema = z.object({
+  itemId: z.number().int(),
+  itemName: z.string(),
+  quantity: z.number().int().positive(),
+  price: z.number().int().positive(),
+  volume4h: z.number().int().nonnegative(),
+  /** GE 4h buy limit. Used to cap input purchases; never used to cap output sales. */
+  geBuyLimit: z.number().int().nullable(),
+});
+export type ProcessItem = z.infer<typeof ProcessItemSchema>;
+
+export const ProcessSkillSchema = z.object({
+  name: z.string(),
+  level: z.number().int().nullable(),
+});
+export type ProcessSkill = z.infer<typeof ProcessSkillSchema>;
+
+/**
+ * A deterministic transformation whose inputs and output both have a GE price.
+ *
+ * All money is integer gp per action. `gpPerHour` is null when the wiki does
+ * not publish a tick count; the page never invents a processing rate.
+ */
+export const ProcessOpportunitySchema = z.object({
+  recipeId: z.string(),
+  output: ProcessItemSchema,
+  inputs: z.array(ProcessItemSchema),
+  method: z.string().nullable(),
+  facility: z.string().nullable(),
+  tools: z.string().nullable(),
+  members: z.boolean(),
+  skills: z.array(ProcessSkillSchema),
+  /** Wiki page the recipe was transcluded on. */
+  source: z.string().url(),
+
+  /** Coins spent on item inputs, excluding the NPC/spell fee. */
+  itemCost: z.number().int().nonnegative(),
+  /** Coins paid to a tanner, sawmill or spell component, per action. */
+  feeGp: z.number().int().nonnegative(),
+  /** itemCost + feeGp: what one action costs. */
+  spend: z.number().int().nonnegative(),
+  /** Output quantity times the raw GE price. */
+  grossRevenue: z.number().int().nonnegative(),
+  /** GE tax on the outputs, per action. */
+  tax: z.number().int().nonnegative(),
+  netRevenue: z.number().int().nonnegative(),
+  profit: z.number().int().positive(),
+  marginPct: z.number(),
+
+  /** Raw ticks per action, and the derived seconds (0 ticks = 1/8 tick). */
+  ticks: z.number().nonnegative().nullable(),
+  secondsPerAction: z.number().positive().nullable(),
+  /** Actions the GE can supply and absorb in a 4h window. */
+  marketActions4h: z.number().int().positive(),
+  /** Actions processing speed allows in 4h; null when ticks are unknown. */
+  timeActions4h: z.number().int().nonnegative().nullable(),
+  /** min(marketActions4h, timeActions4h), or the market cap when time is unknown. */
+  actions4h: z.number().int().positive(),
+  gpPer4h: z.number().nonnegative(),
+  /** gpPer4h / 4; null when the processing time is unknown. */
+  gpPerHour: z.number().nonnegative().nullable(),
+});
+export type ProcessOpportunity = z.infer<typeof ProcessOpportunitySchema>;
+
+export const ProcessRankingSchema = z.object({
+  generatedAt: z.string(),
+  pricesAsOf: z.string(),
+  mode: SellModeSchema,
+  filters: z.object({
+    skills: z.array(z.string()),
+    membersOnly: z.boolean(),
+    minProfit: z.number(),
+    /** Player-entered actions/hour ceiling; 0 means each recipe's own rate. */
+    maxActionsPerHour: z.number(),
+  }),
+  count: z.number().int(),
+  opportunities: z.array(ProcessOpportunitySchema),
+});
+export type ProcessRanking = z.infer<typeof ProcessRankingSchema>;
+
+/** Both processing price modes, as consumed by the processing page. */
+export const ProcessPayloadSchema = z.object({
+  generatedAt: z.string(),
+  pricesAsOf: z.string(),
+  pessimistic: ProcessRankingSchema,
+  patient: ProcessRankingSchema,
+});
+export type ProcessPayload = z.infer<typeof ProcessPayloadSchema>;

@@ -1,0 +1,278 @@
+import { describe, expect, it } from 'vitest';
+import {
+  parseRecipeBucket,
+  type RawRecipe,
+} from '../src/api/wikiRecipes.js';
+
+const HEADERS = [
+  'page_name',
+  'page_name_sub',
+  'uses_material',
+  'uses_tool',
+  'uses_facility',
+  'is_members_only',
+  'is_boostable',
+  'uses_skill',
+  'source_template',
+  'production_json',
+];
+
+interface RowOptions {
+  page: string;
+  production: unknown;
+  sourceTemplate?: string;
+  members?: string;
+  sub?: string;
+  facility?: string;
+  tool?: string;
+  skill?: string;
+}
+
+function row(options: RowOptions): string[] {
+  return [
+    options.page,
+    options.sub ?? options.page,
+    '',
+    options.tool ?? '',
+    options.facility ?? '',
+    options.members ?? 'false',
+    '',
+    options.skill ?? '',
+    options.sourceTemplate ?? 'recipe',
+    typeof options.production === 'string'
+      ? options.production
+      : JSON.stringify(options.production),
+  ];
+}
+
+function table(rows: string[][]): string {
+  const head = `<tr>${HEADERS.map((header) => `<th>${header}</th>`).join('')}</tr>`;
+  const body = rows
+    .map(
+      (cells) =>
+        `<tr>${cells.map((cell) => `<td>${cell}</td>`).join('')}</tr>`,
+    )
+    .join('');
+  return `<table>${head}${body}</table>`;
+}
+
+function production(overrides: Record<string, unknown> = {}): unknown {
+  return {
+    ticks: '1',
+    materials: [{ quantity: '1', name: 'Flax' }],
+    skills: [{ experience: '15', level: '10', name: 'Crafting', boostable: 'Yes' }],
+    members: true,
+    output: { quantity: '1', name: 'Bow string' },
+    ...overrides,
+  };
+}
+
+function recipeByName(recipes: RawRecipe[], name: string): RawRecipe {
+  const found = recipes.find((recipe) => recipe.output.name === name);
+  if (found === undefined) throw new Error(`missing recipe ${name}`);
+  return found;
+}
+
+describe('parseRecipeBucket', () => {
+  it('parses recipes and keeps coins as a material', () => {
+    const result = parseRecipeBucket(
+      table([
+        row({
+          page: 'Avantoe',
+          production: production({
+            ticks: '0',
+            materials: [{ quantity: '1', name: 'Grimy avantoe' }],
+            skills: [
+              { experience: '10', level: '48', name: 'Herblore', boostable: 'Yes' },
+            ],
+            output: { quantity: '1', name: 'Avantoe' },
+          }),
+          members: 'true',
+        }),
+        row({
+          page: 'Leather',
+          production: production({
+            ticks: '1',
+            materials: [
+              { quantity: '1', name: 'Cowhide' },
+              { quantity: '1', name: 'Coins' },
+            ],
+            skills: [],
+            facilities: 'Tannery',
+            members: false,
+            output: { quantity: '1', name: 'Leather', subtxt: 'Normal tanner' },
+          }),
+          facility: 'Tannery',
+        }),
+      ]),
+    );
+
+    expect(result.rowCount).toBe(2);
+    expect(result.skipped).toBe(0);
+    expect(result.recipes).toHaveLength(2);
+
+    const avantoe = recipeByName(result.recipes, 'Avantoe');
+    expect(avantoe.page).toBe('Avantoe');
+    expect(avantoe.ticks).toBe(0);
+    expect(avantoe.members).toBe(true);
+    expect(avantoe.materials).toEqual([
+      { name: 'Grimy avantoe', quantity: 1, note: null },
+    ]);
+    expect(avantoe.skills).toEqual([{ name: 'Herblore', level: 48 }]);
+    expect(avantoe.method).toBeNull();
+
+    const leather = recipeByName(result.recipes, 'Leather');
+    expect(leather.method).toBe('Normal tanner');
+    expect(leather.facilities).toBe('Tannery');
+    expect(leather.members).toBe(false);
+    expect(leather.materials).toContainEqual({
+      name: 'Coins',
+      quantity: 1,
+      note: null,
+    });
+  });
+
+  it('ignores non-recipe rows but counts them for pagination', () => {
+    const result = parseRecipeBucket(
+      table([
+        row({
+          page: 'Bridge',
+          sourceTemplate: 'skill info',
+          production: { name: 'Bridge' },
+        }),
+        row({ page: 'Bow string', production: production() }),
+      ]),
+    );
+
+    expect(result.rowCount).toBe(2);
+    expect(result.recipes).toHaveLength(1);
+    expect(result.recipes[0]?.output.name).toBe('Bow string');
+  });
+
+  it('skips malformed production_json rather than aborting the page', () => {
+    const result = parseRecipeBucket(
+      table([
+        row({ page: 'Broken', production: '{"ticks":' }),
+        row({ page: 'Bow string', production: production() }),
+      ]),
+    );
+
+    expect(result.rowCount).toBe(2);
+    expect(result.skipped).toBe(1);
+    expect(result.recipes).toHaveLength(1);
+  });
+
+  it('treats missing, N/A and Varies ticks as unknown, not as five ticks', () => {
+    const result = parseRecipeBucket(
+      table([
+        row({
+          page: 'A',
+          production: production({ ticks: '', output: { quantity: '1', name: 'A' } }),
+        }),
+        row({
+          page: 'B',
+          production: production({ ticks: 'N/A', output: { quantity: '1', name: 'B' } }),
+        }),
+        row({
+          page: 'C',
+          production: production({ ticks: 'Varies', output: { quantity: '1', name: 'C' } }),
+        }),
+        row({
+          page: 'D',
+          production: production({ ticks: '5', output: { quantity: '1', name: 'D' } }),
+        }),
+      ]),
+    );
+
+    const ticks = result.recipes.map((recipe) => recipe.ticks);
+    expect(ticks).toContain(null);
+    expect(ticks).toContain(5);
+    expect(ticks.filter((value) => value === null)).toHaveLength(3);
+  });
+
+  it('cleans wiki markup in methods and quantity notes', () => {
+    const result = parseRecipeBucket(
+      table([
+        row({
+          page: 'Iron bar',
+          production: production({
+            materials: [{ quantity: '1', name: 'Iron ore' }],
+            output: {
+              quantity: '1',
+              name: 'Iron bar',
+              subtxt: '[[Blast Furnace]]',
+              quantitynote: '50% chance without [[ring of forging]]',
+            },
+          }),
+        }),
+      ]),
+    );
+
+    const recipe = result.recipes[0];
+    expect(recipe?.method).toBe('Blast Furnace');
+    expect(recipe?.output.note).toBe('50% chance without ring of forging');
+  });
+
+  it('deduplicates the same recipe and prefers the output item page', () => {
+    const result = parseRecipeBucket(
+      table([
+        row({
+          page: 'Smithing',
+          production: production({
+            materials: [{ quantity: '2', name: 'Coal' }],
+            output: { quantity: '1', name: 'Steel bar', subtxt: 'Furnace' },
+          }),
+        }),
+        row({
+          page: 'Steel bar',
+          production: production({
+            materials: [{ quantity: '2', name: 'Coal' }],
+            output: { quantity: '1', name: 'Steel bar', subtxt: 'Furnace' },
+          }),
+        }),
+      ]),
+    );
+
+    expect(result.recipes).toHaveLength(1);
+    expect(result.recipes[0]?.page).toBe('Steel bar');
+  });
+
+  it('does not merge a chance-note variant with an exact recipe', () => {
+    const result = parseRecipeBucket(
+      table([
+        row({
+          page: 'Iron bar',
+          production: production({
+            materials: [{ quantity: '1', name: 'Iron ore' }],
+            output: { quantity: '1', name: 'Iron bar' },
+          }),
+        }),
+        row({
+          page: 'Iron bar',
+          production: production({
+            materials: [{ quantity: '1', name: 'Iron ore' }],
+            output: {
+              quantity: '1',
+              name: 'Iron bar',
+              quantitynote: '50% chance without ring of forging',
+            },
+          }),
+        }),
+      ]),
+    );
+
+    expect(result.recipes).toHaveLength(2);
+    expect(result.recipes.map((recipe) => recipe.output.note)).toEqual([
+      null,
+      '50% chance without ring of forging',
+    ]);
+  });
+
+  it('fails loudly when a required header column disappears', () => {
+    expect(() =>
+      parseRecipeBucket(
+        '<table><tr><th>page_name</th><th>production_json</th></tr></table>',
+      ),
+    ).toThrow(/source_template/);
+  });
+});

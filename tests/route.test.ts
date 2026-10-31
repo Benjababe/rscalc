@@ -29,6 +29,17 @@ describe('parsePageHash', () => {
   it('recognises an explicit shop -> GE hash', () => {
     expect(parsePageHash('#/shop-to-ge')).toBe('shop-to-ge');
   });
+
+  it('recognises the item processing page', () => {
+    for (const hash of [
+      '#/processing',
+      '#processing',
+      '#/processing/',
+      '#/PROCESSING',
+    ]) {
+      expect(parsePageHash(hash)).toBe('processing');
+    }
+  });
 });
 
 describe('pageHash', () => {
@@ -38,7 +49,7 @@ describe('pageHash', () => {
     }
   });
 
-  it('names both pages', () => {
+  it('names every page', () => {
     for (const page of PAGES) {
       expect(PAGE_LABELS[page].length).toBeGreaterThan(0);
     }

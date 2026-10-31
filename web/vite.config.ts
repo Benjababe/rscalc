@@ -29,6 +29,9 @@ export default defineConfig({
           if (path.includes("/data/shop-sinks.json")) {
             return "data-shop-sinks";
           }
+          if (path.includes("/data/process.json")) {
+            return "data-process";
+          }
           if (path.includes("/data/shop-access.json")) {
             return "data-shop-access";
           }

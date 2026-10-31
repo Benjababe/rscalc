@@ -1,14 +1,15 @@
-/** Two-page hash routing, so the site stays a static bundle with no router. */
+/** Three-page hash routing, so the site stays a static bundle with no router. */
 
-export type Page = "shop-to-ge" | "ge-to-shop";
+export type Page = "shop-to-ge" | "ge-to-shop" | "processing";
 
 export const DEFAULT_PAGE: Page = "shop-to-ge";
 
-export const PAGES: readonly Page[] = ["shop-to-ge", "ge-to-shop"];
+export const PAGES: readonly Page[] = ["shop-to-ge", "ge-to-shop", "processing"];
 
 export const PAGE_LABELS: Record<Page, string> = {
   "shop-to-ge": "Shop → GE",
   "ge-to-shop": "GE → shop",
+  "processing": "Processing",
 };
 
 /**
@@ -22,7 +23,11 @@ export function parsePageHash(hash: string): Page {
     .replace(/\/+$/, "")
     .trim()
     .toLowerCase();
-  return cleaned === "ge-to-shop" ? "ge-to-shop" : DEFAULT_PAGE;
+  return cleaned === "ge-to-shop"
+    ? "ge-to-shop"
+    : cleaned === "processing"
+      ? "processing"
+      : DEFAULT_PAGE;
 }
 
 export function pageHash(page: Page): string {

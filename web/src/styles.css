@@ -224,6 +224,139 @@ body {
   font-size: 13px;
 }
 
+/* processing page */
+.select {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 7px 8px;
+  font-size: 13px;
+}
+
+/* column picker */
+.column-picker {
+  position: relative;
+}
+
+.column-toggle {
+  list-style: none;
+  cursor: pointer;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--dim);
+  border-radius: 8px;
+  padding: 9px 14px;
+  font-size: 13px;
+  user-select: none;
+}
+
+.column-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.column-toggle::marker {
+  content: "";
+}
+
+.column-toggle:hover,
+.column-picker[open] .column-toggle {
+  color: var(--text);
+  border-color: #3d4451;
+}
+
+.column-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  min-width: 190px;
+  max-height: 340px;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+.column-option {
+  padding: 3px 6px;
+  border-radius: 5px;
+}
+
+.column-option:hover {
+  background: var(--panel-2);
+}
+
+.column-reset {
+  margin-top: 6px;
+  width: 100%;
+}
+
+.select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.input-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+
+.input-line {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-width: 230px;
+}
+
+.input-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.input-cost {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dim);
+  font-size: 10px;
+}
+
+.breakdown-total {
+  cursor: help;
+  border-bottom: 1px dotted rgba(255, 255, 255, 0.35);
+}
+
+.input-line .wiki-link {
+  font-weight: 500;
+}
+
+.qty {
+  margin-left: 6px;
+  color: var(--dim);
+  font-size: 12px;
+}
+
+.skill {
+  color: var(--dim);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.cell-note .wiki-link {
+  font-weight: 400;
+  border-bottom-color: rgba(255, 255, 255, 0.25);
+}
+
+.recipe-link {
+  font-size: 10px;
+}
+
 /* stats */
 .stats {
   display: grid;

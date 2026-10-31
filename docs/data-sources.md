@@ -131,6 +131,35 @@ requirement. `pnpm access` applies them to `data/shops.json` and writes
 `data/shop-access.json` offline. A shop absent from the artifact has unknown
 access, not guaranteed access. See [shop-access.md](shop-access.md).
 
+### 3.4 Recipe bucket — `Special:Bucket?bucket=recipe`
+
+<https://oldschool.runescape.wiki/w/Special:Bucket?bucket=recipe>
+
+`Template:Recipe` / `Module:Recipe` writes every recipe into a bucket with ten
+columns: `page_name`, `page_name_sub`, `uses_material`, `uses_tool`,
+`uses_facility`, `is_members_only`, `is_boostable`, `uses_skill`,
+`source_template`, `production_json`. The processing page reads it.
+
+| Property | Value |
+|---|---|
+| TTL | 24h |
+| Pagination | 500 rows/page, 7,855 rows / 16 pages at the last check |
+| Parsing | HTML table by **header name**, then zod on `production_json` |
+| Source of truth | <https://oldschool.runescape.wiki/w/Module:Recipe> |
+
+`production_json` carries `ticks`, `materials`, `skills`, `members`, `output`,
+`facilities` and `tools`. Two limits matter:
+
+- **Only the primary output is stored** (`output[1]` in Module:Recipe). A recipe
+  with a secondary product is priced on its main output only.
+- **`Coins` in `materials` is a fee** (tanner, sawmill, spell), not a GE item.
+  The engine moves it to `feeGp`.
+
+The bucket includes many untradeable quest/minigame items and `skill info` rows;
+`source_template = recipe` is the filter, and recipes whose legs lack a GE quote
+are dropped. See [processing.md](processing.md) for the deterministic-only
+filter and the worked Avantoe example.
+
 ## 4. Deliberately not used
 
 - **GE Tracker API** — paid subscription + partner approval. Not needed.

@@ -1,13 +1,15 @@
 # rscalc
 
-Shop ↔ Grand Exchange profit calculator for Old School RuneScape.
+Shop, Grand Exchange and item-processing profit calculator for Old School RuneScape.
 
-Two questions, one sourced model: **if I buy this item from this shop and sell it
-on the GE**, and **if I buy on the GE and sell to a shop** — what is the
-realistic profit, and what is it worth per hour?
+Three questions, one sourced model: **if I buy this item from this shop and sell
+it on the GE**, **if I buy on the GE and sell to a shop**, and **if I buy an item
+on the GE, process it, and sell the result** — what is the realistic profit, and
+what is it worth per hour?
 
-Works for all **593 shops** in the game, 3,595 priceable shop → GE pairs, and
-603 GE → shop flips at the last build.
+Works for all **593 shops** in the game, 3,595 priceable shop → GE pairs,
+603 GE → shop flips, and 407 instant / 651 patient processing recipes at the
+last build.
 
 ```text
 SHOP -> GE
@@ -22,13 +24,17 @@ GE -> SHOP
 1  Ruby necklace       Grum's Gold Exchan…   911     1,522→913   3000  15    200*  2,733,000  920,200   1,380,300
 2  Diamond necklace    Grum's Gold Exchan…   1,810   2,572→1,837 2200  11    200*  3,982,000  868,400   1,332,061
 3  Emerald necklace    Grum's Gold Exchan…   538     997→541     3400  17    200*  1,829,200  786,200   1,040,559
+
+PROCESSING (patient)
+#  Output    Inputs              Skill        Profit/act  Actions/4h  Actions/hour  gp/hour
+1  Avantoe   Grimy avantoe        Herblore 48  156         13,000      48,000        507,000
 ```
 
 ## Quick start
 
 ```sh
 pnpm install
-pnpm refresh        # catalogue + access + GE prices + both UI rankings
+pnpm refresh        # catalogue + access + GE prices + all three UI rankings
 pnpm report         # ranked table in the terminal
 pnpm dev            # web UI at http://localhost:5173
 ```
@@ -42,15 +48,16 @@ pnpm dev            # web UI at http://localhost:5173
 | `pnpm market` | rebuild `data/market.json` |
 | `pnpm access` | rebuild `data/shop-access.json` from the curated rules |
 | `pnpm build:data` | shops + market |
-| `pnpm refresh` | all data: catalogue + access + market + both UI rankings |
+| `pnpm refresh` | all data: catalogue + access + market + all three UI rankings |
 | `pnpm report` | ranked CLI table |
 | `pnpm report --mode=patient` | price against GE `high` instead of `low` |
 | `pnpm report --shop="<name>" --gold=N` | one shop's multi-item basket |
 | `pnpm report --write` | emit `data/opportunities.json` for the UI |
 | `pnpm sinks` | GE → shop ranking in the terminal |
 | `pnpm sinks --write` | emit `data/shop-sinks.json` for the UI |
+| `pnpm process` | processing ranking + `data/process.json` |
 | `pnpm dev` / `pnpm build` | web UI |
-| `pnpm test` / `pnpm typecheck` | 238 tests / `tsc --noEmit` |
+| `pnpm test` / `pnpm typecheck` | 284 tests / `tsc --noEmit` |
 
 `pnpm report` flags: `--mode=pessimistic|patient`, `--limit=N`, `--members`,
 `--min-volume4h=N`, `--min-margin=N`, `--infinite`, `--write`.
@@ -60,8 +67,16 @@ The basket flags are `--shop="<name>"`, `--gold=N`, `--hop=N` (seconds) and
 `pnpm sinks` flags: `--mode=pessimistic|patient`, `--limit=N`, `--members`,
 `--min-profit=N`, `--min-volume4h=N`, `--speed=N`, `--infinite`,
 `--include-general-stores`, `--write`. It reads the two data artifacts and makes
-no network calls. To refresh everything — catalogue, access table, market and
-both UI rankings — in one go:
+no network calls.
+
+`pnpm process` flags: `--mode=pessimistic|patient`, `--limit=N`, `--members`,
+`--skill=herblore` (comma-separated), `--min-profit=N` and
+`--actions-per-hour=N` (a slower-play cap; 0/omitted uses each recipe's rate).
+It fetches the wiki recipe bucket and the prices API, and always writes both
+modes to `data/process.json`; the flags only shape the terminal table.
+
+To refresh everything — catalogue, access table, market, both shop rankings and
+the processing artifact — in one go:
 
 ```sh
 pnpm refresh
@@ -80,20 +95,23 @@ can reach you about your traffic.
 
 ```text
 Special:Bucket?bucket=storeline  ─┐
-prices.runescape.wiki/api/v2     ─┴─► data/shops.json + data/market.json
-                                              │
-                        ┌─────────────────────┴─────────────────────┐
-              src/engine/rank.ts                        src/engine/sinkRank.ts
-                        │                                     │
-          data/opportunities.json                   data/shop-sinks.json
-                        │                                     │
-                        └───────────────┬─────────────────────┘
-                        pnpm report / pnpm sinks        web UI (both pages)
+Special:Bucket?bucket=recipe     ─┤
+prices.runescape.wiki/api/v2     ─┴─► catalogue + GE quotes
+                                          │
+              ┌───────────────────────────┼───────────────────────────┐
+    src/engine/rank.ts       src/engine/sinkRank.ts       src/engine/processRank.ts
+              │                           │                           │
+    data/opportunities.json     data/shop-sinks.json         data/process.json
+              │                           │                           │
+              └───────────────┬───────────┴───────────────────────────┘
+      pnpm report / pnpm sinks / pnpm process          web UI (three pages)
 ```
 
-The browser never calls an external API: it renders static snapshots. The two
+The browser never calls an external API: it renders static snapshots. The three
 page modules and their data are code-split, so each direction loads only its own
-snapshot, and the site is still deployable as plain files.
+snapshot, and the site is still deployable as plain files. Each main result
+table has a **Columns** menu for hiding columns you do not need; the choice is
+remembered per table in this browser.
 
 ## Budget mode (web UI)
 
@@ -219,6 +237,55 @@ timers and teleports are not modelled. The 200-world ceiling is an explicit
 assumption, not a sourced world count; a row marked **world cap** could sell
 more if you allowed more hops.
 
+## Item processing (web UI + CLI)
+
+Use the **Processing** tab (or `#/processing`) to answer: buy an item on the GE,
+transform it with a deterministic recipe, and sell the result back to the GE —
+what is the net profit per action, and how much can the market absorb in 4h?
+
+Recipes come from the wiki's structured `Special:Bucket?bucket=recipe` table
+(written by `Template:Recipe`), not from a hand-typed list. Every material and
+the output must have a GE price. **Cooking and chance/average recipes are
+excluded**, because their yield depends on level or luck.
+
+```sh
+pnpm process                      # both modes -> data/process.json
+pnpm process --mode=patient --limit=50
+pnpm process --members --skill=herblore
+pnpm process --min-profit=100
+```
+
+The two modes are:
+
+- **Instant** — buy inputs at the GE `high`, sell the output at the GE `low`.
+- **Patient** — rest a buy at the GE `low`, rest a sell at the GE `high`.
+
+Per action the page shows the input cost plus any Coin fee, the output value
+after the 2% GE tax, the profit and the margin. The **Inputs** cell shows each
+material's unit price and subtotal, and hovering **Cost / action** gives the
+same breakdown plus the fee and total. The 4h plan is capped by the input's GE
+buy limit and 24h volume, the output's 24h volume (never its buy limit), the
+recipe's published ticks and your gold. **Banking and travel to the facility
+are not modelled**, so gp/hour is a processing-only ceiling.
+
+The flagship example is cleaning grimy herbs. In patient mode at the last build,
+grimy avantoe at 1,118 and clean avantoe at 1,300 (1,274 after 26 tax) is 156 gp
+per action; the 13,000 buy-limit cap makes that 2,028,000 gp per 4h, or 507,000
+gp/hour. The table shows the recipe's raw **48,000 actions/hour**; the cell
+note shows the effective **3,250/hour** plan after the 13,000-per-4h buy-limit
+cap. The same snapshot is a loss in instant mode, which is why both modes are
+shown.
+
+The **Actions / hour cap** field models inefficient play: it caps every
+recipe's published action rate (0 uses the wiki rate) and can only slow a
+recipe down, never speed it up. The **Actions / hour** column shows the rate
+actually used; the cell note shows the lower effective plan rate after GE and
+gold caps.
+
+The gold field is the **same localStorage value** as the two shop pages. The full
+method, deterministic-only filter, exclusions and worked example are in
+[docs/processing.md](docs/processing.md).
+
 ## Accuracy — read this before trusting a number
 
 The maths is a direct port of the wiki's own `Module:Shop calculator`, and the
@@ -308,6 +375,13 @@ off-by-one that a naive implementation gets wrong). Beyond that, be aware:
   bank trips and GE sell time.
 - **Illiquid items show stale GE prices.** If something trades twice a day, its
   `low` may be wildly out of date. Filter with `--min-volume4h`.
+- **Processing is deterministic-only.** Cooking is excluded because burn
+  chance depends on level and food; any recipe whose wiki quantity note mentions
+  a chance, average, range or level scaling is also excluded. The recipe bucket
+  exposes only the primary output, so secondary products are not credited.
+  Banking, facility travel, tool acquisition and quest/area access are not
+  modelled. `gp / hour` is the processing action rate only, and is `—` when the
+  wiki publishes no ticks.
 - **Not modelled:** teleport costs, competition from other players,
   instance/quest access requirements, and destocking/restocking between runs.
   The GE → shop world count is capped at an explicit 200, not a sourced total.
@@ -315,16 +389,19 @@ off-by-one that a naive implementation gets wrong). Beyond that, be aware:
 ## Project layout
 
 ```text
-src/api/       HTTP gateway (UA, 1 req/s, TTL cache, backoff) + typed clients
+src/api/       HTTP gateway (UA, 1 req/s, TTL cache, backoff) + typed clients,
+              including wikiRecipes.ts for the recipe bucket
 src/domain/   shopPrice.ts (game maths), shopSink.ts (GE -> shop), shopAccess.ts,
               tax.ts, profit.ts, budget.ts, basket.ts, bankTrip.ts — pure, no I/O
-src/engine/    rank.ts (shop -> GE), sinkRank.ts (GE -> shop) — join catalogue × prices
+src/engine/   rank.ts (shop -> GE), sinkRank.ts (GE -> shop),
+              processRank.ts (processing) — join catalogue × prices
 src/types.ts   zod schemas for every artifact
 scripts/       refresh-shops, refresh-market, refresh-access, report,
-              refresh-sinks, smoke
-web/           Vite + React: shop -> GE and GE -> shop pages
+              refresh-sinks, refresh-process, smoke
+web/           Vite + React: shop -> GE, GE -> shop and processing pages
 data/          generated JSON (committed so the UI builds offline)
-docs/          shop-mechanics.md, data-sources.md, shop-access.md, tooling-notes.md
+docs/          shop-mechanics.md, data-sources.md, shop-access.md,
+              processing.md, tooling-notes.md
 ```
 
 `docs/shop-mechanics.md` documents every formula with citations, including the
@@ -335,7 +412,8 @@ the stored multipliers are 10× the displayed percentage). Read it before touchi
 ## Attribution
 
 Item names, images and game data are © Jagex Ltd. This is an unofficial fan tool
-with no affiliation. Wiki content is CC BY-SA. Price data courtesy of the
+with no affiliation. Wiki content is CC BY-SA, including recipe data from the
+wiki's recipe bucket. Price data courtesy of the
 [Old School RuneScape Wiki](https://oldschool.runescape.wiki/w/RuneScape:Real-time_Prices).
 
 This project only makes read-only HTTP requests to public wiki endpoints. It does

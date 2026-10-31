@@ -15,6 +15,9 @@ const ShopToGePage = lazy(() =>
 const GeToShopPage = lazy(() =>
   import("./GeToShop").then((module) => ({ default: module.GeToShopPage })),
 );
+const ProcessingPage = lazy(() =>
+  import("./Processing").then((module) => ({ default: module.ProcessingPage })),
+);
 
 /**
  * The shell: header, page tabs and attribution. Each page owns its data
@@ -44,9 +47,10 @@ export function App(): JSX.Element {
         <div>
           <h1>rscalc</h1>
           <p className="sub">
-            Arbitrage between OSRS shops and the Grand Exchange, priced from the
-            Wiki's real-time API. Both directions are static snapshots, so the
-            site makes no external API calls.
+            Arbitrage between OSRS shops, the Grand Exchange and item
+            processing, priced from the Wiki&apos;s real-time API. Every
+            calculator is a static snapshot, so the site makes no external API
+            calls.
           </p>
         </div>
         <nav className="pages" aria-label="Calculator direction">
@@ -73,13 +77,20 @@ export function App(): JSX.Element {
           </div>
         }
       >
-        {page === "ge-to-shop" ? <GeToShopPage /> : <ShopToGePage />}
+        {page === "ge-to-shop" ? (
+          <GeToShopPage />
+        ) : page === "processing" ? (
+          <ProcessingPage />
+        ) : (
+          <ShopToGePage />
+        )}
       </Suspense>
 
       <footer className="footer">
         <p className="attribution">
-          Item names and icons © Jagex. Wiki data CC BY-SA. Geo data from the
-          OSRS Wiki map. The snapshots are static; no external API calls.
+          Item names and icons © Jagex. Wiki data CC BY-SA. Recipe data from the
+          OSRS Wiki. Geo data from the OSRS Wiki map. The snapshots are static;
+          no external API calls.
         </p>
       </footer>
     </div>

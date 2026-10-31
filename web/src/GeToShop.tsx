@@ -26,8 +26,31 @@ import {
   type BudgetState,
 } from "./storage";
 import { Stat, Th } from "./ui";
+import {
+  ColumnPicker,
+  useColumnVisibility,
+  type ColumnDef,
+} from "./columns";
 
 import payload from "../../data/shop-sinks.json";
+
+/** Column definitions for the table and its visibility picker. */
+const GE_TO_SHOP_COLUMNS: readonly ColumnDef[] = [
+  { key: "rank", label: "#", width: 44 },
+  { key: "item", label: "Item", width: 210, required: true },
+  { key: "shop", label: "Shop", width: 220 },
+  { key: "location", label: "Location", width: 150 },
+  { key: "geBuy", label: "GE buy", width: 90 },
+  { key: "shopPays", label: "Shop pays", width: 140 },
+  { key: "margin", label: "Margin", width: 90 },
+  { key: "units", label: "Qty", width: 80 },
+  { key: "batch", label: "Batch", width: 70 },
+  { key: "worlds", label: "Worlds", width: 90 },
+  { key: "spend", label: "Spend", width: 110 },
+  { key: "profit", label: "Profit", width: 110 },
+  { key: "trip", label: "Trip", width: 100 },
+  { key: "gpPerHour", label: "gp / hour", width: 110 },
+];
 
 type SortKey =
   | "gpPerHour"
@@ -82,6 +105,11 @@ export function GeToShopPage(): JSX.Element {
   const [storedView] = useState(initialBudget.view);
   const [sortKey, setSortKey] = useState<SortKey>("gpPerHour");
   const [descending, setDescending] = useState(true);
+  const {
+    visible,
+    toggle: toggleColumn,
+    reset: resetColumns,
+  } = useColumnVisibility("ge-to-shop", GE_TO_SHOP_COLUMNS);
   const [selectedShop, setSelectedShop] = useState<string | null>(null);
 
   // The same key as the shop -> GE page: gold is shared, the view is preserved.
@@ -309,6 +337,13 @@ export function GeToShopPage(): JSX.Element {
             aria-label="Minimum purchasable units per 4 hours"
           />
         </label>
+
+        <ColumnPicker
+          columns={GE_TO_SHOP_COLUMNS}
+          visible={visible}
+          onToggle={toggleColumn}
+          onReset={resetColumns}
+        />
       </section>
 
       <section className="controls budget">
@@ -456,113 +491,138 @@ export function GeToShopPage(): JSX.Element {
       <div className="tablewrap">
         <table className="results-table">
           <colgroup>
-            <col className="num-col" style={{ width: 44 }} />
-            <col style={{ width: 210 }} />
-            <col style={{ width: 220 }} />
-            <col className="loc-col" style={{ width: 150 }} />
-            <col style={{ width: 90 }} />
-            <col style={{ width: 140 }} />
-            <col style={{ width: 90 }} />
-            <col style={{ width: 80 }} />
-            <col style={{ width: 70 }} />
-            <col style={{ width: 90 }} />
-            <col style={{ width: 110 }} />
-            <col style={{ width: 110 }} />
-            <col style={{ width: 100 }} />
-            <col style={{ width: 110 }} />
+            {GE_TO_SHOP_COLUMNS.filter((column) =>
+              visible.has(column.key),
+            ).map((column) => (
+              <col
+                key={column.key}
+                className={
+                  column.key === "rank"
+                    ? "num-col"
+                    : column.key === "location"
+                      ? "loc-col"
+                      : undefined
+                }
+                style={{ width: column.width }}
+              />
+            ))}
           </colgroup>
           <thead>
             <tr>
-              <th className="num-col">#</th>
-              <Th
-                label="Item"
-                onClick={() => toggleSort("itemName")}
-                active={sortKey === "itemName"}
-                desc={descending}
-                title="Item name; click to sort"
-              />
-              <th>Shop</th>
-              <th className="loc-col">Location</th>
-              <Th
-                label="GE buy"
-                onClick={() => toggleSort("geBuyPrice")}
-                active={sortKey === "geBuyPrice"}
-                desc={descending}
-                title="What one unit costs on the GE in this mode; purchases carry no tax"
-                right
-              />
-              <Th
-                label="Shop pays"
-                onClick={() => toggleSort("shopAvgPrice")}
-                active={sortKey === "shopAvgPrice"}
-                desc={descending}
-                title="Average shop price across the planned units; it falls as the shop fills"
-                right
-              />
-              <Th
-                label="Margin"
-                onClick={() => toggleSort("margin")}
-                active={sortKey === "margin"}
-                desc={descending}
-                title="Average profit per unit after the GE cost"
-                right
-              />
-              <Th
-                label="Qty"
-                onClick={() => toggleSort("units")}
-                active={sortKey === "units"}
-                desc={descending}
-                title="Total units across worlds, capped by your gold, the GE 4h supply and the world ceiling"
-                right
-              />
-              <Th
-                label="Batch"
-                onClick={() => toggleSort("unitsPerWorld")}
-                active={sortKey === "unitsPerWorld"}
-                desc={descending}
-                title="Units one fresh world absorbs before its next price stops paying"
-                right
-              />
-              <Th
-                label="Worlds"
-                onClick={() => toggleSort("worlds")}
-                active={sortKey === "worlds"}
-                desc={descending}
-                title="Worlds hopped; each one resets the shop's stock"
-                right
-              />
-              <Th
-                label="Spend"
-                onClick={() => toggleSort("spend")}
-                active={sortKey === "spend"}
-                desc={descending}
-                title="Coins paid on the GE; never more than your available gold"
-                right
-              />
-              <Th
-                label="Profit"
-                onClick={() => toggleSort("profit")}
-                active={sortKey === "profit"}
-                desc={descending}
-                title="Coins received from the shops minus the GE spend"
-                right
-              />
-              <Th
-                label="Trip"
-                onClick={() => toggleSort("geTiles")}
-                active={sortKey === "geTiles"}
-                desc={descending}
-                title="One Grand Exchange round trip; world hops are separate"
-                right
-              />
-              <Th
-                label="gp / hour"
-                onClick={() => toggleSort("gpPerHour")}
-                active={sortKey === "gpPerHour"}
-                desc={descending}
-                title="Profit ÷ the slower of travel plus hops and GE supply time; — when the distance is unknown"
-                right
-              />
+              {visible.has("rank") && <th className="num-col">#</th>}
+              {visible.has("item") && (
+                <Th
+                  label="Item"
+                  onClick={() => toggleSort("itemName")}
+                  active={sortKey === "itemName"}
+                  desc={descending}
+                  title="Item name; click to sort"
+                />
+              )}
+              {visible.has("shop") && <th>Shop</th>}
+              {visible.has("location") && (
+                <th className="loc-col">Location</th>
+              )}
+              {visible.has("geBuy") && (
+                <Th
+                  label="GE buy"
+                  onClick={() => toggleSort("geBuyPrice")}
+                  active={sortKey === "geBuyPrice"}
+                  desc={descending}
+                  title="What one unit costs on the GE in this mode; purchases carry no tax"
+                  right
+                />
+              )}
+              {visible.has("shopPays") && (
+                <Th
+                  label="Shop pays"
+                  onClick={() => toggleSort("shopAvgPrice")}
+                  active={sortKey === "shopAvgPrice"}
+                  desc={descending}
+                  title="Average shop price across the planned units; it falls as the shop fills"
+                  right
+                />
+              )}
+              {visible.has("margin") && (
+                <Th
+                  label="Margin"
+                  onClick={() => toggleSort("margin")}
+                  active={sortKey === "margin"}
+                  desc={descending}
+                  title="Average profit per unit after the GE cost"
+                  right
+                />
+              )}
+              {visible.has("units") && (
+                <Th
+                  label="Qty"
+                  onClick={() => toggleSort("units")}
+                  active={sortKey === "units"}
+                  desc={descending}
+                  title="Total units across worlds, capped by your gold, the GE 4h supply and the world ceiling"
+                  right
+                />
+              )}
+              {visible.has("batch") && (
+                <Th
+                  label="Batch"
+                  onClick={() => toggleSort("unitsPerWorld")}
+                  active={sortKey === "unitsPerWorld"}
+                  desc={descending}
+                  title="Units one fresh world absorbs before its next price stops paying"
+                  right
+                />
+              )}
+              {visible.has("worlds") && (
+                <Th
+                  label="Worlds"
+                  onClick={() => toggleSort("worlds")}
+                  active={sortKey === "worlds"}
+                  desc={descending}
+                  title="Worlds hopped; each one resets the shop's stock"
+                  right
+                />
+              )}
+              {visible.has("spend") && (
+                <Th
+                  label="Spend"
+                  onClick={() => toggleSort("spend")}
+                  active={sortKey === "spend"}
+                  desc={descending}
+                  title="Coins paid on the GE; never more than your available gold"
+                  right
+                />
+              )}
+              {visible.has("profit") && (
+                <Th
+                  label="Profit"
+                  onClick={() => toggleSort("profit")}
+                  active={sortKey === "profit"}
+                  desc={descending}
+                  title="Coins received from the shops minus the GE spend"
+                  right
+                />
+              )}
+              {visible.has("trip") && (
+                <Th
+                  label="Trip"
+                  onClick={() => toggleSort("geTiles")}
+                  active={sortKey === "geTiles"}
+                  desc={descending}
+                  title="One Grand Exchange round trip; world hops are separate"
+                  right
+                />
+              )}
+              {visible.has("gpPerHour") && (
+                <Th
+                  label="gp / hour"
+                  onClick={() => toggleSort("gpPerHour")}
+                  active={sortKey === "gpPerHour"}
+                  desc={descending}
+                  title="Profit ÷ the slower of travel plus hops and GE supply time; — when the distance is unknown"
+                  right
+                />
+              )}
             </tr>
           </thead>
           <tbody>
@@ -572,6 +632,7 @@ export function GeToShopPage(): JSX.Element {
                 data={entry}
                 rank={index + 1}
                 onSelectShop={setSelectedShop}
+                visible={visible}
               />
             ))}
           </tbody>
@@ -673,10 +734,12 @@ function Row({
   data,
   rank,
   onSelectShop,
+  visible,
 }: {
   data: RowData;
   rank: number;
   onSelectShop: (shopPage: string) => void;
+  visible: ReadonlySet<string>;
 }): JSX.Element {
   const { opp, plan } = data;
   const tripTitle =
@@ -695,99 +758,127 @@ function Row({
 
   return (
     <tr>
-      <td className="num-col">{rank}</td>
-      <td className="item">
-        <a
-          className="name wiki-link"
-          href={wikiUrl(opp.itemName)}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          {opp.itemName}
-        </a>
-        {opp.members && <span className="badge">P2P</span>}
-      </td>
-      <td className="shop" title={opp.shopPage}>
-        <a
-          className="wiki-link"
-          href={wikiUrl(opp.shopPage)}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          {opp.shopName}
-        </a>
-        <div className="shop-actions">
-          <button
-            type="button"
-            className="shop-basket"
-            onClick={() => onSelectShop(opp.shopPage)}
-            aria-label={`Open the GE to shop basket for ${opp.shopName}`}
-            title="Buy every profitable item for this shop and sell them in the same worlds"
+      {visible.has("rank") && <td className="num-col">{rank}</td>}
+      {visible.has("item") && (
+        <td className="item">
+          <a
+            className="name wiki-link"
+            href={wikiUrl(opp.itemName)}
+            target="_blank"
+            rel="noopener noreferrer"
           >
-            basket
-          </button>
-          <AccessBadge shopPage={opp.shopPage} />
-        </div>
-      </td>
-      <td className="loc loc-col">{opp.location ?? "—"}</td>
-      <td className="right mono">{formatGp(opp.geBuyPrice)}</td>
-      <td className="right mono" title={shopTitle}>
-        {formatGp(Math.round(plan.totalRevenue / plan.units))}
-        <span className="cell-note">
-          {formatGp(plan.firstUnitRevenue)} → {formatGp(plan.lastUnitRevenue)} · −
-          {plan.deltaPct.toFixed(1)}%/unit
-        </span>
-      </td>
-      <td
-        className="right mono pos"
-        title={plan.atFloor ? "The last unit already paid the 10%-of-value floor" : undefined}
-      >
-        {formatGp(Math.round(plan.marginPerUnit))}
-        <span className="cell-note">
-          {((plan.marginPerUnit / opp.geBuyPrice) * 100).toFixed(1)}%
-        </span>
-      </td>
-      <td
-        className="right mono strong"
-        title="Total across worlds, capped by your gold, the GE 4h supply and the world ceiling"
-      >
-        {plan.units.toLocaleString()}
-      </td>
-      <td
-        className="right mono"
-        title="One fresh world's marginal sale before its price stops paying"
-      >
-        {plan.unitsPerWorld.toLocaleString()}
-      </td>
-      <td
-        className="right mono dim"
-        title={
-          plan.worldLimited
-            ? `World ceiling reached (${plan.worlds} worlds); the GE could supply more`
-            : `${plan.worlds} world${plan.worlds === 1 ? "" : "s"} needed`
-        }
-      >
-        {plan.worlds.toLocaleString()}
-        {plan.worldLimited && <span className="cell-note">world cap</span>}
-      </td>
-      <td
-        className="right mono"
-        title={
-          plan.budgetLimited
-            ? "Capped by your available gold"
-            : "Coins paid on the GE"
-        }
-      >
-        {formatGp(Math.round(plan.totalCost))}
-        {plan.budgetLimited && <span className="cell-note">budget</span>}
-      </td>
-      <td className="right mono pos">{formatGp(Math.round(plan.profit))}</td>
-      <td className="right mono dim" title={tripTitle}>
-        {plan.tripSeconds === null ? "—" : formatDuration(plan.tripSeconds)}
-      </td>
-      <td className="right mono strong" title={gpTitle}>
-        {plan.gpPerHour === null ? "—" : formatGp(Math.round(plan.gpPerHour))}
-      </td>
+            {opp.itemName}
+          </a>
+          {opp.members && <span className="badge">P2P</span>}
+        </td>
+      )}
+      {visible.has("shop") && (
+        <td className="shop" title={opp.shopPage}>
+          <a
+            className="wiki-link"
+            href={wikiUrl(opp.shopPage)}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {opp.shopName}
+          </a>
+          <div className="shop-actions">
+            <button
+              type="button"
+              className="shop-basket"
+              onClick={() => onSelectShop(opp.shopPage)}
+              aria-label={`Open the GE to shop basket for ${opp.shopName}`}
+              title="Buy every profitable item for this shop and sell them in the same worlds"
+            >
+              basket
+            </button>
+            <AccessBadge shopPage={opp.shopPage} />
+          </div>
+        </td>
+      )}
+      {visible.has("location") && (
+        <td className="loc loc-col">{opp.location ?? "—"}</td>
+      )}
+      {visible.has("geBuy") && (
+        <td className="right mono">{formatGp(opp.geBuyPrice)}</td>
+      )}
+      {visible.has("shopPays") && (
+        <td className="right mono" title={shopTitle}>
+          {formatGp(Math.round(plan.totalRevenue / plan.units))}
+          <span className="cell-note">
+            {formatGp(plan.firstUnitRevenue)} → {formatGp(plan.lastUnitRevenue)} · −
+            {plan.deltaPct.toFixed(1)}%/unit
+          </span>
+        </td>
+      )}
+      {visible.has("margin") && (
+        <td
+          className="right mono pos"
+          title={plan.atFloor ? "The last unit already paid the 10%-of-value floor" : undefined}
+        >
+          {formatGp(Math.round(plan.marginPerUnit))}
+          <span className="cell-note">
+            {((plan.marginPerUnit / opp.geBuyPrice) * 100).toFixed(1)}%
+          </span>
+        </td>
+      )}
+      {visible.has("units") && (
+        <td
+          className="right mono strong"
+          title="Total across worlds, capped by your gold, the GE 4h supply and the world ceiling"
+        >
+          {plan.units.toLocaleString()}
+        </td>
+      )}
+      {visible.has("batch") && (
+        <td
+          className="right mono"
+          title="One fresh world's marginal sale before its price stops paying"
+        >
+          {plan.unitsPerWorld.toLocaleString()}
+        </td>
+      )}
+      {visible.has("worlds") && (
+        <td
+          className="right mono dim"
+          title={
+            plan.worldLimited
+              ? `World ceiling reached (${plan.worlds} worlds); the GE could supply more`
+              : `${plan.worlds} world${plan.worlds === 1 ? "" : "s"} needed`
+          }
+        >
+          {plan.worlds.toLocaleString()}
+          {plan.worldLimited && <span className="cell-note">world cap</span>}
+        </td>
+      )}
+      {visible.has("spend") && (
+        <td
+          className="right mono"
+          title={
+            plan.budgetLimited
+              ? "Capped by your available gold"
+              : "Coins paid on the GE"
+          }
+        >
+          {formatGp(Math.round(plan.totalCost))}
+          {plan.budgetLimited && <span className="cell-note">budget</span>}
+        </td>
+      )}
+      {visible.has("profit") && (
+        <td className="right mono pos">
+          {formatGp(Math.round(plan.profit))}
+        </td>
+      )}
+      {visible.has("trip") && (
+        <td className="right mono dim" title={tripTitle}>
+          {plan.tripSeconds === null ? "—" : formatDuration(plan.tripSeconds)}
+        </td>
+      )}
+      {visible.has("gpPerHour") && (
+        <td className="right mono strong" title={gpTitle}>
+          {plan.gpPerHour === null ? "—" : formatGp(Math.round(plan.gpPerHour))}
+        </td>
+      )}
     </tr>
   );
 }

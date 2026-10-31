@@ -19,8 +19,79 @@ import {
   type BudgetView,
 } from "./storage";
 import { Stat, Th } from "./ui";
+import {
+  ColumnPicker,
+  useColumnVisibility,
+  type ColumnDef,
+} from "./columns";
 
 import payload from "../../data/opportunities.json";
+
+/** Every column the shop -> GE table can show, with its default width. */
+const SHOP_TO_GE_COLUMN_DEFS = {
+  rank: { key: "rank", label: "#", width: 44 },
+  item: { key: "item", label: "Item", width: 210, required: true },
+  shop: { key: "shop", label: "Shop", width: 220 },
+  location: { key: "location", label: "Location", width: 150 },
+  unitCost: { key: "unitCost", label: "Unit cost", width: 100 },
+  sellPrice: { key: "sellPrice", label: "Sell", width: 90 },
+  tax: { key: "tax", label: "Tax", width: 70 },
+  margin: { key: "margin", label: "Margin", width: 90 },
+  buy: { key: "buy", label: "Buy", width: 90 },
+  spend: { key: "spend", label: "Spend", width: 110 },
+  worlds: { key: "worlds", label: "Worlds", width: 70 },
+  banks: { key: "banks", label: "Banks", width: 150 },
+  profit: { key: "profit", label: "Profit", width: 110 },
+  gpPerHour: { key: "gpPerHour", label: "gp / hour", width: 110 },
+  qty: { key: "qty", label: "Qty / visit", width: 90 },
+  sellable: { key: "sellable", label: "Sellable", width: 90 },
+  gpPer4h: { key: "gpPer4h", label: "gp / 4h", width: 110 },
+} as const satisfies Record<string, ColumnDef>;
+
+const SHOP_TO_GE_BASE: readonly ColumnDef[] = [
+  SHOP_TO_GE_COLUMN_DEFS.rank,
+  SHOP_TO_GE_COLUMN_DEFS.item,
+  SHOP_TO_GE_COLUMN_DEFS.shop,
+  SHOP_TO_GE_COLUMN_DEFS.location,
+  SHOP_TO_GE_COLUMN_DEFS.unitCost,
+  SHOP_TO_GE_COLUMN_DEFS.sellPrice,
+  SHOP_TO_GE_COLUMN_DEFS.tax,
+  SHOP_TO_GE_COLUMN_DEFS.margin,
+];
+
+/** Union used for storage validation; the picker receives the current mode. */
+const SHOP_TO_GE_ALL: readonly ColumnDef[] = [
+  ...SHOP_TO_GE_BASE,
+  SHOP_TO_GE_COLUMN_DEFS.buy,
+  SHOP_TO_GE_COLUMN_DEFS.spend,
+  SHOP_TO_GE_COLUMN_DEFS.worlds,
+  SHOP_TO_GE_COLUMN_DEFS.banks,
+  SHOP_TO_GE_COLUMN_DEFS.profit,
+  SHOP_TO_GE_COLUMN_DEFS.qty,
+  SHOP_TO_GE_COLUMN_DEFS.sellable,
+  SHOP_TO_GE_COLUMN_DEFS.gpPer4h,
+  SHOP_TO_GE_COLUMN_DEFS.gpPerHour,
+];
+
+function columnsForMode(budgetMode: boolean): readonly ColumnDef[] {
+  return budgetMode
+    ? [
+        ...SHOP_TO_GE_BASE,
+        SHOP_TO_GE_COLUMN_DEFS.buy,
+        SHOP_TO_GE_COLUMN_DEFS.spend,
+        SHOP_TO_GE_COLUMN_DEFS.worlds,
+        SHOP_TO_GE_COLUMN_DEFS.banks,
+        SHOP_TO_GE_COLUMN_DEFS.profit,
+        SHOP_TO_GE_COLUMN_DEFS.gpPerHour,
+      ]
+    : [
+        ...SHOP_TO_GE_BASE,
+        SHOP_TO_GE_COLUMN_DEFS.qty,
+        SHOP_TO_GE_COLUMN_DEFS.sellable,
+        SHOP_TO_GE_COLUMN_DEFS.gpPer4h,
+        SHOP_TO_GE_COLUMN_DEFS.gpPerHour,
+      ];
+}
 
 type SortKey =
   | "gpPer4h"
@@ -84,9 +155,15 @@ export function ShopToGePage(): JSX.Element {
   );
   const [sortKey, setSortKey] = useState<SortKey>("gpPerHour");
   const [descending, setDescending] = useState(true);
+  const {
+    visible,
+    toggle: toggleColumn,
+    reset: resetColumns,
+  } = useColumnVisibility("shop-to-ge", SHOP_TO_GE_ALL);
 
   const ranking = DATA[mode];
   const budgetMode = gold > 0 && view === "budget";
+  const currentColumns = columnsForMode(budgetMode);
 
   useEffect(() => {
     writeStoredBudget({ gold, view }, browserStore());
@@ -288,6 +365,13 @@ export function ShopToGePage(): JSX.Element {
             aria-label="Minimum sellable units per shop visit"
           />
         </label>
+
+        <ColumnPicker
+          columns={currentColumns}
+          visible={visible}
+          onToggle={toggleColumn}
+          onReset={resetColumns}
+        />
       </section>
 
       <section className="controls budget">
@@ -493,153 +577,177 @@ export function ShopToGePage(): JSX.Element {
       <div className="tablewrap">
         <table className="results-table">
           <colgroup>
-            <col className="num-col" style={{ width: 44 }} />
-            <col style={{ width: 210 }} />
-            <col style={{ width: 220 }} />
-            <col className="loc-col" style={{ width: 150 }} />
-            <col style={{ width: 100 }} />
-            <col style={{ width: 90 }} />
-            <col className="tax-col" style={{ width: 70 }} />
-            <col style={{ width: 90 }} />
-            {budgetMode ? (
-              <>
-                <col style={{ width: 90 }} />
-                <col style={{ width: 110 }} />
-                <col style={{ width: 70 }} />
-                <col style={{ width: 150 }} />
-                <col style={{ width: 110 }} />
-                <col style={{ width: 110 }} />
-              </>
-            ) : (
-              <>
-                <col style={{ width: 90 }} />
-                <col style={{ width: 90 }} />
-                <col style={{ width: 110 }} />
-                <col style={{ width: 110 }} />
-              </>
+            {currentColumns.filter((column) => visible.has(column.key)).map(
+              (column) => (
+                <col
+                  key={column.key}
+                  className={
+                    column.key === "rank"
+                      ? "num-col"
+                      : column.key === "location"
+                        ? "loc-col"
+                        : column.key === "tax"
+                          ? "tax-col"
+                          : undefined
+                  }
+                  style={{ width: column.width }}
+                />
+              ),
             )}
           </colgroup>
           <thead>
             <tr>
-              <th className="num-col">#</th>
-              <Th
-                label="Item"
-                onClick={() => toggleSort("itemName")}
-                active={sortKey === "itemName"}
-                desc={descending}
-                title="Item name; click to sort"
-              />
-              <th>Shop</th>
-              <th className="loc-col">Location</th>
-              <Th
-                label="Unit cost"
-                onClick={() => toggleSort("avgCost")}
-                active={sortKey === "avgCost"}
-                desc={descending}
-                title="Average price paid per unit across the quantity you would take"
-                right
-              />
-              <Th
-                label="Sell"
-                onClick={() => toggleSort("sellPrice")}
-                active={sortKey === "sellPrice"}
-                desc={descending}
-                title="GE price used for this mode"
-                right
-              />
-              <th className="right tax-col">Tax</th>
-              <Th
-                label="Margin"
-                onClick={() => toggleSort("margin")}
-                active={sortKey === "margin"}
-                desc={descending}
-                title="Net sell price minus average unit cost"
-                right
-              />
+              {visible.has("rank") && <th className="num-col">#</th>}
+              {visible.has("item") && (
+                <Th
+                  label="Item"
+                  onClick={() => toggleSort("itemName")}
+                  active={sortKey === "itemName"}
+                  desc={descending}
+                  title="Item name; click to sort"
+                />
+              )}
+              {visible.has("shop") && <th>Shop</th>}
+              {visible.has("location") && (
+                <th className="loc-col">Location</th>
+              )}
+              {visible.has("unitCost") && (
+                <Th
+                  label="Unit cost"
+                  onClick={() => toggleSort("avgCost")}
+                  active={sortKey === "avgCost"}
+                  desc={descending}
+                  title="Average price paid per unit across the quantity you would take"
+                  right
+                />
+              )}
+              {visible.has("sellPrice") && (
+                <Th
+                  label="Sell"
+                  onClick={() => toggleSort("sellPrice")}
+                  active={sortKey === "sellPrice"}
+                  desc={descending}
+                  title="GE price used for this mode"
+                  right
+                />
+              )}
+              {visible.has("tax") && (
+                <th className="right tax-col">Tax</th>
+              )}
+              {visible.has("margin") && (
+                <Th
+                  label="Margin"
+                  onClick={() => toggleSort("margin")}
+                  active={sortKey === "margin"}
+                  desc={descending}
+                  title="Net sell price minus average unit cost"
+                  right
+                />
+              )}
 
               {budgetMode ? (
                 <>
-                  <Th
-                    label="Buy"
-                    onClick={() => toggleSort("units")}
-                    active={sortKey === "units"}
-                    desc={descending}
-                    title="Total units your gold covers; the smaller line is one full-stock world's quantity"
-                    right
-                  />
-                  <Th
-                    label="Spend"
-                    onClick={() => toggleSort("spend")}
-                    active={sortKey === "spend"}
-                    desc={descending}
-                    title="Coins spent"
-                    right
-                  />
-                  <Th
-                    label="Worlds"
-                    onClick={() => toggleSort("worlds")}
-                    active={sortKey === "worlds"}
-                    desc={descending}
-                    title="Shop visits needed, assuming full default stock each world"
-                    right
-                  />
-                  <Th
-                    label="Banks"
-                    onClick={() => toggleSort("banks")}
-                    active={sortKey === "banks"}
-                    desc={descending}
-                    title="Bank trips needed for non-stackable goods; the bank used is shown beneath"
-                    right
-                  />
-                  <Th
-                    label="Profit"
-                    onClick={() => toggleSort("profit")}
-                    active={sortKey === "profit"}
-                    desc={descending}
-                    title="Net revenue minus spend"
-                    right
-                  />
-                  <Th
-                    label="gp / hour"
-                    onClick={() => toggleSort("gpPerHour")}
-                    active={sortKey === "gpPerHour"}
-                    desc={descending}
-                    title="Profit per hour at your current gold, including hops and bank trips"
-                    right
-                  />
+                  {visible.has("buy") && (
+                    <Th
+                      label="Buy"
+                      onClick={() => toggleSort("units")}
+                      active={sortKey === "units"}
+                      desc={descending}
+                      title="Total units your gold covers; the smaller line is one full-stock world's quantity"
+                      right
+                    />
+                  )}
+                  {visible.has("spend") && (
+                    <Th
+                      label="Spend"
+                      onClick={() => toggleSort("spend")}
+                      active={sortKey === "spend"}
+                      desc={descending}
+                      title="Coins spent"
+                      right
+                    />
+                  )}
+                  {visible.has("worlds") && (
+                    <Th
+                      label="Worlds"
+                      onClick={() => toggleSort("worlds")}
+                      active={sortKey === "worlds"}
+                      desc={descending}
+                      title="Shop visits needed, assuming full default stock each world"
+                      right
+                    />
+                  )}
+                  {visible.has("banks") && (
+                    <Th
+                      label="Banks"
+                      onClick={() => toggleSort("banks")}
+                      active={sortKey === "banks"}
+                      desc={descending}
+                      title="Bank trips needed for non-stackable goods; the bank used is shown beneath"
+                      right
+                    />
+                  )}
+                  {visible.has("profit") && (
+                    <Th
+                      label="Profit"
+                      onClick={() => toggleSort("profit")}
+                      active={sortKey === "profit"}
+                      desc={descending}
+                      title="Net revenue minus spend"
+                      right
+                    />
+                  )}
+                  {visible.has("gpPerHour") && (
+                    <Th
+                      label="gp / hour"
+                      onClick={() => toggleSort("gpPerHour")}
+                      active={sortKey === "gpPerHour"}
+                      desc={descending}
+                      title="Profit per hour at your current gold, including hops and bank trips"
+                      right
+                    />
+                  )}
                 </>
               ) : (
                 <>
-                  <Th
-                    label="Qty / visit"
-                    onClick={() => toggleSort("units")}
-                    active={sortKey === "units"}
-                    desc={descending}
-                    title="Units one shop visit yields before the margin closes"
-                    right
-                  />
-                  <th
-                    className="right"
-                    title="One shop visit's units, capped by 24h traded volume"
-                  >
-                    Sellable
-                  </th>
-                  <Th
-                    label="gp / 4h"
-                    onClick={() => toggleSort("gpPer4h")}
-                    active={sortKey === "gpPer4h"}
-                    desc={descending}
-                    title="Profit from one shop visit's sellable units, not the full 4h volume. Use gp / hour for the gold-sized rate."
-                    right
-                  />
-                  <Th
-                    label="gp / hour"
-                    onClick={() => toggleSort("gpPerHour")}
-                    active={sortKey === "gpPerHour"}
-                    desc={descending}
-                    title="Profit per hour at your current gold, including hops and bank trips"
-                    right
-                  />
+                  {visible.has("qty") && (
+                    <Th
+                      label="Qty / visit"
+                      onClick={() => toggleSort("units")}
+                      active={sortKey === "units"}
+                      desc={descending}
+                      title="Units one shop visit yields before the margin closes"
+                      right
+                    />
+                  )}
+                  {visible.has("sellable") && (
+                    <th
+                      className="right"
+                      title="One shop visit's units, capped by 24h traded volume"
+                    >
+                      Sellable
+                    </th>
+                  )}
+                  {visible.has("gpPer4h") && (
+                    <Th
+                      label="gp / 4h"
+                      onClick={() => toggleSort("gpPer4h")}
+                      active={sortKey === "gpPer4h"}
+                      desc={descending}
+                      title="Profit from one shop visit's sellable units, not the full 4h volume. Use gp / hour for the gold-sized rate."
+                      right
+                    />
+                  )}
+                  {visible.has("gpPerHour") && (
+                    <Th
+                      label="gp / hour"
+                      onClick={() => toggleSort("gpPerHour")}
+                      active={sortKey === "gpPerHour"}
+                      desc={descending}
+                      title="Profit per hour at your current gold, including hops and bank trips"
+                      right
+                    />
+                  )}
                 </>
               )}
             </tr>
@@ -652,6 +760,7 @@ export function ShopToGePage(): JSX.Element {
                 rank={index + 1}
                 budgetMode={budgetMode}
                 onSelectShop={setSelectedShop}
+                visible={visible}
               />
             ))}
           </tbody>
@@ -757,122 +866,156 @@ function Row({
   rank,
   budgetMode,
   onSelectShop,
+  visible,
 }: {
   row: RowData;
   rank: number;
   budgetMode: boolean;
   onSelectShop: (shopPage: string) => void;
+  visible: ReadonlySet<string>;
 }): JSX.Element {
   const plan = row.plan;
   return (
     <tr>
-      <td className="num-col">{rank}</td>
-      <td className="item">
-        <a
-          className="name wiki-link"
-          href={wikiUrl(row.itemName)}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          {row.itemName}
-        </a>
-        {row.members && <span className="badge">P2P</span>}
-      </td>
-      <td className="shop" title={row.shopPage}>
-        <a
-          className="wiki-link"
-          href={wikiUrl(row.shopPage)}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          {row.shopName}
-        </a>
-        <div className="shop-actions">
-          <button
-            type="button"
-            className="shop-basket"
-            onClick={() => onSelectShop(row.shopPage)}
-            aria-label={`Open the multi-item basket for ${row.shopName}`}
-            title="Buy every profitable item from this shop in the same visits"
+      {visible.has("rank") && <td className="num-col">{rank}</td>}
+      {visible.has("item") && (
+        <td className="item">
+          <a
+            className="name wiki-link"
+            href={wikiUrl(row.itemName)}
+            target="_blank"
+            rel="noopener noreferrer"
           >
-            basket
-          </button>
-          <AccessBadge shopPage={row.shopPage} />
-        </div>
-      </td>
-      <td className="loc loc-col">{row.location ?? "—"}</td>
-      <td className="right mono">
-        {formatGp(
-          Math.round(
-            plan !== undefined && budgetMode ? plan.avgCost : row.avgCost,
-          ),
-        )}
-      </td>
-      <td className="right mono">{formatGp(row.sellPrice)}</td>
-      <td className="right mono dim tax-col">{formatGp(row.taxPerUnit)}</td>
-      <td className="right mono pos">{formatGp(Math.round(row.margin))}</td>
+            {row.itemName}
+          </a>
+          {row.members && <span className="badge">P2P</span>}
+        </td>
+      )}
+      {visible.has("shop") && (
+        <td className="shop" title={row.shopPage}>
+          <a
+            className="wiki-link"
+            href={wikiUrl(row.shopPage)}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {row.shopName}
+          </a>
+          <div className="shop-actions">
+            <button
+              type="button"
+              className="shop-basket"
+              onClick={() => onSelectShop(row.shopPage)}
+              aria-label={`Open the multi-item basket for ${row.shopName}`}
+              title="Buy every profitable item from this shop in the same visits"
+            >
+              basket
+            </button>
+            <AccessBadge shopPage={row.shopPage} />
+          </div>
+        </td>
+      )}
+      {visible.has("location") && (
+        <td className="loc loc-col">{row.location ?? "—"}</td>
+      )}
+      {visible.has("unitCost") && (
+        <td className="right mono">
+          {formatGp(
+            Math.round(
+              plan !== undefined && budgetMode ? plan.avgCost : row.avgCost,
+            ),
+          )}
+        </td>
+      )}
+      {visible.has("sellPrice") && (
+        <td className="right mono">{formatGp(row.sellPrice)}</td>
+      )}
+      {visible.has("tax") && (
+        <td className="right mono dim tax-col">
+          {formatGp(row.taxPerUnit)}
+        </td>
+      )}
+      {visible.has("margin") && (
+        <td className="right mono pos">
+          {formatGp(Math.round(row.margin))}
+        </td>
+      )}
 
       {budgetMode ? (
         <>
-          <td className="right mono strong">
-            {plan?.units.toLocaleString() ?? 0}
-            <span className="cell-note">
-              {formatGp(plan?.unitsPerWorld ?? 0)}/world
-            </span>
-          </td>
-          <td className="right mono">
-            {formatGp(Math.round(plan?.totalCost ?? 0))}
-          </td>
-          <td className="right mono dim">{plan?.worlds ?? 0}</td>
-          <td
-            className="right mono dim"
-            title={
-              row.bankTiles === null
-                ? "No bank distance available for this shop"
-                : `${row.nearestBank ?? "Bank"} · ${Math.round(row.bankTiles)} tiles each way`
-            }
-          >
-            {plan?.bankTrips ?? 0}
-            {(plan?.bankTrips ?? 0) > 0 && (
-              <span className="dim">
-                {" · "}
-                {plan?.bankTimeKnown === false
-                  ? "?"
-                  : `${Math.round(plan?.bankSecondsPerTrip ?? 0)}s`}
+          {visible.has("buy") && (
+            <td className="right mono strong">
+              {plan?.units.toLocaleString() ?? 0}
+              <span className="cell-note">
+                {formatGp(plan?.unitsPerWorld ?? 0)}/world
               </span>
-            )}
-            {(plan?.bankTrips ?? 0) > 0 && (
-              <span className="bank-loc">
-                {row.nearestBank !== null ? (
-                  <a
-                    className="wiki-link"
-                    href={wikiUrl(row.nearestBank)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {row.nearestBank}
-                  </a>
-                ) : (
-                  "Unknown bank"
-                )}
-              </span>
-            )}
-          </td>
-          <td className="right mono pos">
-            {formatGp(Math.round(plan?.profit ?? 0))}
-          </td>
-          <GpPerHourCell plan={plan} />
+            </td>
+          )}
+          {visible.has("spend") && (
+            <td className="right mono">
+              {formatGp(Math.round(plan?.totalCost ?? 0))}
+            </td>
+          )}
+          {visible.has("worlds") && (
+            <td className="right mono dim">{plan?.worlds ?? 0}</td>
+          )}
+          {visible.has("banks") && (
+            <td
+              className="right mono dim"
+              title={
+                row.bankTiles === null
+                  ? "No bank distance available for this shop"
+                  : `${row.nearestBank ?? "Bank"} · ${Math.round(row.bankTiles)} tiles each way`
+              }
+            >
+              {plan?.bankTrips ?? 0}
+              {(plan?.bankTrips ?? 0) > 0 && (
+                <span className="dim">
+                  {" · "}
+                  {plan?.bankTimeKnown === false
+                    ? "?"
+                    : `${Math.round(plan?.bankSecondsPerTrip ?? 0)}s`}
+                </span>
+              )}
+              {(plan?.bankTrips ?? 0) > 0 && (
+                <span className="bank-loc">
+                  {row.nearestBank !== null ? (
+                    <a
+                      className="wiki-link"
+                      href={wikiUrl(row.nearestBank)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {row.nearestBank}
+                    </a>
+                  ) : (
+                    "Unknown bank"
+                  )}
+                </span>
+              )}
+            </td>
+          )}
+          {visible.has("profit") && (
+            <td className="right mono pos">
+              {formatGp(Math.round(plan?.profit ?? 0))}
+            </td>
+          )}
+          {visible.has("gpPerHour") && <GpPerHourCell plan={plan} />}
         </>
       ) : (
         <>
-          <td className="right mono">{row.units}</td>
-          <td className="right mono dim">
-            {row.sellablePer4h.toLocaleString()}
-          </td>
-          <td className="right mono strong">
-            {formatGp(Math.round(row.gpPer4h))}
-          </td>
-          <GpPerHourCell plan={plan} />
+          {visible.has("qty") && <td className="right mono">{row.units}</td>}
+          {visible.has("sellable") && (
+            <td className="right mono dim">
+              {row.sellablePer4h.toLocaleString()}
+            </td>
+          )}
+          {visible.has("gpPer4h") && (
+            <td className="right mono strong">
+              {formatGp(Math.round(row.gpPer4h))}
+            </td>
+          )}
+          {visible.has("gpPerHour") && <GpPerHourCell plan={plan} />}
         </>
       )}
     </tr>
