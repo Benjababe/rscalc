@@ -24,6 +24,7 @@ import { fileURLToPath } from 'url';
 import { fetch24h, fetchLatest, fetchMapping } from '../src/api/prices.js';
 import { fetchRecipes } from '../src/api/wikiRecipes.js';
 import { rankProcess } from '../src/engine/processRank.js';
+import { formatLocalTime } from '../src/util/time.js';
 import {
   ProcessPayloadSchema,
   ProcessRankingSchema,
@@ -247,7 +248,7 @@ function printReport(
       `| ${stats.unresolved.toLocaleString()} unmapped`,
   );
   log(
-    `prices as of ${formatTime(market.pricesAsOf)} | ` +
+    `prices as of ${formatLocalTime(market.pricesAsOf)} | ` +
       `profitable: pessimistic ${pessimistic.count.toLocaleString()}, ` +
       `patient ${patient.count.toLocaleString()} | ` +
       `actions/hour cap: ${
@@ -342,10 +343,6 @@ function truncate(text: string, max: number): string {
 
 function formatGp(value: number): string {
   return Math.trunc(value).toLocaleString('en-US');
-}
-
-function formatTime(iso: string): string {
-  return iso.replace('T', ' ').slice(0, 19);
 }
 
 function log(message: string): void {

@@ -1,5 +1,7 @@
 /** Small display helpers shared by the table and the shop-basket panel. */
 
+import { formatLocalTime } from "../../src/util/time";
+
 export function formatGp(value: number): string {
   return value.toLocaleString("en-US");
 }
@@ -11,7 +13,7 @@ export function compact(value: number): string {
 }
 
 export function formatTime(iso: string): string {
-  return iso.replace("T", " ").slice(0, 19);
+  return formatLocalTime(iso);
 }
 
 /** Human-readable duration for hop/bank/sell times. */

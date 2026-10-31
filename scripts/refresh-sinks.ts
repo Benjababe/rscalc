@@ -29,6 +29,7 @@ import { fileURLToPath } from 'url';
 import { rankSinks, type SinkRankOptions } from '../src/engine/sinkRank.js';
 import { DEFAULT_HOP_SECONDS, DEFAULT_MAX_WORLDS } from '../src/domain/budget.js';
 import { readJsonFile } from '../src/util/json.js';
+import { formatLocalTime } from '../src/util/time.js';
 import {
   MarketSnapshotSchema,
   ShopCatalogSchema,
@@ -159,7 +160,7 @@ async function main(): Promise<void> {
     `\nGE -> SHOP — ${cli.mode.toUpperCase()} mode (${direction})\n`,
   );
   process.stdout.write(
-    `prices as of ${formatTime(market.pricesAsOf)} | ${catalog.shopCount} shops | ` +
+    `prices as of ${formatLocalTime(market.pricesAsOf)} | ${catalog.shopCount} shops | ` +
       `${Object.keys(market.quotes).length} priced items\n`,
   );
   process.stdout.write(
@@ -268,10 +269,6 @@ function truncate(text: string, max: number): string {
 
 function formatGp(value: number): string {
   return Math.trunc(value).toLocaleString('en-US');
-}
-
-function formatTime(iso: string): string {
-  return iso.replace('T', ' ').slice(0, 19);
 }
 
 main().catch((error: unknown) => {

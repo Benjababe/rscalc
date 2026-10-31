@@ -37,6 +37,7 @@ import { targetSellPrice, volume24hForMode } from '../src/domain/profit.js';
 import { INFINITE_STOCK_PURCHASE_CAP } from '../src/domain/shopPrice.js';
 import { rank, toShopRow, type RankOptions } from '../src/engine/rank.js';
 import { readJsonFile } from '../src/util/json.js';
+import { formatLocalTime } from '../src/util/time.js';
 import {
   MarketSnapshotSchema,
   RankingSchema,
@@ -153,7 +154,7 @@ async function main(): Promise<void> {
     `\n${cli.mode.toUpperCase()} mode — selling at GE ${cli.mode === 'pessimistic' ? 'low (instant)' : 'high (patient)'}\n`,
   );
   process.stdout.write(
-    `prices as of ${formatTime(market.pricesAsOf)} | ${catalog.shopCount} shops | ${Object.keys(market.quotes).length} priced items\n`,
+    `prices as of ${formatLocalTime(market.pricesAsOf)} | ${catalog.shopCount} shops | ${Object.keys(market.quotes).length} priced items\n`,
   );
   process.stdout.write(`${'='.repeat(132)}\n`);
   process.stdout.write(
@@ -469,10 +470,6 @@ function formatDuration(seconds: number): string {
 
 function formatGp(value: number): string {
   return value.toLocaleString('en-US');
-}
-
-function formatTime(iso: string): string {
-  return iso.replace('T', ' ').slice(0, 19);
 }
 
 function pad(text: string, width: number): string {

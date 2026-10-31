@@ -57,7 +57,7 @@ pnpm dev            # web UI at http://localhost:5173
 | `pnpm sinks --write` | emit `data/shop-sinks.json` for the UI |
 | `pnpm process` | processing ranking + `data/process.json` |
 | `pnpm dev` / `pnpm build` | web UI |
-| `pnpm test` / `pnpm typecheck` | 284 tests / `tsc --noEmit` |
+| `pnpm test` / `pnpm typecheck` | 286 tests / `tsc --noEmit` |
 
 `pnpm report` flags: `--mode=pessimistic|patient`, `--limit=N`, `--members`,
 `--min-volume4h=N`, `--min-margin=N`, `--infinite`, `--write`.
@@ -109,9 +109,10 @@ prices.runescape.wiki/api/v2     ─┴─► catalogue + GE quotes
 
 The browser never calls an external API: it renders static snapshots. The three
 page modules and their data are code-split, so each direction loads only its own
-snapshot, and the site is still deployable as plain files. Each main result
-table has a **Columns** menu for hiding columns you do not need; the choice is
-remembered per table in this browser.
+snapshot, and the site is still deployable as plain files. Price and build
+timestamps are rendered in your local timezone. Each main result table has a
+**Columns** menu for hiding columns you do not need; the choice is remembered
+per table in this browser.
 
 ## Budget mode (web UI)
 
