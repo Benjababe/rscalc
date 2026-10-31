@@ -1,7 +1,7 @@
 /**
  * Build `data/shop-access.json` from the catalogue and the curated access rules.
  *
- *   pnpm access
+ *   pnpm run access
  *
  * This script makes **no network calls**. It reads `data/shops.json`, applies
  * `scripts/shopAccessRules.ts`, and writes one entry per shop page with a known

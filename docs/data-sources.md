@@ -127,7 +127,7 @@ some areas (Fishing Guild, Legends' Guild) but not others (Keldagrim, Zanaris,
 Ape Atoll), and the storeline `store_notes` column only hints at post-quest stock
 variants. The access table is therefore **curated**, not scraped: rules live in
 `scripts/shopAccessRules.ts` and every rule cites the wiki page that states the
-requirement. `pnpm access` applies them to `data/shops.json` and writes
+requirement. `pnpm run access` applies them to `data/shops.json` and writes
 `data/shop-access.json` offline. A shop absent from the artifact has unknown
 access, not guaranteed access. See [shop-access.md](shop-access.md).
 

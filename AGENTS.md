@@ -132,7 +132,7 @@ pnpm typecheck      # tsc --noEmit
 pnpm test           # vitest, no live network
 pnpm shops          # data/shops.json (cold cache: ~35s incl. map + banks)
 pnpm market         # data/market.json (cold cache: ~30s incl. stackability)
-pnpm access         # data/shop-access.json (offline; curated rules)
+pnpm run access         # data/shop-access.json (offline; curated rules)
 pnpm build:data     # shops + market
 pnpm refresh        # shops + access + market + all three UI rankings
 pnpm report --write # data/opportunities.json (both modes)
@@ -285,7 +285,7 @@ Flags shops with a known quest/skill/item/area prerequisite and offers a
 **Hide locked** filter on both pages. No structured wiki field exists, so the
 table is curated and every entry cites a wiki page.
 - `scripts/shopAccessRules.ts` holds area rules and per-shop overrides;
-  `pnpm access` applies them to the catalogue and writes
+  `pnpm run access` applies them to the catalogue and writes
   `data/shop-access.json` offline. Exclusions cover the Master fisher, Shield
   master and Blast Furnace shops; overrides cover Culinaromancer's Chest, Eblis,
   Oobapohk and the Zanaris market.

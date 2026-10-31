@@ -46,7 +46,7 @@ pnpm dev            # web UI at http://localhost:5173
 | `pnpm smoke` | connectivity + schema check against the prices API |
 | `pnpm shops` | rebuild `data/shops.json` (24h cache) |
 | `pnpm market` | rebuild `data/market.json` |
-| `pnpm access` | rebuild `data/shop-access.json` from the curated rules |
+| `pnpm run access` | rebuild `data/shop-access.json` from the curated rules |
 | `pnpm build:data` | shops + market |
 | `pnpm refresh` | all data: catalogue + access + market + all three UI rankings |
 | `pnpm report` | ranked CLI table |
@@ -217,7 +217,8 @@ requirement; hover or open the badge for the requirement and its source.
 tables. A shop with no badge has **unknown** access, not guaranteed access, and
 the filter is not a check of your account's quests or levels. The table is
 curated and cited in [docs/shop-access.md](docs/shop-access.md); regenerate it
-with `pnpm access`.
+with `pnpm run access`. Use the `run` prefix: bare `pnpm access` is pnpm's
+built-in package-access command.
 
 What this page deliberately does **not** claim:
 

@@ -19,7 +19,7 @@
     "process": "tsx scripts/refresh-process.ts",
     "access": "tsx scripts/refresh-access.ts",
     "build:data": "pnpm shops && pnpm market",
-    "refresh": "pnpm shops && pnpm access && pnpm market && pnpm report --write && pnpm sinks --write && pnpm process",
+    "refresh": "pnpm shops && pnpm run access && pnpm market && pnpm report --write && pnpm sinks --write && pnpm process",
     "dev": "vite --config web/vite.config.ts",
     "build": "tsc --noEmit && vite build --config web/vite.config.ts",
     "preview": "vite preview --config web/vite.config.ts"

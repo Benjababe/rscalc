@@ -25,9 +25,10 @@ contains only high-confidence requirements, each with the wiki page that states 
 ## Data and generation
 
 - Rules live in [`scripts/shopAccessRules.ts`](../scripts/shopAccessRules.ts).
-- `pnpm access` applies them to `data/shops.json` and writes
-  `data/shop-access.json` (no network).
-- `pnpm refresh` runs `pnpm access` as part of the full data refresh.
+- `pnpm run access` applies them to `data/shops.json` and writes
+  `data/shop-access.json` (no network). Use the `run` prefix: bare `pnpm access`
+  is pnpm's built-in package-access command.
+- `pnpm refresh` runs `pnpm run access` as part of the full data refresh.
 
 Each rule matches the catalogue's `location` text, case-insensitively, and can
 name `excludeShops` for outliers (the Master fisher stands outside the Fishing
@@ -37,7 +38,7 @@ over area rules (Culinaromancer's Chest, Eblis, Oobapohk's Javelin Store, and th
 Zanaris market shops).
 
 The artifact schema is `ShopAccessCatalogSchema` in `src/types.ts`; every entry
-must carry a non-empty requirement and a wiki `source` URL. `pnpm access` fails
+must carry a non-empty requirement and a wiki `source` URL. `pnpm run access` fails
 the build if the payload does not validate.
 
 ## What is included
@@ -73,7 +74,7 @@ leaves 416 pages unknown. The counts move as the catalogue and rules change.
 
 1. Add or adjust a rule/override in `scripts/shopAccessRules.ts`, citing the wiki
    page that states the requirement.
-2. Run `pnpm access`.
+2. Run `pnpm run access`.
 3. Run `pnpm test` and commit the rule change with the regenerated
    `data/shop-access.json`.
 
