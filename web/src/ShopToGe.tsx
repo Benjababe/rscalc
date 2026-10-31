@@ -38,6 +38,7 @@ const SHOP_TO_GE_COLUMN_DEFS = {
   sellPrice: { key: "sellPrice", label: "Sell", width: 90 },
   tax: { key: "tax", label: "Tax", width: 70 },
   margin: { key: "margin", label: "Margin", width: 90 },
+  volume4h: { key: "volume4h", label: "4h volume", width: 90 },
   buy: { key: "buy", label: "Buy", width: 90 },
   spend: { key: "spend", label: "Spend", width: 110 },
   worlds: { key: "worlds", label: "Worlds", width: 70 },
@@ -58,6 +59,7 @@ const SHOP_TO_GE_BASE: readonly ColumnDef[] = [
   SHOP_TO_GE_COLUMN_DEFS.sellPrice,
   SHOP_TO_GE_COLUMN_DEFS.tax,
   SHOP_TO_GE_COLUMN_DEFS.margin,
+  SHOP_TO_GE_COLUMN_DEFS.volume4h,
 ];
 
 /** Union used for storage validation; the picker receives the current mode. */
@@ -98,6 +100,7 @@ type SortKey =
   | "gpPer4h"
   | "gpPerHour"
   | "margin"
+  | "volume4h"
   | "avgCost"
   | "sellPrice"
   | "units"
@@ -224,6 +227,8 @@ export function ShopToGePage(): JSX.Element {
           return row.gpPer4h;
         case "margin":
           return row.margin;
+        case "volume4h":
+          return row.volume4h;
         case "avgCost":
           return budgetMode
             ? row.plan !== undefined && row.plan.units > 0
@@ -685,6 +690,16 @@ export function ShopToGePage(): JSX.Element {
                   right
                 />
               )}
+              {visible.has("volume4h") && (
+                <Th
+                  label="4h volume"
+                  onClick={() => toggleSort("volume4h")}
+                  active={sortKey === "volume4h"}
+                  desc={descending}
+                  title="GE sell-side 24h volume divided by 6, floored to whole units; the 4h sale cap used by the planner"
+                  right
+                />
+              )}
 
               {budgetMode ? (
                 <>
@@ -764,7 +779,7 @@ export function ShopToGePage(): JSX.Element {
                   {visible.has("sellable") && (
                     <th
                       className="right"
-                      title="One shop visit's units, capped by 24h traded volume"
+                      title="One shop visit's units, capped by the 4h volume column"
                     >
                       Sellable
                     </th>
@@ -860,9 +875,11 @@ export function ShopToGePage(): JSX.Element {
             </p>
           )}
           <p>
-            Gross margin is net of the 2% GE tax (capped at 5,000,000 gp, items
-            under 50 gp exempt). Shop stock is per-world in reality; restock
-            times are not modelled. Items whose wiki page does not state
+            <strong>4h volume</strong> is the GE's sell-side 24h volume divided
+            by 6, floored to whole units; the plan's Qty and Sellable never
+            exceed it. Gross margin is net of the 2% GE tax (capped at 5,000,000
+            gp, items under 50 gp exempt). Shop stock is per-world in reality;
+            restock times are not modelled. Items whose wiki page does not state
             stackability are treated as non-stackable, the pessimistic direction.
             Bank distances are straight-line tiles from the wiki map, not a
             walking route, so corners and obstacles add time; raise the
@@ -1014,6 +1031,14 @@ function Row({
       {visible.has("margin") && (
         <td className="right mono pos">
           {formatGp(Math.round(row.margin))}
+        </td>
+      )}
+      {visible.has("volume4h") && (
+        <td
+          className={`right mono${row.volume4h === 0 ? " dim" : ""}`}
+          title="GE sell-side 24h volume divided by 6, floored to whole units"
+        >
+          {row.volume4h.toLocaleString()}
         </td>
       )}
 
