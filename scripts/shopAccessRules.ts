@@ -233,6 +233,129 @@ export const ACCESS_RULES: readonly AccessRule[] = [
     kind: 'quest',
     source: 'https://oldschool.runescape.wiki/w/Troll_Stronghold',
   },
+
+  // --- Varlamore -----------------------------------------------------------
+  // The whole continent is gated behind one quest, not one area: "Varlamore can
+  // only be accessed upon completion of Children of the Sun", and every other
+  // route (quetzal, fairy ring, charter ship, Pendant of Ates) only unlocks
+  // after the player has first travelled there via Regulus Cento.
+  // <https://oldschool.runescape.wiki/w/Varlamore>
+  {
+    match: [
+      'Civitas illa Fortis',
+      'Outer Fortis',
+      'Aldarin',
+      'Kastori',
+      'Tal Teklan',
+      'Auburnvale',
+      'Nemus Retreat',
+      'Quetzacalli Gorge',
+      'Ortus Farm',
+      'Colossal Wyrm Remains',
+      'Locus Oasis',
+      'Sunset Coast',
+      'Salvager Overlook',
+      'Stonecutter Outpost',
+      'Moonrise Brewery and Winery',
+      'Varlamore',
+    ],
+    requirement: 'Children of the Sun (completed)',
+    kind: 'quest',
+    source: 'https://oldschool.runescape.wiki/w/Children_of_the_Sun',
+  },
+  {
+    // Cam Torum has a second gate on top of the continent: Attala turns the
+    // player away until the sulphur nagua is killed during Perilous Moons.
+    match: ['Cam Torum'],
+    requirement: 'Perilous Moons (progress) + Children of the Sun (completed)',
+    kind: 'quest',
+    source: 'https://oldschool.runescape.wiki/w/Cam_Torum',
+  },
+  {
+    match: ['Mastering Mixology'],
+    requirement:
+      '60 Herblore (not boostable) + Children of the Sun (completed)',
+    kind: 'skill',
+    source: 'https://oldschool.runescape.wiki/w/Mastering_Mixology',
+  },
+
+  // --- Sailing (released 19 November 2025) ---------------------------------
+  // Ocean destinations publish their docking level in the location infobox:
+  // `|requirement = {{SCP|Sailing|50}}`. Shops in a settlement inherit the
+  // level required to dock at that island.
+  {
+    match: ['Port Roberts'],
+    requirement: '50 Sailing',
+    kind: 'skill',
+    source: 'https://oldschool.runescape.wiki/w/Port_Roberts',
+  },
+  {
+    match: ['Deepfin Point'],
+    requirement: '67 Sailing',
+    kind: 'skill',
+    source: 'https://oldschool.runescape.wiki/w/Deepfin_Point',
+  },
+  {
+    match: ['Deepfin Mine'],
+    requirement: '67 Sailing (not boostable)',
+    kind: 'skill',
+    source: 'https://oldschool.runescape.wiki/w/Deepfin_Mine',
+  },
+  {
+    // Auchrie is a settlement *on* Wyrmscraig, so it needs the island's
+    // docking level even though its own page states no requirement.
+    match: ['Wyrmscraig', 'Auchrie'],
+    requirement: '62 Sailing',
+    kind: 'skill',
+    source: 'https://oldschool.runescape.wiki/w/Wyrmscraig',
+  },
+  {
+    match: ["Anglers' Retreat"],
+    requirement: '51 Sailing',
+    kind: 'skill',
+    source: 'https://oldschool.runescape.wiki/w/Anglers%27_Retreat',
+  },
+  {
+    match: ['The Great Conch'],
+    requirement: '45 Sailing + Troubled Tortugans (partially completed)',
+    kind: 'skill',
+    source: 'https://oldschool.runescape.wiki/w/The_Great_Conch',
+  },
+  {
+    match: ['The Summer Shore'],
+    requirement: 'Troubled Tortugans (partially completed)',
+    kind: 'quest',
+    source: 'https://oldschool.runescape.wiki/w/The_Summer_Shore',
+  },
+  {
+    match: ['Coral Nurseries'],
+    requirement:
+      'Troubled Tortugans (started) + diving apparatus and fishbowl helmet (or a Medallion of the deep)',
+    kind: 'quest',
+    source: 'https://oldschool.runescape.wiki/w/Coral_Nurseries',
+  },
+  {
+    match: ['The Pandemonium'],
+    requirement: 'Pandemonium (progressed to the first visit)',
+    kind: 'quest',
+    source: 'https://oldschool.runescape.wiki/w/The_Pandemonium',
+  },
+
+  // --- Other cited gates ------------------------------------------------
+  {
+    // Mac only sells the max cape, and only to a maxed account. The island
+    // itself is reachable with the Warriors' Guild entry requirements.
+    match: ["Mac's island"],
+    requirement: '2,376 total level (max cape)',
+    kind: 'other',
+    source: "https://oldschool.runescape.wiki/w/Mac's_island",
+  },
+  {
+    match: ["Daimon's Crater"],
+    requirement: 'Bounty Hunter worlds only (318, 319, 569)',
+    kind: 'other',
+    source: "https://oldschool.runescape.wiki/w/Daimon's_Crater",
+  },
 ];
 
 /** Per-shop exceptions, applied before the area rules. */

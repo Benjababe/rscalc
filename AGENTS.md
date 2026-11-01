@@ -132,7 +132,7 @@ data/market.json         GE quotes for the 1,239 items the catalogue references;
                          includes stackable
 data/opportunities.json  both sell modes, full lists, consumed by the UI
 data/shop-sinks.json     GE -> shop flips for both buy modes, consumed by the UI
-data/shop-access.json    per-shop known access requirements (177 pages), cited
+data/shop-access.json    per-shop known access requirements (265 pages), cited;
 data/process.json        deterministic processing recipes for both price modes,
                          with inputs, output, fees, caps and tick time
 ```

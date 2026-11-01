@@ -53,12 +53,31 @@ Current rules cover, among others:
   Dorgesh-Kaan, Darkmeyer, Burgh de Rott, Mos Le'Harmless, Shilo Village, Lunar
   Isle, Neitiznot, Jatizso, Piscatoris, Sophanem, Gu'Tanoth, Miscellania,
   Etceteria, Troll Stronghold.
+- **Varlamore:** the whole continent is one gate, not one area per town —
+  <https://oldschool.runescape.wiki/w/Varlamore> states that Varlamore "can only
+  be accessed upon completion of Children of the Sun", and every later route
+  (quetzal, fairy ring, charter ship, Pendant of Ates) only unlocks after the
+  first trip via Regulus Cento. One rule therefore covers Civitas illa Fortis,
+  Outer Fortis, Aldarin, Kastori, Tal Teklan, Auburnvale, Nemus Retreat,
+  Quetzacalli Gorge, Ortus Farm, Colossal Wyrm Remains, Locus Oasis, Sunset
+  Coast, Salvager Overlook, Stonecutter Outpost and Moonrise Brewery.
+  Cam Torum has a second gate (Perilous Moons progress) and Mastering Mixology a
+  skill gate (60 Herblore), so both carry their own rule.
+- **Sailing (19 November 2025):** ocean destinations publish their docking level
+  in the location infobox (`|requirement = {{SCP|Sailing|N}}`), so the shop
+  rows inherit it: Port Roberts 50, Anglers' Retreat 51, Wyrmscraig 62 (and
+  Auchrie, which is a settlement on Wyrmscraig), Deepfin Point and Deepfin Mine
+  67. The Great Conch also needs Troubled Tortugans, The Summer Shore needs the
+  same quest, Coral Nurseries needs diving apparatus and a fishbowl helmet, and
+  The Pandemonium needs the Pandemonium quest progressed to the first visit.
 - **Item-locked:** Mor Ul Rek (fire cape for the interior).
+- **Other:** Mac's island sells only the max cape (2,376 total level), and
+  Daimon's Crater exists only on Bounty Hunter worlds (318, 319, 569).
 - **Per-shop:** Culinaromancer's Chest, Eblis, Oobapohk's Javelin Store, and the
   three Zanaris market shops (the market gate also costs a cut diamond).
 
-The generated artifact currently has 177 shop pages with a requirement and
-leaves 416 pages unknown. The counts move as the catalogue and rules change.
+The generated artifact currently has 265 shop pages with a requirement and
+leaves 331 pages unknown. The counts move as the catalogue and rules change.
 
 ## What is deliberately not included
 
@@ -67,7 +86,11 @@ leaves 416 pages unknown. The counts move as the catalogue and rules change.
 - **Rogues' Den** has no entry requirements; its maze does, but the den and its
   shops are reachable.
 - Areas where the wiki does not state access clearly (for example Giants'
-  Foundry's reward shop and Temple of the Eye) stay unknown rather than guessed.
+  Foundry's reward shop, Temple of the Eye and the Fractured Archive) stay
+  unknown rather than guessed. So do places that are only *softly* gated: the
+  Sunset Coast, Tal Teklan, Auburnvale and Nemus Retreat are all reachable on
+  foot or by quetzal with no level requirement, so they carry only the
+  continent-wide Children of the Sun rule.
 - General stores, membership and GE/back-travel assumptions remain separate.
 
 ## Adding or correcting an entry

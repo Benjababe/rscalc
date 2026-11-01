@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-01T03:55:52.458Z",
+  "generatedAt": "2026-11-01T07:57:07.666Z",
   "source": "Curated from OSRS Wiki shop and location pages; see docs/shop-access.md",
   "entries": [
     {
@@ -7,6 +7,12 @@
       "requirement": "40 Ranged (boostable)",
       "kind": "skill",
       "source": "https://oldschool.runescape.wiki/w/Ranging_Guild"
+    },
+    {
+      "shopPage": "Agelus' Farm Shop",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
     },
     {
       "shopPage": "Agmundi Quality Clothes",
@@ -25,6 +31,12 @@
       "requirement": "45 Farming (65/85 for the higher tiers)",
       "kind": "skill",
       "source": "https://oldschool.runescape.wiki/w/Farming_Guild"
+    },
+    {
+      "shopPage": "Aldarin General Store",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
     },
     {
       "shopPage": "Alexandra",
@@ -69,6 +81,18 @@
       "source": "https://oldschool.runescape.wiki/w/Prifddinas"
     },
     {
+      "shopPage": "Arcuani's Archery Supplies",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
+      "shopPage": "Argo",
+      "requirement": "51 Sailing",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Anglers%27_Retreat"
+    },
+    {
       "shopPage": "Armour Shop (Jatizso)",
       "requirement": "The Fremennik Trials",
       "kind": "quest",
@@ -79,6 +103,36 @@
       "requirement": "Swan Song (partially completed)",
       "kind": "quest",
       "source": "https://oldschool.runescape.wiki/w/Piscatoris_Fishing_Colony"
+    },
+    {
+      "shopPage": "Artima's Crafting Supplies",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
+      "shopPage": "Atlazora's Rest",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
+      "shopPage": "Aub",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
+      "shopPage": "Auburn Pub",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
+      "shopPage": "Auburnvale General Store",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
     },
     {
       "shopPage": "Aurel",
@@ -123,10 +177,28 @@
       "source": "https://oldschool.runescape.wiki/w/Keldagrim"
     },
     {
+      "shopPage": "Bounty Hunter Store",
+      "requirement": "Bounty Hunter worlds only (318, 319, 569)",
+      "kind": "other",
+      "source": "https://oldschool.runescape.wiki/w/Daimon's_Crater"
+    },
+    {
       "shopPage": "Branwen's Farming Shop",
       "requirement": "Song of the Elves (completed)",
       "kind": "quest",
       "source": "https://oldschool.runescape.wiki/w/Prifddinas"
+    },
+    {
+      "shopPage": "Cam Torum Blacksmith",
+      "requirement": "Perilous Moons (progress) + Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Cam_Torum"
+    },
+    {
+      "shopPage": "Cam Torum General Store",
+      "requirement": "Perilous Moons (progress) + Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Cam_Torum"
     },
     {
       "shopPage": "Carefree Crafting Stall",
@@ -139,6 +211,24 @@
       "requirement": "The Giant Dwarf (started)",
       "kind": "quest",
       "source": "https://oldschool.runescape.wiki/w/Keldagrim"
+    },
+    {
+      "shopPage": "Chet",
+      "requirement": "Troubled Tortugans (started) + diving apparatus and fishbowl helmet (or a Medallion of the deep)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Coral_Nurseries"
+    },
+    {
+      "shopPage": "Cobado's Groceries",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
+      "shopPage": "Conara's Jewels",
+      "requirement": "Perilous Moons (progress) + Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Cam_Torum"
     },
     {
       "shopPage": "Contraband yak produce.",
@@ -201,6 +291,18 @@
       "source": "https://oldschool.runescape.wiki/w/Darkmeyer"
     },
     {
+      "shopPage": "Deepfin Inn",
+      "requirement": "67 Sailing",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Deepfin_Point"
+    },
+    {
+      "shopPage": "Deepfin Point Ore Exchange",
+      "requirement": "67 Sailing",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Deepfin_Point"
+    },
+    {
       "shopPage": "Dodgy Mike's Second Hand Clothing.",
       "requirement": "Cabin Fever (completed)",
       "kind": "quest",
@@ -231,16 +333,82 @@
       "source": "https://oldschool.runescape.wiki/w/Dorgesh-Kaan"
     },
     {
+      "shopPage": "Durrik's Goods",
+      "requirement": "67 Sailing (not boostable)",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Deepfin_Mine"
+    },
+    {
+      "shopPage": "Dyes to Die For",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
       "shopPage": "Eblis",
       "requirement": "Desert Treasure I (completed; his shop exists afterwards)",
       "kind": "quest",
       "source": "https://oldschool.runescape.wiki/w/Eblis"
     },
     {
+      "shopPage": "Ehecatl",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
+      "shopPage": "Elder Blunn's Spear and Shield Stall",
+      "requirement": "Troubled Tortugans (partially completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/The_Summer_Shore"
+    },
+    {
+      "shopPage": "Elder Coco's Crafting Stall",
+      "requirement": "Troubled Tortugans (partially completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/The_Summer_Shore"
+    },
+    {
+      "shopPage": "Elder Krill's Fishing Stall",
+      "requirement": "Troubled Tortugans (partially completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/The_Summer_Shore"
+    },
+    {
+      "shopPage": "Elder Raley's Herblore Stall",
+      "requirement": "Troubled Tortugans (partially completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/The_Summer_Shore"
+    },
+    {
+      "shopPage": "Elder Reggle's Farming Shop",
+      "requirement": "45 Sailing + Troubled Tortugans (partially completed)",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/The_Great_Conch"
+    },
+    {
+      "shopPage": "Elder Strom's Hunting Stall",
+      "requirement": "Troubled Tortugans (partially completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/The_Summer_Shore"
+    },
+    {
       "shopPage": "Elgan's Exceptional Staffs!",
       "requirement": "Song of the Elves (completed)",
       "kind": "quest",
       "source": "https://oldschool.runescape.wiki/w/Prifddinas"
+    },
+    {
+      "shopPage": "Emelio's Kebab Shop",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
+      "shopPage": "Ercos",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
     },
     {
       "shopPage": "Etceteria Fish",
@@ -255,6 +423,12 @@
       "source": "https://oldschool.runescape.wiki/w/Zanaris"
     },
     {
+      "shopPage": "Faustus' Fruit and Veg",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
       "shopPage": "Fernahei's Fishing Hut.",
       "requirement": "Shilo Village (completed)",
       "kind": "quest",
@@ -267,6 +441,12 @@
       "source": "https://oldschool.runescape.wiki/w/Fishing_Guild"
     },
     {
+      "shopPage": "Floria's Fashion",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
       "shopPage": "Flosi's Fishmongers",
       "requirement": "The Fremennik Trials",
       "kind": "quest",
@@ -277,6 +457,48 @@
       "requirement": "The Fremennik Trials",
       "kind": "quest",
       "source": "https://oldschool.runescape.wiki/w/Miscellania"
+    },
+    {
+      "shopPage": "Fortis Baker's Stall",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
+      "shopPage": "Fortis Blacksmith",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
+      "shopPage": "Fortis Fur Stall",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
+      "shopPage": "Fortis Gem Stall",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
+      "shopPage": "Fortis General Store",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
+      "shopPage": "Fortis Silk Stall",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
+      "shopPage": "Fortis Spice Stall",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
     },
     {
       "shopPage": "Franklin Caranos",
@@ -357,6 +579,12 @@
       "source": "https://oldschool.runescape.wiki/w/Heroes%27_Guild"
     },
     {
+      "shopPage": "Harminia",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
       "shopPage": "Harpoon Joe's House of 'Rum'.",
       "requirement": "Cabin Fever (completed)",
       "kind": "quest",
@@ -375,6 +603,12 @@
       "source": "https://oldschool.runescape.wiki/w/Prifddinas"
     },
     {
+      "shopPage": "Henderson's Catch of the Day",
+      "requirement": "Pandemonium (progressed to the first visit)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/The_Pandemonium"
+    },
+    {
       "shopPage": "Hendor's Awesome Ores",
       "requirement": "60 Mining",
       "kind": "skill",
@@ -385,6 +619,12 @@
       "requirement": "The Giant Dwarf (started)",
       "kind": "quest",
       "source": "https://oldschool.runescape.wiki/w/Keldagrim"
+    },
+    {
+      "shopPage": "Huito's Herbal Supplies",
+      "requirement": "Perilous Moons (progress) + Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Cam_Torum"
     },
     {
       "shopPage": "Ifaba's General Store",
@@ -445,6 +685,18 @@
       "requirement": "Lost City; market entry also costs a cut diamond",
       "kind": "quest",
       "source": "https://oldschool.runescape.wiki/w/Zanaris"
+    },
+    {
+      "shopPage": "Kastori Farming Supplies",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
+      "shopPage": "Kastori General Store",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
     },
     {
       "shopPage": "Keepa Kettilon's store",
@@ -549,10 +801,28 @@
       "source": "https://oldschool.runescape.wiki/w/Prifddinas"
     },
     {
+      "shopPage": "Lucrezia",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
+      "shopPage": "Lunami's Axe Shop",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
       "shopPage": "Lunderwin",
       "requirement": "Lost City; market entry also costs a cut diamond",
       "kind": "quest",
       "source": "https://oldschool.runescape.wiki/w/Zanaris"
+    },
+    {
+      "shopPage": "Mac",
+      "requirement": "2,376 total level (max cape)",
+      "kind": "other",
+      "source": "https://oldschool.runescape.wiki/w/Mac's_island"
     },
     {
       "shopPage": "Magic Guild Store (Mystic Robes)",
@@ -565,6 +835,12 @@
       "requirement": "66 Magic (boostable)",
       "kind": "skill",
       "source": "https://oldschool.runescape.wiki/w/Wizards%27_Guild"
+    },
+    {
+      "shopPage": "Marcellus",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
     },
     {
       "shopPage": "Markog",
@@ -615,6 +891,12 @@
       "source": "https://oldschool.runescape.wiki/w/Miscellania"
     },
     {
+      "shopPage": "Mixology Rewards",
+      "requirement": "60 Herblore (not boostable) + Children of the Sun (completed)",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Mastering_Mixology"
+    },
+    {
       "shopPage": "Moon Clan Fine Clothes.",
       "requirement": "Lunar Diplomacy (progressed)",
       "kind": "quest",
@@ -625,6 +907,12 @@
       "requirement": "Lunar Diplomacy (progressed)",
       "kind": "quest",
       "source": "https://oldschool.runescape.wiki/w/Lunar_Isle"
+    },
+    {
+      "shopPage": "Moonrise Wines",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
     },
     {
       "shopPage": "Myreque's Rest",
@@ -675,6 +963,12 @@
       "source": "https://oldschool.runescape.wiki/w/Neitiznot"
     },
     {
+      "shopPage": "Nemus Retreat (pub)",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
       "shopPage": "Nikkie",
       "requirement": "45 Farming (65/85 for the higher tiers)",
       "kind": "skill",
@@ -711,6 +1005,12 @@
       "source": "https://oldschool.runescape.wiki/w/Prifddinas"
     },
     {
+      "shopPage": "Outer Fortis General Store",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
       "shopPage": "Paramaya Inn",
       "requirement": "Shilo Village (completed)",
       "kind": "quest",
@@ -729,6 +1029,12 @@
       "source": "https://oldschool.runescape.wiki/w/Woodcutting_Guild"
     },
     {
+      "shopPage": "Picaria's Fishing Shop",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
       "shopPage": "Pickaxe-Is-Mine",
       "requirement": "The Giant Dwarf (started)",
       "kind": "quest",
@@ -739,6 +1045,66 @@
       "requirement": "32 Cooking + chef's hat/cape or Varrock armour 3/4",
       "kind": "skill",
       "source": "https://oldschool.runescape.wiki/w/Cooks%27_Guild"
+    },
+    {
+      "shopPage": "Port Roberts Cannonball Stall",
+      "requirement": "50 Sailing",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Port_Roberts"
+    },
+    {
+      "shopPage": "Port Roberts Fish Stall",
+      "requirement": "50 Sailing",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Port_Roberts"
+    },
+    {
+      "shopPage": "Port Roberts Fur Stall",
+      "requirement": "50 Sailing",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Port_Roberts"
+    },
+    {
+      "shopPage": "Port Roberts Gem Stall",
+      "requirement": "50 Sailing",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Port_Roberts"
+    },
+    {
+      "shopPage": "Port Roberts General Store",
+      "requirement": "50 Sailing",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Port_Roberts"
+    },
+    {
+      "shopPage": "Port Roberts Ore Stall",
+      "requirement": "50 Sailing",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Port_Roberts"
+    },
+    {
+      "shopPage": "Port Roberts Silk Stall",
+      "requirement": "50 Sailing",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Port_Roberts"
+    },
+    {
+      "shopPage": "Port Roberts Silver Stall",
+      "requirement": "50 Sailing",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Port_Roberts"
+    },
+    {
+      "shopPage": "Port Roberts Spice Stall",
+      "requirement": "50 Sailing",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Port_Roberts"
+    },
+    {
+      "shopPage": "Port Roberts Veg Stall",
+      "requirement": "50 Sailing",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Port_Roberts"
     },
     {
       "shopPage": "Prifddinas Foodstuffs",
@@ -795,6 +1161,12 @@
       "source": "https://oldschool.runescape.wiki/w/Keldagrim"
     },
     {
+      "shopPage": "Quetzacalli Gorge General Store",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
       "shopPage": "Raetul and Co's Cloth Store.",
       "requirement": "Icthlarin's Little Helper (partially progressed)",
       "kind": "quest",
@@ -831,10 +1203,28 @@
       "source": "https://oldschool.runescape.wiki/w/Farming_Guild"
     },
     {
+      "shopPage": "Salius' Armour Shop",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
+      "shopPage": "Salvager Overlook General Store",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
       "shopPage": "Scavvo's Rune Store.",
       "requirement": "32 Quest Points",
       "kind": "other",
       "source": "https://oldschool.runescape.wiki/w/Champions%27_Guild"
+    },
+    {
+      "shopPage": "Sebamo's Sublime Staffs",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
     },
     {
       "shopPage": "Seravel",
@@ -885,6 +1275,54 @@
       "source": "https://oldschool.runescape.wiki/w/Sophanem"
     },
     {
+      "shopPage": "Spike's Spikes",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
+      "shopPage": "Stonecutter Supplies",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
+      "shopPage": "Sulisal's Superb Fishing Store",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
+      "shopPage": "Sunlight's Sanctum",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
+      "shopPage": "Sunset Coast General Store",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
+      "shopPage": "Supplies's Supplies",
+      "requirement": "62 Sailing",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Wyrmscraig"
+    },
+    {
+      "shopPage": "Tal Teklan General Store",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
+      "shopPage": "Tal Teklan Rune Shop",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
       "shopPage": "Taylor",
       "requirement": "45 Farming (65/85 for the higher tiers)",
       "kind": "skill",
@@ -909,10 +1347,46 @@
       "source": "https://oldschool.runescape.wiki/w/Miscellania"
     },
     {
+      "shopPage": "The Flaming Arrow",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
+      "shopPage": "The King's Inn",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
+      "shopPage": "The Lost Pickaxe",
+      "requirement": "Perilous Moons (progress) + Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Cam_Torum"
+    },
+    {
       "shopPage": "The Other Inn.",
       "requirement": "Cabin Fever (completed)",
       "kind": "quest",
       "source": "https://oldschool.runescape.wiki/w/Mos_Le%27Harmless"
+    },
+    {
+      "shopPage": "The Pandemonium (pub)",
+      "requirement": "Pandemonium (progressed to the first visit)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/The_Pandemonium"
+    },
+    {
+      "shopPage": "The Rolling Tide",
+      "requirement": "50 Sailing",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Port_Roberts"
+    },
+    {
+      "shopPage": "The Runic Emporium",
+      "requirement": "Perilous Moons (progress) + Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Cam_Torum"
     },
     {
       "shopPage": "The Spice Is Right.",
@@ -921,10 +1395,34 @@
       "source": "https://oldschool.runescape.wiki/w/Sophanem"
     },
     {
+      "shopPage": "The Windbreaker",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
+      "shopPage": "Thurid's Brain Buckets",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
       "shopPage": "Tindar",
       "requirement": "Death to the Dorgeshuun (completed)",
       "kind": "quest",
       "source": "https://oldschool.runescape.wiki/w/Dorgesh-Kaan"
+    },
+    {
+      "shopPage": "Tizoro's Pickaxes",
+      "requirement": "Perilous Moons (progress) + Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Cam_Torum"
+    },
+    {
+      "shopPage": "Toci's Gem Store",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
     },
     {
       "shopPage": "Turgok",
@@ -975,10 +1473,22 @@
       "source": "https://oldschool.runescape.wiki/w/Mor_Ul_Rek"
     },
     {
+      "shopPage": "Tziuhtla",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
       "shopPage": "Valaine's Shop of Champions.",
       "requirement": "32 Quest Points",
       "kind": "other",
       "source": "https://oldschool.runescape.wiki/w/Champions%27_Guild"
+    },
+    {
+      "shopPage": "Vale Research Exchange",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
     },
     {
       "shopPage": "Vasile",
@@ -1023,6 +1533,18 @@
       "source": "https://oldschool.runescape.wiki/w/Jatizso"
     },
     {
+      "shopPage": "Where Wyrmscraig's Wear Wares Were",
+      "requirement": "62 Sailing",
+      "kind": "skill",
+      "source": "https://oldschool.runescape.wiki/w/Wyrmscraig"
+    },
+    {
+      "shopPage": "Worm Tongue's Wares",
+      "requirement": "Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Children_of_the_Sun"
+    },
+    {
       "shopPage": "Yadech Strongarm",
       "requirement": "130 combined Attack+Strength, or 99 in either",
       "kind": "skill",
@@ -1033,6 +1555,12 @@
       "requirement": "Shilo Village (completed)",
       "kind": "quest",
       "source": "https://oldschool.runescape.wiki/w/Shilo_Village"
+    },
+    {
+      "shopPage": "Yarnio's Baked Goods",
+      "requirement": "Perilous Moons (progress) + Children of the Sun (completed)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/Cam_Torum"
     },
     {
       "shopPage": "Yarsul's Prodigious Pickaxes",

@@ -178,6 +178,27 @@ describe('curated access data', () => {
     );
     expect(byPage.get('Eblis')?.requirement).toContain('Desert Treasure I');
 
+    // Varlamore is one continent-wide gate, and Cam Torum sits behind a second.
+    expect(byPage.get('Fortis General Store')?.requirement).toContain(
+      'Children of the Sun',
+    );
+    expect(byPage.get('The Lost Pickaxe')?.requirement).toContain(
+      'Perilous Moons',
+    );
+
+    // Sailing destinations publish their docking level on the location page.
+    expect(byPage.get('Port Roberts Fur Stall')?.requirement).toBe(
+      '50 Sailing',
+    );
+    expect(byPage.get('Elder Reggle\'s Farming Shop')?.requirement).toContain(
+      '45 Sailing',
+    );
+
+    // The Varlamore rule must not leak into Great Kourend, which is next door
+    // on the map but has no continent-wide requirement.
+    expect(byPage.get("Leenz's General Supplies")).toBeUndefined();
+    expect(byPage.get('The Golden Field')).toBeUndefined();
+
     expect(byPage.get('Master fisher')).toBeUndefined();
     expect(byPage.get('Shield master')).toBeUndefined();
     expect(byPage.get('Armour store.')).toBeUndefined();
