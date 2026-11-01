@@ -179,17 +179,21 @@ export function SkillingPage(): JSX.Element {
   );
   const deferredQuery = useDeferredValue(normaliseQuery(query));
 
-  // Counted per mode: the two modes price slightly different sets, and the label
-  // must not claim rows the current view does not have.
+  // Alphabetical, like the processing page's filter: the artifact stores skills in
+  // the order they were scanned, which reads as arbitrary in a dropdown. The count is
+  // per mode — the two modes price slightly different sets, and the label must not
+  // claim rows the current view does not have.
   const skills = useMemo(
     () =>
-      DATA.skills.map((entry) => ({
-        skill: entry.skill,
-        count: (mode === "pessimistic"
-          ? entry.pessimistic
-          : entry.patient
-        ).opportunities.length,
-      })),
+      DATA.skills
+        .map((entry) => ({
+          skill: entry.skill,
+          count: (mode === "pessimistic"
+            ? entry.pessimistic
+            : entry.patient
+          ).opportunities.length,
+        }))
+        .sort((a, b) => a.skill.localeCompare(b.skill)),
     [mode],
   );
 

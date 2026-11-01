@@ -49,63 +49,147 @@ export const BLAST_FURNACE: MinigameRate = {
 export const MINIGAME_RATES: readonly MinigameRate[] = [BLAST_FURNACE];
 
 /**
- * Checked and **not** priced, so "absent" cannot be read as "not looked at". Each
- * entry names the specific published number that is missing.
+ * Every other minigame, surveyed and **not** priced, so "absent" cannot be read as
+ * "not looked at".
  *
- * - **Zalcano** (Mining / Smithing). Every line of its drop table is a **ranged
- *   quantity** — `Blood rune 64-480`, `Silver ore 86-800`, `Runite ore 3-31` — and
- *   the page publishes no weights for those ranges, so there is no expectation to
- *   compute. That is the same refusal `src/domain/ev.ts` makes of `Potato seed 1-4`:
- *   the midpoint would be an invented distribution. Its loot is also per kill at a
- *   damage-contribution share, and the article publishes no kills-per-hour, so even
- *   a clean table would have no rate. <https://oldschool.runescape.wiki/w/Zalcano>
- * - **Wintertodt** (Firemaking) and **Tempoross** (Fishing/Cooking). Rewards come
- *   from a points-based crate whose contents the article does not tabulate at fixed
- *   quantities, and neither page publishes a rounds-per-hour figure. Pricing them
- *   needs the reward table *and* a rate, exactly like the fishing rows.
- *   <https://oldschool.runescape.wiki/w/Wintertodt#Rewards>
- * - **Guardians of the Rift** (Runecraft). The reward guardian's stock is paid for in
- *   abyssal pearls, a currency, so a row would have to model pearls-per-round and
- *   the pearl price of each reward; the article states neither.
- * - **Volcanic Mine** (Mining), **Tithe Farm** (Farming). Point rewards only, with no
- *   published points-per-hour.
- * - **Mahogany Homes** (Construction), **Giants' Foundry** (Smithing). Contract fees
- *   against a plank or material cost — a `train`-shape row, not a reward table. Both
- *   are buildable later from the contract tables; neither publishes a per-hour rate
- *   on its own page.
+ * The survey is exhaustive rather than suggestive: 29 pages were read for this list
+ * (the minigame, its reward page or its reward-guardian page). A row needs **both**
+ * halves — a reward distribution with exact quantities and published chances, and a
+ * published rate — and each entry below names the half that is missing. Grouped by
+ * the failure, with the pages read:
+ *
+ * **Reward tables exist but their quantities are ranges or `Varies`.** The
+ * distribution half fails, so there is no expectation to compute:
+ *  - Zalcano — 21 of 26 lines ranged (`Blood rune 64-480`, `Runite ore 3-31`), no
+ *    kills-per-hour either.
+ *  - Wintertodt supply crate — 63 of 75 lines ranged.
+ *  - Hallowed Sepulchre (`Hallowed sack`) — 20 of 30 lines ranged.
+ *  - Guardians of the Rift (`Rewards Guardian`) — 13 of 44 lines ranged, and the
+ *    rewards are priced in abyssal pearls, a currency with no GE value.
+ *  - Fishing Trawler — 18 of 23 lines are `quantity=Varies|rarity=Varies`, i.e. no
+ *    distribution at all; only the four angler pieces are fixed (`1/12`).
+ *  - Tempoross — the pool does not tabulate fixed quantities either.
+ *
+ * **Point shops with no published points-per-hour.** The rate half fails. A reward
+ * that costs 1,000 points is not an hourly figure unless something publishes how fast
+ * points arrive, and no article does:
+ *  - Volcanic Mine, Tithe Farm, Pest Control (commendations), Nightmare Zone,
+ *    Barbarian Assault (honour points), Mage Training Arena (pizazz), Soul Wars,
+ *    Castle Wars, Last Man Standing, Bounty Hunter.
+ *
+ * **Fees or commissions with no published throughput.** A `train`-shape row needs the
+ * contract's material cost *and* a rate, and neither page publishes contracts or
+ * rounds per hour:
+ *  - Mahogany Homes (carpenter points, planks), Giants' Foundry (commission, bars).
+ *
+ * **No reward table at all.** Nothing to price:
+ *  - Pyramid Plunder, Trouble Brewing, Rat Pits, Fist of Guthix, Stealing Creation,
+ *    Blast Mine (publishes XP per hour, not profit).
+ *
+ * The one that survives both tests is the Blast Furnace, because its recipes already
+ * existed and its page publishes a throughput table and a fee. Nothing else does.
  */
 export const MINIGAME_REFUSALS: readonly { name: string; reason: string }[] = [
   {
     name: 'Zalcano',
     reason:
-      'every drop quantity is a published range with no weights (64-480 runes, 86-800 ore), and no kills-per-hour',
+      '21 of 26 drop lines are ranged quantities with no weights (64-480 runes, 86-800 ore), and no kills-per-hour',
   },
   {
     name: 'Wintertodt',
-    reason: 'points-based crate with no fixed-quantity reward table and no rounds-per-hour',
+    reason:
+      'supply crate: 63 of 75 reward lines are ranged quantities, and no rounds-per-hour',
   },
   {
     name: 'Tempoross',
-    reason: 'points-based reward pool with no fixed-quantity table and no rounds-per-hour',
+    reason: 'reward pool tabulates no fixed quantities, and no rounds-per-hour',
   },
   {
     name: 'Guardians of the Rift',
-    reason: 'rewards cost abyssal pearls, and neither pearls-per-round nor the pearl price is published',
+    reason:
+      '13 of 44 reward lines are ranged, and rewards cost abyssal pearls — a currency with no GE value',
+  },
+  {
+    name: 'Hallowed Sepulchre',
+    reason: 'Hallowed sack: 20 of 30 reward lines are ranged quantities',
+  },
+  {
+    name: 'Fishing Trawler',
+    reason:
+      '18 of 23 reward lines are quantity=Varies / rarity=Varies, so there is no distribution; only the angler pieces are fixed',
   },
   {
     name: 'Volcanic Mine',
-    reason: 'point rewards with no published points-per-hour',
+    reason: 'point rewards, and no published points-per-hour',
   },
   {
     name: 'Tithe Farm',
-    reason: 'point rewards with no published points-per-hour',
+    reason: 'point rewards, and no published points-per-hour',
+  },
+  {
+    name: 'Pest Control',
+    reason: 'commendation rewards, and no published commendations-per-hour',
+  },
+  {
+    name: 'Nightmare Zone',
+    reason: 'point rewards, and no published points-per-hour',
+  },
+  {
+    name: 'Barbarian Assault',
+    reason: 'honour-point rewards, and no published points-per-hour',
+  },
+  {
+    name: 'Mage Training Arena',
+    reason: 'pizazz-point rewards, and no published points-per-hour',
+  },
+  {
+    name: 'Soul Wars',
+    reason: 'zeal-token rewards, and no published tokens-per-hour',
+  },
+  {
+    name: 'Castle Wars',
+    reason: 'ticket rewards, and no published tickets-per-hour',
+  },
+  {
+    name: 'Last Man Standing',
+    reason: 'point rewards, and no published points-per-hour',
+  },
+  {
+    name: 'Bounty Hunter',
+    reason: 'point rewards, and no published points-per-hour',
   },
   {
     name: 'Mahogany Homes',
-    reason: 'a contract fee against a plank cost (a train-shape row) with no published contracts-per-hour',
+    reason:
+      'a contract fee against a plank cost (a train-shape row), and no published contracts-per-hour',
   },
   {
     name: "Giants' Foundry",
-    reason: 'a commission against a material cost (a train-shape row) with no published rounds-per-hour',
+    reason:
+      'a commission against a material cost (a train-shape row), and no published rounds-per-hour',
+  },
+  {
+    name: 'Pyramid Plunder',
+    reason: 'no reward table: loot is per-urn and per-chest, unquantified on the page',
+  },
+  {
+    name: 'Trouble Brewing',
+    reason: 'no reward table, and no published games-per-hour',
+  },
+  {
+    name: 'Rat Pits',
+    reason: 'no reward table: the page documents the game, not a payout',
+  },
+  {
+    name: 'Fist of Guthix',
+    reason: 'no reward table: rewards are bought from a shop the page does not tabulate',
+  },
+  {
+    name: 'Stealing Creation',
+    reason: 'no reward table: the payout depends on team scoring, which is not tabulated',
+  },
+  {
+    name: 'Blast Mine',
+    reason: 'publishes experience per hour, not profit; its ores are also priced as gather rows',
   },
 ];

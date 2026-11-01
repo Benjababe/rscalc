@@ -478,12 +478,19 @@ problem is not a cost. Tests pin both branches.
   (`docs/skilling-plan.md` §8.13b). Sailing's 124 rows are all `Cost`; the skilling
   page's skill filter prints a per-skill row count so a cost-only skill cannot read as
   absent from a list sorted by gp/hour.
-- **A minigame needs both halves to be priced.** Zalcano publishes a loot table whose
-  every quantity is a range with no weights (`Blood rune 64-480`) and no
-  kills-per-hour, so it is refused rather than averaged; Wintertodt, Tempoross,
-  Guardians of the Rift, Volcanic Mine, Tithe Farm, Mahogany Homes and Giants' Foundry
-  are refused in `scripts/minigameSources.ts`, each with the published number it is
-  missing. Do not fill either half in with an estimate.
+- **A minigame needs both halves to be priced, and the survey is exhaustive.** 29
+  pages were read; the Blast Furnace is the only minigame with a published throughput
+  *and* a published fee, and it is the only one with an overlay. Everything else is
+  refused in `scripts/minigameSources.ts` with the half that fails: reward tables whose
+  quantities are ranges or `Varies` (Zalcano 21/26 lines, Wintertodt crate 63/75,
+  Hallowed sack 20/30, Rewards Guardian 13/44, Fishing Trawler 18/23, Tempoross),
+  point shops with no published points-per-hour (Volcanic Mine, Tithe Farm, Pest
+  Control, Nightmare Zone, Barbarian Assault, Mage Training Arena, Soul Wars, Castle
+  Wars, LMS, Bounty Hunter), fee/commission games with no throughput (Mahogany Homes,
+  Giants' Foundry), and games with nothing tabulated (Pyramid Plunder, Trouble Brewing,
+  Rat Pits, Fist of Guthix, Stealing Creation, Blast Mine). Do not fill either half in
+  with an estimate, and do not widen `MINIGAME_RATES` without a source — a test asserts
+  it holds exactly the furnace.
 - **Template parameters are split on top-level pipes** (`src/api/wikiParams.ts`), not
   on newlines: the same template is written inline on some pages and multi-line on
   others, and a newline split silently reads only the first parameter — which looks

@@ -251,6 +251,13 @@ describe('skilling page', () => {
     });
     const options = [...skillSelect.options].map((option) => option.textContent ?? '');
 
+    // Alphabetical, not scan order and not by row count: the two are easy to confuse
+    // because the artifact's scan order roughly follows size.
+    const names = options
+      .filter((label) => label !== 'All skills' && label.includes('('))
+      .map((label) => label.replace(/\s*\(.*\)$/, ''));
+    expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
+
     // Sailing prices no income at all — every row is a training cost — so without a
     // count it looks absent from a list sorted by gp/hour.
     const sailing = options.find((label) => label.startsWith('Sailing ('));

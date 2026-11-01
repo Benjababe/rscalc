@@ -1158,7 +1158,27 @@ The overlay also makes a stale curation visible: `refresh-process.ts` checks eve
 curated `facility|item` key against the bucket and warns when one matches no recipe,
 so a renamed bar cannot silently stop being priced.
 
-#### Zalcano and the rest: refused, with the missing number named
+#### The full survey: 29 pages read, one minigame priced
+
+Every minigame a player would look for was checked, and each was read on its own page
+or on its reward page. A row needs **both** halves — a reward distribution with exact
+quantities and published chances, and a published rate — and one of the two fails
+everywhere except the Blast Furnace.
+
+| Group | Minigames | Which half fails |
+| --- | --- | --- |
+| Reward table exists, quantities do not | Zalcano (21/26 ranged), Wintertodt crate (63/75), Hallowed sack (20/30), Rewards Guardian (13/44, priced in abyssal pearls), Fishing Trawler (18/23 `Varies`/`Varies`), Tempoross pool | the distribution: a range or `Varies` with no weights has no expectation |
+| Point shops | Volcanic Mine, Tithe Farm, Pest Control, Nightmare Zone, Barbarian Assault, Mage Training Arena, Soul Wars, Castle Wars, Last Man Standing, Bounty Hunter | the rate: a reward costing 1,000 points is not an hourly figure unless something publishes how fast points arrive |
+| Fees or commissions | Mahogany Homes, Giants' Foundry | both: a `train`-shape row needs the material cost **and** contracts/rounds per hour |
+| Nothing tabulated | Pyramid Plunder, Trouble Brewing, Rat Pits, Fist of Guthix, Stealing Creation, Blast Mine | no reward table at all (Blast Mine publishes XP/hour, not profit, and its ores already price as gather rows) |
+
+The Blast Furnace is the only entry with a published throughput **and** a published
+fee, which is why it is the only one with an overlay. `scripts/minigameSources.ts`
+carries that list with one sentence per minigame, and `tests/minigame.test.ts` asserts
+it covers the set and that the priced list stays at exactly one — so a future
+minigame cannot be added by quietly widening the prices without a source.
+
+#### Zalcano: the clearest refusal
 
 **Zalcano** is the clearest refusal on the whole page. Every line of its drop table is
 a **ranged quantity** — `Blood rune 64-480`, `Silver ore 86-800`, `Runite ore 3-31` —

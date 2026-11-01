@@ -77,8 +77,39 @@ describe('minigame sources', () => {
       expect(refusal.name.length).toBeGreaterThan(0);
       expect(refusal.reason.length).toBeGreaterThan(20);
     }
+  });
+
+  it('surveys the whole minigame set, not a sample', () => {
     const named = MINIGAME_REFUSALS.map((entry) => entry.name.toLowerCase());
-    expect(named).toContain('zalcano');
+    // Every minigame a player would look for: the ones with reward tables whose
+    // quantities or rates are unpublished, the point shops, and the ones with no
+    // table at all. A minigame missing here would read as "never considered".
+    for (const required of [
+      'zalcano',
+      'wintertodt',
+      'tempoross',
+      'guardians of the rift',
+      'hallowed sepulchre',
+      'fishing trawler',
+      'volcanic mine',
+      'tithe farm',
+      'pest control',
+      'nightmare zone',
+      'barbarian assault',
+      'mage training arena',
+      'mahogany homes',
+      "giants' foundry",
+    ]) {
+      expect(named).toContain(required);
+    }
+    expect(new Set(named).size).toBe(named.length);
+  });
+
+  it('prices only the minigame that publishes both halves', () => {
+    // One priced, everything else refused: if a second facility ever appears in
+    // `MINIGAME_RATES` it must come with both a rate table and a fee.
+    expect(MINIGAME_RATES.map((rate) => rate.facility)).toEqual(['Blast Furnace']);
+    expect(MINIGAME_REFUSALS.length).toBeGreaterThanOrEqual(20);
   });
 });
 
