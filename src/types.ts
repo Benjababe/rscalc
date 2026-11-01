@@ -508,6 +508,12 @@ export const SkillActivitySchema = ProcessOpportunitySchema.extend({
    * output, but the page still has to say what you are building.
    */
   outputName: z.string().min(1),
+  /**
+   * Cooking only: the level at which this food stops burning, above which the
+   * margin is deterministic. `null` for every other skill, and for a Cooking
+   * food that never stops burning on a plain source (such a row is not priced).
+   */
+  noBurnLevel: z.number().int().min(1).max(99).nullable(),
 });
 export type SkillActivity = z.infer<typeof SkillActivitySchema>;
 

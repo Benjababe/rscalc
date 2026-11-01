@@ -146,7 +146,7 @@ data/process.json        deterministic processing recipes for both price modes,
                          with inputs, output, fees, caps and tick time
 data/skilling.json       per scanned skill, every priced activity in both modes
                          (Crafting, Fletching, Smithing, Herblore, Magic,
-                         Runecraft, Construction today), with a coverage line:
+                         Runecraft, Construction, Cooking), with a coverage line:
                          priced rows,
                          profitable, loss-making, cost-only, unknown rate,
                          unpriced
@@ -176,6 +176,7 @@ pnpm sinks --write  # data/shop-sinks.json (both buy modes)
 pnpm process        # data/process.json (recipe bucket + prices; both modes)
 pnpm skilling       # data/skilling.json (scanned skills; losses included)
 pnpm skilling --skill=crafting --limit=30 --actions-per-hour=1200
+pnpm skilling --skill=cooking --cooking-level=90   # only foods safe at 90
 pnpm build          # UI bundle
 ```
 
@@ -407,15 +408,19 @@ deterministic per-action profit with no clock keeps `gpPerHour = null` (`—`),
 and an activity whose profit only exists as a rate is skipped and counted.
 - Chance, range and level-scaled quantities are priced at a **sourced expected
 value** and labelled `EV`; without a published distribution the row stays out.
-- Phase 1 done: Smithing, Crafting, Fletching, Herblore, Runecraft, Construction
-  and Magic ✅ — 1,860 priced activities from 3,345 bucket recipes, all re-framed
-  by the same engine. The unpriced remainder is untradeable legs, no 4h
-  liquidity, unmapped combined-item names or a chance note: counted, never
-  estimated. Tanning hides is out (no xp, no recipe); alch and shop sale as output
-  channels are still open (Q6 in the plan).
-- Cooking is ❌ and stays out: the bucket publishes no burn chance and no no-burn
-  level, so there is nothing to price. It needs one curated table (no-burn levels
-  per food) plus the §3.1 EV rule, not an engine change.
+- Phase 1 done: Smithing, Crafting, Fletching, Herblore, Runecraft, Construction,
+  Magic and Cooking ✅ — 1,907 priced activities from 3,886 bucket recipes, all
+  re-framed by the same engine. The unpriced remainder is untradeable legs, no 4h
+  liquidity, unmapped combined-item names, a chance note, or a Cooking food with
+  no published no-burn level: counted, never estimated. Tanning hides is out
+  (no xp, no recipe); alch and shop sale as output channels are still open (Q6).
+- **Cooking is gated, not guessed.** A cooked food burns and destroys the input,
+  so a Cooking row carries `noBurnLevel` (the level at which it stops burning, from
+  the wiki's burn table) and is only meaningful at or above it. The artifact keeps
+  every gated row; the player's Cooking level filters them, like the gold budget.
+  A food with no published level, or one that never stops burning on a plain
+  source (`null`), is unpriced — `scripts/cookingBurnLevels.ts` lists the
+  never-safe foods explicitly so "absent" and "safe" cannot be confused.
 - Runecraft's published tick is the altar action, so its gp/hour is an altar-rate
   upper bound (banking excluded, as on the processing page) — labelled, not fixed.
 **Accept:** tests pin the loss-side inclusion, skill filtering, the unpriced

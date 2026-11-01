@@ -6,6 +6,7 @@ import {
   SKILLING_SKILLS,
   rankSkillActivities,
 } from '../src/engine/skilling.js';
+import { toBurnIndex } from '../src/domain/cooking.js';
 import {
   SkillingPayloadSchema,
   type MarketQuote,
@@ -221,6 +222,129 @@ const ILLIQUID = recipe({
   skills: [{ name: 'Construction', level: 50 }],
 });
 
+/** Cooking: a raw food, a cooked output, and a published no-burn level. */
+const RAW_MONKFISH = quote({
+  id: 8,
+  name: 'Raw monkfish',
+  high: 400,
+  low: 400,
+  highVolume24h: 60_000,
+  lowVolume24h: 60_000,
+  limit: 10_000,
+});
+const MONKFISH = quote({
+  id: 9,
+  name: 'Monkfish',
+  high: 500,
+  low: 500,
+  highVolume24h: 60_000,
+  lowVolume24h: 60_000,
+});
+const COOK_MONKFISH = recipe({
+  id: 'monkfish',
+  page: 'Monkfish',
+  ticks: 1,
+  materials: [{ name: 'Raw monkfish', quantity: 1, note: null }],
+  output: { name: 'Monkfish', quantity: 1, note: null },
+  skills: [{ name: 'Cooking', level: 62 }],
+});
+const COOK_MYSTERY = recipe({
+  id: 'mystery-fish',
+  page: 'Mystery fish',
+  ticks: 1,
+  materials: [{ name: 'Raw monkfish', quantity: 1, note: null }],
+  output: { name: 'Mystery fish', quantity: 1, note: null },
+  skills: [{ name: 'Cooking', level: 1 }],
+});
+const BURN = toBurnIndex([
+  { item: 'Monkfish', level: 90, source: 'range' },
+  { item: 'Shark', level: null, source: 'range' },
+]);
+
+describe('cooking rows', () => {
+  const market = () => ({
+    ...MARKET,
+    quotes: {
+      ...MARKET.quotes,
+      [String(RAW_MONKFISH.id)]: RAW_MONKFISH,
+      [String(MONKFISH.id)]: MONKFISH,
+    },
+  });
+
+  it('prices a cook above its no-burn level and records that level', () => {
+    const result = rankSkillActivities([COOK_MONKFISH], market(), {
+      skill: 'Cooking',
+      mode: 'pessimistic',
+      burnLevels: BURN,
+      cookingLevel: 90,
+    });
+
+    const row = result.ranking.opportunities[0];
+    if (row === undefined) throw new Error('expected a cooking row');
+    expect(row.noBurnLevel).toBe(90);
+    // 500 gp of monkfish less 400 gp of raw monkfish, no tax under 50 gp? No:
+    // 500 * 2% = 10 gp tax, so 500 - 10 - 400 = 90 gp per action.
+    expect(row.tax).toBe(10);
+    expect(row.profit).toBe(90);
+  });
+
+  it('drops a cook below its no-burn level instead of pricing a burn chance', () => {
+    const result = rankSkillActivities([COOK_MONKFISH], market(), {
+      skill: 'Cooking',
+      mode: 'pessimistic',
+      burnLevels: BURN,
+      cookingLevel: 89,
+    });
+
+    expect(result.ranking.opportunities).toHaveLength(0);
+    expect(result.coverage.unpriced).toBe(1);
+  });
+
+  it('keeps every gated row when no level is given, so the page can gate', () => {
+    const result = rankSkillActivities([COOK_MONKFISH], market(), {
+      skill: 'Cooking',
+      mode: 'pessimistic',
+      burnLevels: BURN,
+    });
+
+    expect(result.ranking.opportunities[0]?.noBurnLevel).toBe(90);
+  });
+
+  it('leaves a food with no published no-burn level unpriced', () => {
+    const result = rankSkillActivities([COOK_MYSTERY], market(), {
+      skill: 'Cooking',
+      mode: 'pessimistic',
+      burnLevels: BURN,
+      cookingLevel: 99,
+    });
+
+    expect(result.ranking.opportunities).toHaveLength(0);
+    expect(result.coverage.unpriced).toBe(1);
+  });
+
+  it('leaves a food that never stops burning unpriced', () => {
+    const shark = { ...COOK_MONKFISH, id: 'shark', output: { name: 'Shark', quantity: 1, note: null } };
+    const result = rankSkillActivities([shark], market(), {
+      skill: 'Cooking',
+      mode: 'pessimistic',
+      burnLevels: BURN,
+      cookingLevel: 99,
+    });
+
+    expect(result.ranking.opportunities).toHaveLength(0);
+  });
+
+  it('prices nothing when no burn table is supplied', () => {
+    const result = rankSkillActivities([COOK_MONKFISH], market(), {
+      skill: 'Cooking',
+      mode: 'pessimistic',
+      cookingLevel: 99,
+    });
+
+    expect(result.ranking.opportunities).toHaveLength(0);
+  });
+});
+
 describe('train rows', () => {
   it('prices an unsellable output as the cost of one action', () => {
     const result = rankSkillActivities([TABLE], market([MAHOGANY_PLANK]), {
@@ -294,6 +418,13 @@ describe('committed skilling artifact', () => {
         rows.filter((row) => row.kind === 'train').length,
       );
       for (const row of rows) {
+        // Only Cooking can be burn-gated, and a priced cooking row must say at
+        // which level it is deterministic.
+        if (catalog.skill === 'Cooking') {
+          expect(row.noBurnLevel).toBeGreaterThanOrEqual(1);
+        } else {
+          expect(row.noBurnLevel).toBeNull();
+        }
         // A train row sells nothing: no output, no revenue, cost only.
         expect(row.output === null).toBe(row.kind === 'train');
         if (row.kind === 'train') {

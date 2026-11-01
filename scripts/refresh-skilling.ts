@@ -24,6 +24,11 @@ import { fileURLToPath } from 'url';
 
 import { fetch24h, fetchLatest, fetchMapping } from '../src/api/prices.js';
 import { fetchRecipes } from '../src/api/wikiRecipes.js';
+import { toBurnIndex } from '../src/domain/cooking.js';
+import {
+  COOKING_BURN_SOURCE,
+  COOKING_NO_BURN_LEVELS,
+} from './cookingBurnLevels.js';
 import { SKILLING_SKILLS, rankSkillActivities } from '../src/engine/skilling.js';
 import type { SkillingSkill } from '../src/engine/skilling.js';
 import { formatLocalTime } from '../src/util/time.js';
@@ -43,6 +48,8 @@ interface Cli {
   skills: SkillingSkill[];
   actionsPerHour: number;
   limit: number;
+  /** Player's Cooking level; 0 means "not given", so no rows are gated out. */
+  cookingLevel: number;
 }
 
 function log(message: string): void {
@@ -62,6 +69,7 @@ function parseArgs(argv: string[]): Cli {
     skills: [...SKILLING_SKILLS],
     actionsPerHour: 0,
     limit: 12,
+    cookingLevel: 0,
   };
 
   for (const arg of argv) {
@@ -84,6 +92,13 @@ function parseArgs(argv: string[]): Cli {
       cli.actionsPerHour = nonNegativeNumber(
         arg.slice('--actions-per-hour='.length),
         '--actions-per-hour',
+      );
+    } else if (arg.startsWith('--cooking-level=')) {
+      cli.cookingLevel = Math.floor(
+        nonNegativeNumber(
+          arg.slice('--cooking-level='.length),
+          '--cooking-level',
+        ),
       );
     } else if (arg.startsWith('--limit=')) {
       cli.limit = Math.max(
@@ -228,16 +243,33 @@ async function main(): Promise<void> {
   };
   log(`  ${market.itemCount.toLocaleString()} priced items | ${market.pricesAsOf}`);
 
-  const skills: SkillActivityCatalog[] = cli.skills.map((skill) => {
+  const burnLevels = toBurnIndex(COOKING_NO_BURN_LEVELS);
+  log(
+    `  ${burnLevels.size} Cooking foods have a published no-burn level ` +
+      `(${COOKING_BURN_SOURCE})`,
+  );
+
+  // The artifact always carries every scanned skill: filters are for the
+  // terminal. Writing only the flags' subset would silently truncate the file the
+  // UI reads — `--skill=cooking` once produced a one-skill artifact.
+  const skills: SkillActivityCatalog[] = [...SKILLING_SKILLS].map((skill) => {
+    // The artifact keeps every priced row, including Cooking foods the player
+    // cannot yet cook without burning: each carries its `noBurnLevel`, so the
+    // page can gate on the level the player enters. `--cooking-level` therefore
+    // shapes the terminal table only.
     const pessimistic = rankSkillActivities(recipes.recipes, market, {
       skill,
       mode: 'pessimistic',
       maxActionsPerHour: cli.actionsPerHour,
+      burnLevels: burnLevels,
+      cookingLevel: cli.cookingLevel > 0 ? cli.cookingLevel : undefined,
     });
     const patient = rankSkillActivities(recipes.recipes, market, {
       skill,
       mode: 'patient',
       maxActionsPerHour: cli.actionsPerHour,
+      burnLevels: burnLevels,
+      cookingLevel: cli.cookingLevel > 0 ? cli.cookingLevel : undefined,
     });
     // Both modes price the same action set; take the pessimistic coverage so the
     // two pages cannot disagree about how much of the skill is covered.
@@ -262,7 +294,10 @@ async function main(): Promise<void> {
     `\nwrote data/skilling.json — ${skills.length} skill(s), ` +
       `${skills.reduce((sum, entry) => sum + entry.coverage.activities, 0)} activities`,
   );
-  for (const catalog of skills) printTable(catalog, 'pessimistic', cli.limit);
+  const shown = new Set<string>(cli.skills);
+  for (const catalog of skills) {
+    if (shown.has(catalog.skill)) printTable(catalog, 'pessimistic', cli.limit);
+  }
 
   const unpriced = skills.reduce((sum, entry) => sum + entry.coverage.unpriced, 0);
   if (unpriced > 0) {

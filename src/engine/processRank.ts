@@ -83,6 +83,15 @@ export interface ProcessRankOptions {
   /** Override the skill allowlist. Omitted means `PROCESSING_SKILLS`. */
   skills?: readonly string[];
   /**
+   * Override the excluded-skill set. Omitted means `EXCLUDED_SKILLS` (Cooking).
+   *
+   * The skilling engine passes an empty list because it handles Cooking's burn
+   * chance differently: it only prices a food above its published no-burn level,
+   * which is a stronger guarantee than this blanket exclusion. See
+   * `src/domain/cooking.ts`.
+   */
+  excludedSkills?: readonly string[];
+  /**
    * Minimum profit per action, in gp. Default 1, so the processing page lists
    * only profitable recipes. A caller that wants the loss-making side — the
    * skilling page's cost-to-train rows — passes a negative floor, which turns
@@ -180,8 +189,9 @@ function isRecipeAllowed(
   recipe: RawRecipe,
   allowed: ReadonlySet<string>,
   explicitSkills: boolean,
+  excluded: ReadonlySet<string>,
 ): boolean {
-  if (recipe.skills.some((skill) => EXCLUDED_SKILLS.has(skill.name.toLowerCase()))) {
+  if (recipe.skills.some((skill) => excluded.has(skill.name.toLowerCase()))) {
     return false;
   }
   if (recipe.skills.length === 0) {
@@ -227,6 +237,11 @@ export function rankProcess(
   const mode = options.mode;
   const membersOnly = options.membersOnly ?? false;
   const explicitSkills = options.skills !== undefined;
+  const excludedSkills = new Set(
+    (options.excludedSkills ?? [...EXCLUDED_SKILLS]).map((skill) =>
+      skill.toLowerCase(),
+    ),
+  );
   const allowed = new Set(
     (options.skills ?? PROCESSING_SKILLS).map((skill) => skill.toLowerCase()),
   );
@@ -238,7 +253,9 @@ export function rankProcess(
 
   for (const recipe of recipes) {
     if (membersOnly && !recipe.members) continue;
-    if (!isRecipeAllowed(recipe, allowed, explicitSkills)) continue;
+    if (!isRecipeAllowed(recipe, allowed, explicitSkills, excludedSkills)) {
+      continue;
+    }
     if (hasChanceOrAverageNote(recipe)) continue;
     if (!isPositiveInteger(recipe.output.quantity)) continue;
 

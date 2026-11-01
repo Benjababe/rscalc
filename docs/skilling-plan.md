@@ -58,9 +58,11 @@ Treat the split as a shape, not a constant.
 | Magic | 228 | 146 | 66 / 80 | 147 |
 | Runecraft | 195 | 51 | 18 / 33 | 52 |
 | Construction | 959 | 756 | 2 / 754 | 745 |
+| Cooking | 541 | 47 | 16 / 31 | 46 |
 
-1,860 activities priced in total, from 3,345 bucket recipes. See §8 for why the
-rest are unpriced, and for Construction's 736 `train` rows — activities whose
+1,907 activities priced in total, from 3,886 bucket recipes. Cooking rows carry a
+`noBurnLevel` and are gated on a level the player enters (§8.10). See §8 for why
+the rest are unpriced, and for Construction's 736 `train` rows — activities whose
 output cannot be sold at all, priced as the cost of one action.
 
 ## 2. Row model
@@ -161,7 +163,7 @@ estimates are for sanity-checking the output, not targets.
 | 5 | Runecraft | **✅ scanned — see §8.5** |
 | 6 | Construction | **✅ scanned — see §8.6** (needed a new `train` row kind) |
 | 7 | Magic | **✅ scanned — see §8.9** (high-alch as an output channel is still Q6) |
-| 8 | Cooking | **❌ blocked — see §8.10.** The bucket carries no burn chance at all, so the EV rule (§3.1) has nothing to read. Needs one more source before any row can be priced. |
+| 8 | Cooking | **✅ scanned — see §8.10.** Priced only above each food's published no-burn level, with the player's level as the gate. |
 
 ### Phase 2 — gathering and collection (new sources)
 
@@ -479,38 +481,51 @@ Avernic treads, ecumenical key), spell pages that are not items (`Enchant
 dragonstone`), a handful of tablets needing untradeable dark essence, and the
 `(m)`/`(e)`-style variants where the note flags a chance.
 
-### 8.10 Cooking ❌ blocked on one source
+### 8.10 Cooking ✅ — gated on the player's level
 
-538 bucket recipes name Cooking and **not one is priced**. That is deliberate:
-`EXCLUDED_SKILLS` in `processRank.ts` drops the whole skill, because cooking a
-fish has a burn chance and the bucket does not publish it. Pricing a cooked shark
-as if every raw shark became a shark would be the single most confidently wrong
-number on the page.
+541 bucket recipes name Cooking; **47 priced** (16 profitable, 31 loss-making),
+46 in patient mode. The other 494 are brewing, gnome-cooking assembly, dough and
+pizza assembly — recipes that never touch a range — and are unpriced because
+nothing publishes a burn level for them.
 
-I checked the source rather than assuming: of 538 Cooking recipes, only **4**
-carry any `quantitynote`, and none of them mentions a burn rate or a no-burn
-level. `production_json` has `ticks`, `materials`, `output`, `skills` — no burn
-field. So the EV rule in §3.1 has nothing to read, and adding "Cooking" to
-`SKILLING_SKILLS` today would emit a skill with zero rows.
+**Why this skill needed a level input.** Cooking's profit depends on whether the
+food burns, and burning destroys the input. The bucket publishes no burn chance
+and no no-burn level, so the skill was previously excluded outright. The wiki does
+publish the level at which each food **stops** burning
+(<https://oldschool.runescape.wiki/w/Cooking/Burn_level>), and above that level the
+action is deterministic — a plain "buy raw, sell cooked" margin, exact, no
+probability needed.
 
-Two ways to unblock it, in order of what I would trust:
+So the row shape gained one field:
 
-1. **No-burn levels (recommended).** Every food stops burning at a specific
-   Cooking level, sometimes only with cooking gauntlets. Above that level the
-   action is deterministic, so the row needs no probability at all — just the
-   level, and `gp/hour` follows from the published ticks. Source: the wiki's
-   Cooking tables (`https://oldschool.runescape.wiki/w/Cooking`) or the per-item
-   "burn level" data. This fits §4 exactly and is a small curated table.
-2. **Burn-chance curve.** Full EV per food per level, `EV = (1 - p_burn) × output`
-   minus the raw cost. More faithful, but it is a large table, it varies with
-   level and gauntlets, and it makes every row level-dependent in a way the rest
-   of the artifact is not.
+- `noBurnLevel: number | null` — the level at which that food never burns on a
+  plain fire or range. `null` for every non-Cooking row, and for the foods that
+  never stop burning on a plain source (Shark, Anglerfish, Manta ray, Dark crab:
+  the source shows `-` in both plain columns).
+- The artifact keeps every gated row; the **player's Cooking level** filters them:
+  `pnpm skilling --cooking-level=90` prints only monkfish-and-below, and the page
+  will do the same from an input, exactly like the gold budget. A row above the
+  player's level is not shown, because at that level its margin is a gamble.
+- A food with no entry in the table is never assumed safe. That is why the table in
+  `scripts/cookingBurnLevels.ts` also lists the never-safe foods explicitly: so
+  "absent" and "safe" cannot be confused.
 
-Either way it is one wiki read plus a curated table — no new engine concept. Until
-then Cooking is the only Phase 1 skill with no rows, and the coverage line would
-say so if it were scanned.
+The table is **curated, cited**, not parsed. The source page is wikitext with a
+two-row header (`Food` spans two columns; `Hosidius` and `Gauntlets` span several)
+and body rows that sometimes write the food as two cells, so a header-addressed
+parser cannot line its columns up without guessing — the one thing this repo does
+not do. Same policy as `scripts/shopAccessRules.ts`: hand-read from a page that
+states it, with the URL in the file.
 
-## 9. Phase 1 complete (7 of 8 skills)
+Leaders: Monkfish 63 gp/action (204k/h), Cooked karambwan 105, Bass 29, Redberry
+pie 95, Red crab meat 316 — the last two are the honest costs of cooking something
+you assembled earlier. Biggest losses: Mushroom pie −6,615 per action.
+
+**A caveat the page must carry.** These are 100%-success margins at the stated
+level. The ticks are the wiki's cooking ticks, so `gp/hour` still ignores the walk
+to a range, like every other row.
+
+## 9. Phase 1 complete (8 of 8 skills)
 
 | Skill | Status | Rows |
 |---|---|---|
@@ -521,11 +536,12 @@ say so if it were scanned.
 | Runecraft | ✅ §8.5 | 51 |
 | Construction | ✅ §8.6 | 756 |
 | Magic | ✅ §8.9 | 146 |
-| Cooking | ❌ §8.10 — no burn data in the source | 0 |
+| Cooking | ✅ §8.10 — gated on the player's Cooking level | 47 |
 
-**1,860 activities priced from 3,345 bucket recipes**, with no hand-typed item,
-price, fee or rate anywhere: every number is a GE quote joined to the wiki's own
-recipe table.
+**1,907 activities priced from 3,886 bucket recipes**, with no hand-typed item,
+price or rate anywhere: every number is a GE quote joined to the wiki's own recipe
+table. The one curated input is the Cooking no-burn table, which is a game
+constant read off a wiki page that states it.
 
 What the eight skills taught, in the order it will bite when the page is built:
 

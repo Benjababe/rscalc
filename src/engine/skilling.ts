@@ -36,6 +36,11 @@
 
 import type { RawRecipe } from '../api/wikiRecipes.js';
 import {
+  cooksWithoutBurning,
+  noBurnLevelFor,
+  type BurnIndex,
+} from '../domain/cooking.js';
+import {
   actions4hForRate,
   actionsPerHour,
   capActionsPerHour,
@@ -71,6 +76,7 @@ export const SKILLING_SKILLS = [
   'Construction',
   'Herblore',
   'Magic',
+  'Cooking',
 ] as const;
 export type SkillingSkill = (typeof SKILLING_SKILLS)[number];
 
@@ -100,6 +106,17 @@ export interface SkillActivityOptions {
   mode: SellMode;
   /** Player-entered actions/hour ceiling; 0 or omitted uses each recipe rate. */
   maxActionsPerHour?: number;
+  /**
+   * The player's Cooking level, for Cooking only.
+   *
+   * Cooking rows are kept only when the player's level is at or above the food's
+   * published no-burn level, so the margin is deterministic. Omitted means "no
+   * level given": the rows are still listed (they are priced at 100% success) but
+   * each carries its `noBurnLevel` so the page can gate them itself.
+   */
+  cookingLevel?: number;
+  /** Curated no-burn levels; required to price Cooking at all. */
+  burnLevels?: BurnIndex;
 }
 
 export interface SkillActivityResult {
@@ -226,6 +243,7 @@ function trainActivity(
       netRevenue: 0,
       profit: -spend,
       marginPct: -100,
+      noBurnLevel: null,
       ticks: recipe.ticks,
       secondsPerAction: seconds,
       marketActions4h: inputActions,
@@ -281,13 +299,38 @@ export function rankSkillActivities(
     skills: [options.skill],
     minProfit: NO_PROFIT_FLOOR,
     maxActionsPerHour,
+    // Cooking is handled by the no-burn gate below instead of a blanket drop.
+    excludedSkills: options.skill === 'Cooking' ? [] : undefined,
   });
 
   const activities: SkillActivity[] = priced.opportunities.map((row) => ({
     ...row,
     kind: 'transform',
     outputName: row.output.itemName,
+    noBurnLevel: null,
   }));
+
+  // Cooking: keep only the foods that are deterministic at the stated level.
+  // A food with no published no-burn level (or one that still burns at 99) is
+  // unpriced — its profit depends on a burn chance we do not have.
+  if (options.skill === 'Cooking') {
+    const index = options.burnLevels;
+    const kept: SkillActivity[] = [];
+    for (const row of activities) {
+      const level = index === undefined ? undefined : noBurnLevelFor(index, row.outputName);
+      // No published level: unpriced. The gap shows up in `coverage.unpriced`.
+      if (index === undefined || typeof level !== 'number') continue;
+      if (
+        options.cookingLevel !== undefined &&
+        (index === undefined || !cooksWithoutBurning(index, row.outputName, options.cookingLevel))
+      ) {
+        continue;
+      }
+      kept.push({ ...row, noBurnLevel: level });
+    }
+    activities.length = 0;
+    activities.push(...kept);
+  }
 
   let trainOnly = 0;
   if (TRAIN_SKILLS.has(options.skill)) {
