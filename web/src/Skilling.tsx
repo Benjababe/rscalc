@@ -72,6 +72,7 @@ const KIND_LABEL: Record<SkillActivityKind, string> = {
   transform: "Make",
   upgrade: "Upgrade",
   train: "Cost",
+  gather: "Gather",
 };
 
 const KIND_TITLE: Record<SkillActivityKind, string> = {
@@ -81,15 +82,18 @@ const KIND_TITLE: Record<SkillActivityKind, string> = {
     "Re-work one finished item into a better version of it (anguish → rupture). Still a sale, but a one-off: millions of capital and a handful of conversions a day.",
   train:
     "Build something that cannot be sold — house furniture. The row is the cost of one action, not a flip.",
+  gather:
+    "One unit from one node per respawn, with no inputs. The rate is the wiki's respawn timer, so it assumes nobody else is competing for that node.",
 };
 
-const KINDS = ["all", "transform", "upgrade", "train"] as const;
+const KINDS = ["all", "transform", "upgrade", "gather", "train"] as const;
 type KindFilter = (typeof KINDS)[number];
 
 const KIND_FILTER_LABEL: Record<KindFilter, string> = {
   all: "All kinds",
   transform: "Make & sell",
   upgrade: "Upgrades",
+  gather: "Gathering",
   train: "Cost to train",
 };
 
@@ -393,9 +397,9 @@ export function SkillingPage(): JSX.Element {
           title="Rows with a positive per-action profit in the selected mode"
         />
         <Stat
-          label="Unpriced recipes"
+          label="Unpriced"
           value={totals.unpriced.toLocaleString()}
-          title="Bucket recipes with no GE price on a leg, no 4h liquidity, a fractional quantity or a chance note. Counted, never estimated."
+          title="Candidates that produced no row: bucket recipes with no GE price on a leg, no 4h liquidity, a fractional quantity or a chance note, plus gathering nodes whose item has no market. Counted, never estimated."
         />
       </section>
 

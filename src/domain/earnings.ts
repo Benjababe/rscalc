@@ -475,9 +475,11 @@ export function buildEarnings(
       kind: 'skilling',
       name: opp.outputName,
       where:
-        opp.inputs
-          .map((item) => `${item.itemName} ×${item.quantity}`)
-          .join(', ') || 'nothing',
+        opp.kind === 'gather'
+          ? 'one node, one respawn'
+          : opp.inputs
+                .map((item) => `${item.itemName} ×${item.quantity}`)
+                .join(', ') || 'nothing',
       detail: opp.facility ?? opp.method,
       members: opp.members,
       gpPerHour: opp.gpPerHour,

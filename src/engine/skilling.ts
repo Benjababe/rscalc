@@ -34,6 +34,7 @@
  * <https://oldschool.runescape.wiki/w/Module:Recipe>.
  */
 
+import type { GatheringNode } from '../api/wikiGathering.js';
 import type { RawRecipe } from '../api/wikiRecipes.js';
 import {
   cooksWithoutBurning,
@@ -46,14 +47,17 @@ import {
   capActionsPerHour,
   secondsPerAction,
 } from '../domain/processTime.js';
+import { geTax } from '../domain/tax.js';
 import {
   fourHourSlice,
   hasChanceOrAverageNote,
   inputVolume24h,
   isPositiveInteger,
+  outputVolume24h,
   quoteIndex,
   rankProcess,
   targetInputPrice,
+  targetOutputPrice,
 } from './processRank.js';
 import type {
   MarketSnapshot,
@@ -127,6 +131,12 @@ export interface SkillActivityOptions {
   cookingLevel?: number;
   /** Curated no-burn levels; required to price Cooking at all. */
   burnLevels?: BurnIndex;
+  /**
+   * Curated gathering nodes for this skill, from the wiki's respawn data. When
+   * present, `gather` rows are appended and counted; when absent the skill has no
+   * gathering rows at all.
+   */
+  gatheringNodes?: readonly GatheringNode[];
   /**
    * Curated upgrade recipes, keyed `skill|output` (lower-cased). A match moves the
    * row from `transform` to `upgrade` so a one-off item conversion is not ranked
@@ -279,6 +289,96 @@ function wikiUrl(page: string): string {
   )}`;
 }
 
+/**
+ * Price a curated `gather` node: one unit per respawn, no inputs, no fee.
+ *
+ * The rate is the wiki's respawn time, so `gp/hour` is what a single node
+ * sustains with nobody else mining it — an upper bound, labelled as such in
+ * `docs/skilling-plan.md` §8.15. Rows whose item has no GE price are returned as
+ * `unpriced`, never priced at zero.
+ */
+export function rankGatherActivities(
+  nodes: readonly GatheringNode[],
+  market: MarketSnapshot,
+  options: { skill: SkillingSkill; mode: SellMode },
+): { activities: SkillActivity[]; unpriced: number } {
+  const quotes = quoteIndex(market);
+  const activities: SkillActivity[] = [];
+  let unpriced = 0;
+
+  for (const node of nodes) {
+    if (node.skill !== options.skill) continue;
+    const quote = quotes.get(node.item.toLowerCase());
+    if (quote === undefined) {
+      unpriced += 1;
+      continue;
+    }
+    const price = targetOutputPrice(quote, options.mode);
+    if (price === null) {
+      unpriced += 1;
+      continue;
+    }
+
+    const volume4h = fourHourSlice(outputVolume24h(quote, options.mode));
+    if (volume4h < 1) {
+      unpriced += 1;
+      continue;
+    }
+
+    const tax = geTax(price);
+    const profit = price - tax;
+    const seconds = node.respawnSeconds;
+    const timeActions4h = Math.floor((GE_WINDOW_HOURS * 3600) / seconds);
+    if (timeActions4h < 1) {
+      unpriced += 1;
+      continue;
+    }
+    const actions4h = Math.min(volume4h, timeActions4h);
+    const gpPer4h = actions4h * profit;
+
+    activities.push({
+      kind: 'gather',
+      recipeId: `gather:${node.item}`,
+      output: {
+        itemId: quote.id,
+        itemName: quote.name,
+        quantity: 1,
+        price,
+        volume4h,
+        geBuyLimit: quote.limit,
+      },
+      outputName: node.item,
+      noBurnLevel: null,
+      inputs: [],
+      method: null,
+      facility: null,
+      tools: null,
+      members: quote.members,
+      skills: [{ name: node.skill, level: node.level }],
+      source: node.source,
+      itemCost: 0,
+      feeGp: 0,
+      spend: 0,
+      grossRevenue: price,
+      tax,
+      netRevenue: profit,
+      // Nothing is spent, so the margin is the whole sale.
+      profit,
+      marginPct: 100,
+      // Derived from the respawn, not a published action tick: 0.6s per tick.
+      ticks: Math.round((seconds / 0.6) * 10) / 10,
+      secondsPerAction: seconds,
+      marketActions4h: volume4h,
+      timeActions4h,
+      actions4h,
+      gpPer4h,
+      gpPerHour: gpPer4h / GE_WINDOW_HOURS,
+    });
+  }
+
+  return { activities, unpriced };
+}
+
 /** Total ordering shared by transform and train rows. */
 function compareActivities(a: SkillActivity, b: SkillActivity): number {
   if (a.gpPerHour !== b.gpPerHour) {
@@ -372,16 +472,29 @@ export function rankSkillActivities(
     }
   }
 
+  // Gathering rows come from the wiki's respawn data rather than a recipe, so
+  // they are appended after the recipe rows and sorted in with them.
+  if (options.gatheringNodes !== undefined && options.gatheringNodes.length > 0) {
+    const gathered = rankGatherActivities(options.gatheringNodes, market, {
+      skill: options.skill,
+      mode: options.mode,
+    });
+    activities.push(...gathered.activities);
+  }
+
   activities.sort(compareActivities);
 
   let profitable = 0;
   let unknownRate = 0;
   let upgradeCount = 0;
+  let gatherCount = 0;
   for (const activity of activities) {
     if (activity.profit > 0) profitable += 1;
     if (activity.gpPerHour === null) unknownRate += 1;
     if (activity.kind === 'upgrade') upgradeCount += 1;
+    if (activity.kind === 'gather') gatherCount += 1;
   }
+  const nodeCount = options.gatheringNodes?.length ?? 0;
 
   return {
     skill: options.skill,
@@ -393,13 +506,17 @@ export function rankSkillActivities(
     coverage: {
       skill: options.skill,
       recipes: mine.length,
+      nodes: nodeCount,
       activities: activities.length,
       profitable,
       lossMaking: activities.length - profitable,
       unknownRate,
+      gathered: gatherCount,
       trainOnly,
       upgrades: upgradeCount,
-      unpriced: mine.length - activities.length,
+      // Candidates that produced no row: bucket recipes and curated nodes both
+      // count, so `unpriced === recipes + nodes - activities` always holds.
+      unpriced: mine.length + nodeCount - activities.length,
     },
   };
 }

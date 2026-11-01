@@ -61,13 +61,13 @@ Treat the split as a shape, not a constant.
 | Cooking | 541 | 47 | 16 / 31 | 46 |
 | Farming | 138 | 12 | 5 / 7 | 8 |
 | Sailing | 153 | 124 | 0 / 124 | 119 |
-| Mining | 2 | 0 | 0 / 0 | 0 |
-| Woodcutting | 27 | 3 | 2 / 1 | 3 |
+| Mining | 2 + 13 nodes | 11 | 11 / 0 | 11 |
+| Woodcutting | 27 + 14 nodes | 17 | 16 / 1 | 17 |
 | Fishing | 18 | 0 | 0 / 0 | 0 |
 | Hunter | 5 | 4 | 0 / 4 | 4 |
 | Thieving | 0 | 0 | 0 / 0 | 0 |
 
-2,050 activities priced in total, from 4,229 bucket recipes. Cooking rows carry a
+2,075 activities priced in total, from 4,229 bucket recipes and 27 gathering nodes. Cooking rows carry a
 `noBurnLevel` and are gated on a level the player enters (§8.10). See §8 for why
 the rest are unpriced, and for Construction's 736 `train` rows — activities whose
 output cannot be sold at all, priced as the cost of one action.
@@ -178,8 +178,8 @@ estimates are for sanity-checking the output, not targets.
 |---|---|---|---|
 | 9 | Farming | **✅ scanned — see §8.12** | compost prices; crops have no bucket recipe, and the nursery is an untradeable chain |
 | 10 | Sailing | **✅ scanned — see §8.13** | 124 cost rows; every output is untradeable, and salvage has no recipe at all |
-| 11 | Mining | **✅ scanned — see §8.14** | 2 recipes, 0 priced: no gathering recipe exists |
-| 12 | Woodcutting | **✅ scanned — see §8.14** | 3 rows, all secondary Forestry/ritual actions |
+| 11 | Mining | **✅ gather model — see §8.15** | 11 nodes priced from respawn times |
+| 12 | Woodcutting | **✅ gather model — see §8.15** | 14 nodes priced from respawn times |
 | 13 | Fishing | **✅ scanned — see §8.14** | 0 priced: every bucket output is untradeable |
 | 14 | Hunter | **✅ scanned — see §8.14** | 4 rows, all losses; catch rates are not a recipe |
 | 15 | Thieving | **✅ scanned — see §8.14** | 0 recipes in the bucket at all |
@@ -694,6 +694,56 @@ None of that is impossible — it is simply not the recipe bucket's job, and no
 amount of scanning will change that. Phase 2's honest status is: **scanned,
 nothing to price, needs a new source and a new row kind.**
 
+### 8.15 The gathering model (Mining and Woodcutting)
+
+§8.14 said Phase 2 needs a second source. This is it, for the two skills where the
+wiki publishes a constant: **the respawn time**.
+
+Every ore and log page carries a `{{Mining info}}` / `{{Woodcutting info}}`
+template with `level`, `xp`, the node name and `|time=` — and the prose states what
+that is ("after runite rocks are mined, it will take twelve minutes until it
+reappears"). `src/api/wikiGathering.ts` reads those parameters **by key** through
+the same batched page fetch the stackability reader uses, one request per 50
+pages, 24h cache. `scripts/gatheringNodes.ts` says which 27 pages to read; four
+candidates have no such block and are listed there as excluded.
+
+The row: **one unit per respawn, no inputs**. `secondsPerAction` is the respawn,
+`profit = price − GE tax`, and `gp/hour` is what a single uncontested node
+sustains. `kind: 'gather'` is the fourth row kind, with its own badge.
+
+| Node | Respawn | gp/action | gp/hour |
+|---|---|---|---|
+| Runite ore | 720s | 9,738 | 48,690 |
+| Copper ore | 2.4s | 24 | 36,000 |
+| Iron ore | 5.4s | 49 | 32,659 |
+| Coal | 30s | 121 | 14,520 |
+| Loganberry → Arctic pine logs | 8.4s | 565 | 242,103 |
+| Yew logs | 59.4s | — | 18,780 |
+
+Mining: **11 gather rows** (plus the 3 recipe rows), Woodcutting **14**.
+
+Two parsing traps worth recording, both of which bit during implementation:
+
+1. `time` carries **alternatives** separated by `<br>` — `12 minutes<br/>6 minutes
+   in Mining Guild`. The guild branch needs a guild and a diary, so the **slowest**
+   branch is the one priced. A compound inside one branch (`1 minute 30 seconds`)
+   is summed instead. Taking the longest number in the whole cell would have priced
+   runite at 6 minutes; summing everything would have added the two branches
+   together.
+2. A regex escape written through a shell pipeline arrived as a literal backspace
+   character, which made `//` match nothing and silently emptied the parser. The
+   pattern now has no trailing boundary at all, and the reason is in the code.
+
+**What this still does not model**, all of it stated on the page: competition (so
+the rate is an upper bound), the mining/chopping *time* itself (the wiki publishes a
+depletion curve — runite is 19/256 per 3 ticks at 99 — which is level- and
+axe-dependent, and adding it to the respawn would double-count the same wait), and
+multi-node rotations, which beat a single node's respawn and need a run model.
+
+Fishing, Hunter and Thieving are untouched by this: their rate depends on a
+success chance or a loot distribution, which is the EV work in §3.1, not a respawn
+constant.
+
 ### 8.11 The instant default, and why the page must own it
 
 Q10 settled that `#/skilling` opens in **instant** mode (buy at `high`, sell at
@@ -746,7 +796,7 @@ patient toggle is a UI-only change later. Nothing needs regenerating for it.
 | Magic | ✅ §8.9 | 146 |
 | Cooking | ✅ §8.10 — gated on the player's Cooking level | 47 |
 
-**2,050 activities priced from 4,229 bucket recipes**, with no hand-typed item,
+**2,075 activities priced from 4,229 bucket recipes and 27 gathering nodes**, with no hand-typed item,
 price or rate anywhere: every number is a GE quote joined to the wiki's own recipe
 table. The one curated input is the Cooking no-burn table, which is a game
 constant read off a wiki page that states it.

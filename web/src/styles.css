@@ -1224,6 +1224,13 @@ tbody tr:hover {
   color: var(--dim);
 }
 
+/* Gathering has no inputs: the badge is quiet, but not as quiet as a cost. */
+.kind-gather {
+  border-color: var(--line-strong);
+  background: var(--track);
+  color: var(--text-soft);
+}
+
 .needs {
   color: var(--text-soft);
   font-size: 12px;

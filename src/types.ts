@@ -491,9 +491,15 @@ export type ProcessPayload = z.infer<typeof ProcessPayloadSchema>;
  * question it can answer is "what does training this skill cost per hour?".
  * `upgrade` re-works one finished item into a better version of itself (anguish ->
  * rupture): still a sale, but a one-off with 8 conversions a day and 144M of
- * capital, so it must not be ranked against repeatable actions.
+ * capital, so it must not be ranked against repeatable actions. `gather` has no
+ * inputs at all: it is one unit from one node per respawn.
  */
-export const SkillActivityKindSchema = z.enum(['transform', 'train', 'upgrade']);
+export const SkillActivityKindSchema = z.enum([
+  'transform',
+  'train',
+  'upgrade',
+  'gather',
+]);
 export type SkillActivityKind = z.infer<typeof SkillActivityKindSchema>;
 
 /**
@@ -537,7 +543,10 @@ export type SkillActivityRanking = z.infer<
  */
 export const SkillCoverageSchema = z.object({
   skill: z.string(),
+  /** Bucket recipes naming this skill. */
   recipes: z.number().int().nonnegative(),
+  /** Curated gathering nodes available to this skill (0 for most). */
+  nodes: z.number().int().nonnegative(),
   activities: z.number().int().nonnegative(),
   /** Rows whose per-action profit is above zero. */
   profitable: z.number().int().nonnegative(),
@@ -545,6 +554,8 @@ export const SkillCoverageSchema = z.object({
   lossMaking: z.number().int().nonnegative(),
   /** Rows with no published tick count, so gp/hour is null. */
   unknownRate: z.number().int().nonnegative(),
+  /** Rows that come from a gathering node rather than a recipe. */
+  gathered: z.number().int().nonnegative(),
   /** Rows whose output cannot be sold, so the row is a training cost. */
   trainOnly: z.number().int().nonnegative(),
   /** Rows that re-work a finished item instead of building one. */

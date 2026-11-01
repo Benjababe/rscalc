@@ -126,10 +126,12 @@ describe('rankSkillActivities', () => {
     expect(result.coverage).toEqual({
       skill: 'Crafting',
       recipes: 2,
+      nodes: 0,
       activities: 2,
       profitable: 1,
       lossMaking: 1,
       unknownRate: 0,
+      gathered: 0,
       trainOnly: 0,
       upgrades: 0,
       unpriced: 0,
@@ -477,7 +479,10 @@ describe('committed skilling artifact', () => {
       expect(coverage.unknownRate).toBe(
         rows.filter((row) => row.gpPerHour === null).length,
       );
-      expect(coverage.unpriced).toBe(coverage.recipes - coverage.activities);
+      // Candidates (recipes + gathering nodes) that produced no row.
+      expect(coverage.unpriced).toBe(
+        coverage.recipes + coverage.nodes - coverage.activities,
+      );
       expect(coverage.unpriced).toBeGreaterThanOrEqual(0);
     }
   });
@@ -504,7 +509,9 @@ describe('committed skilling artifact', () => {
       expect(coverage.profitable + coverage.lossMaking).toBe(
         coverage.activities,
       );
-      expect(coverage.unpriced).toBe(coverage.recipes - coverage.activities);
+      expect(coverage.unpriced).toBe(
+        coverage.recipes + coverage.nodes - coverage.activities,
+      );
       priced += coverage.activities;
     }
     expect(priced).toBeGreaterThan(1000);

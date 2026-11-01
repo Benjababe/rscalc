@@ -23,12 +23,15 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 import { fetch24h, fetchLatest, fetchMapping } from '../src/api/prices.js';
+import { fetchGatheringNodes } from '../src/api/wikiGathering.js';
+import type { GatheringNode } from '../src/api/wikiGathering.js';
 import { fetchRecipes } from '../src/api/wikiRecipes.js';
 import { toBurnIndex } from '../src/domain/cooking.js';
 import {
   COOKING_BURN_SOURCE,
   COOKING_NO_BURN_LEVELS,
 } from './cookingBurnLevels.js';
+import { GATHERING_NODE_SOURCES } from './gatheringNodes.js';
 import { SKILL_UPGRADES, upgradeKeys } from './skillUpgrades.js';
 import { SKILLING_SKILLS, rankSkillActivities } from '../src/engine/skilling.js';
 import type { SkillingSkill } from '../src/engine/skilling.js';
@@ -164,7 +167,8 @@ function printTable(
     `\n${catalog.skill} — ${coverage.activities} activities priced ` +
       `(${coverage.profitable} profitable, ${coverage.lossMaking} loss-making, ` +
       `${coverage.trainOnly} cost-only, ${coverage.upgrades} upgrades, ` +
-      `${coverage.unpriced} of ${coverage.recipes} bucket recipes unpriced)`,
+      `${coverage.unpriced} of ${coverage.recipes + coverage.nodes} candidates ` +
+      `unpriced${coverage.gathered > 0 ? `, ${coverage.gathered} gathered` : ''})`,
   );
 
   for (const row of ranking.opportunities.slice(0, limit)) log(`  ${formatActivity(row)}`);
@@ -244,6 +248,25 @@ async function main(): Promise<void> {
   };
   log(`  ${market.itemCount.toLocaleString()} priced items | ${market.pricesAsOf}`);
 
+  // Gathering rates are per item page, so one batch covers every scanned skill
+  // that has a curated node list.
+  const nodePages = cli.skills.flatMap(
+    (skill) => GATHERING_NODE_SOURCES[skill] ?? [],
+  );
+  let gatheringNodes: GatheringNode[] = [];
+  if (nodePages.length > 0) {
+    log('fetching gathering node data...');
+    const gathered = await fetchGatheringNodes(
+      nodePages.map((page) => page.item),
+    );
+    gatheringNodes = gathered.nodes;
+    log(
+      `  ${gathered.nodes.length}/${gathered.requested} nodes have a published ` +
+        `respawn time (${gathered.missing} page(s) missing, ` +
+        `${gathered.unreadable} with no Mining/Woodcutting info block)`,
+    );
+  }
+
   const upgradeKeySet = upgradeKeys(SKILL_UPGRADES);
   log(
     `  ${upgradeKeySet.size} curated upgrade recipes move out of the transform ` +
@@ -269,6 +292,7 @@ async function main(): Promise<void> {
       maxActionsPerHour: cli.actionsPerHour,
       burnLevels: burnLevels,
       upgradeKeys: upgradeKeySet,
+      gatheringNodes: gatheringNodes.filter((node) => node.skill === skill),
       cookingLevel: cli.cookingLevel > 0 ? cli.cookingLevel : undefined,
     });
     const patient = rankSkillActivities(recipes.recipes, market, {
@@ -277,6 +301,7 @@ async function main(): Promise<void> {
       maxActionsPerHour: cli.actionsPerHour,
       burnLevels: burnLevels,
       upgradeKeys: upgradeKeySet,
+      gatheringNodes: gatheringNodes.filter((node) => node.skill === skill),
       cookingLevel: cli.cookingLevel > 0 ? cli.cookingLevel : undefined,
     });
     // Both modes price the same action set; take the pessimistic coverage so the

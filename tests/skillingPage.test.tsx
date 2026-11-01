@@ -183,7 +183,7 @@ describe('skilling page', () => {
   it('states what could not be priced', () => {
     render(<SkillingPage />);
 
-    expect(screen.getByText(/Unpriced recipes/i)).toBeTruthy();
+    expect(screen.getByText('Unpriced')).toBeTruthy();
     // The caveats live in a <details>, where they are still in the document.
     expect(
       screen.getByText(/High-alch and shop sale are not\s+modelled/i),
