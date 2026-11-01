@@ -544,9 +544,25 @@ export const SkillActivitySchema = ProcessOpportunitySchema.extend({
     .array(
       z.object({
         item: z.string(),
+        /** Midpoint of the published range when `assumedQuantity` is true. */
         quantity: z.number().positive(),
         chance: z.number().min(0).max(1),
         expectedGp: z.number().int(),
+        /**
+         * True when `quantity` is the **midpoint** of a published range rather than a
+         * figure the wiki states. The page must show that, so an assumption is never
+         * read as a published quantity (`docs/skilling-plan.md` §3.1).
+         */
+        assumedQuantity: z.boolean(),
+        /** The published range the midpoint came from, when there was one. */
+        quantityRange: z
+          .object({ min: z.number().positive(), max: z.number().positive() })
+          .nullable(),
+        /**
+         * True when the item has no GE market: its contribution is 0 gp, so the row's
+         * mean is a floor (`docs/skilling-plan.md` §3.1b).
+         */
+        unpriced: z.boolean(),
       }),
     )
     .nullable(),

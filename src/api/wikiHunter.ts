@@ -37,7 +37,7 @@
  */
 
 import type { EvDrop } from '../domain/ev.js';
-import { parseRarity } from '../domain/ev.js';
+import { parseQuantity, parseRarity } from '../domain/ev.js';
 import { chartOptionAtLevel, successChanceAt } from '../domain/successChance.js';
 import type { SuccessChart } from '../domain/successChance.js';
 import { fetchPageWikitext } from './wikiPages.js';
@@ -149,22 +149,15 @@ export function hunterDrops(text: string): { drops: EvDrop[]; ignored: number } 
       ignored += 1;
       continue;
     }
-    const quantity = /-\s*\d/.test(quantityRaw)
-      ? Number.NaN
-      : Number.parseFloat(quantityRaw.replace(/,/g, ''));
+    const quantity = parseQuantity(quantityRaw);
     const chance = parseRarity(rarityRaw);
     // Guaranteed and exactly countable only: everything else is not part of the
     // catch (a pet, a rumour drop) or has no expectation.
-    if (
-      chance !== 1 ||
-      !Number.isFinite(quantity) ||
-      quantity <= 0 ||
-      !Number.isInteger(quantity)
-    ) {
+    if (chance !== 1 || quantity === null) {
       ignored += 1;
       continue;
     }
-    drops.push({ item, quantity, chance });
+    drops.push({ item, ...quantity, chance });
   }
 
   return { drops, ignored };

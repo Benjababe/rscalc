@@ -26,6 +26,7 @@ import { fetch24h, fetchLatest, fetchMapping } from '../src/api/prices.js';
 import { fetchFishingSources } from '../src/api/wikiFishing.js';
 import { fetchGatheringNodes } from '../src/api/wikiGathering.js';
 import { fetchHunterSources } from '../src/api/wikiHunter.js';
+import { fetchLootTables } from '../src/api/wikiLootTable.js';
 import { fetchThievingSources } from '../src/api/wikiThieving.js';
 import { fetchBankTitles, fetchPageMapPoints } from '../src/api/wikiMap.js';
 import { parseObjectLocLines } from '../src/api/wikiMap.js';
@@ -44,6 +45,7 @@ import {
 } from './cookingBurnLevels.js';
 import { GATHERING_NODE_SOURCES } from './gatheringNodes.js';
 import { THIEVING_STALL_PAGES } from './thievingSources.js';
+import { LOOT_ROWS, lootEvSources } from './lootTableSources.js';
 import { PICKPOCKET_PAGES } from './pickpocketSources.js';
 import { fishingSourcePages } from './fishingSources.js';
 import { hunterSourcePages } from './hunterSources.js';
@@ -276,7 +278,27 @@ async function main(): Promise<void> {
     );
   }
 
-  const evSources = [...thievingSources, ...fishingSources, ...hunterSources];
+  // Minigame and boss payouts written with `{{DropsLine}}` / `{{DropsLineReward}}`.
+  // Built for every run: the rows are rate-less, so they do not depend on a skill
+  // filter, and the price snapshot has to include their loot either way.
+  log('fetching minigame loot tables...');
+  const lootPages = await fetchLootTables([
+    ...new Set(LOOT_ROWS.map((row) => row.page)),
+  ]);
+  const lootBuilt = lootEvSources(LOOT_ROWS, lootPages);
+  const lootSources = lootBuilt.sources;
+  log(
+    `  ${lootSources.length}/${LOOT_ROWS.length} curated reward rows priced ` +
+      `(${lootPages.size} page(s) parsed, no published per-hour rate)`,
+  );
+  for (const problem of lootBuilt.problems) log(`  WARNING: ${problem}`);
+
+  const evSources = [
+    ...thievingSources,
+    ...fishingSources,
+    ...hunterSources,
+    ...lootSources,
+  ];
 
   const scanned = recipes.recipes.filter((recipe) =>
     cli.skills.some((skill) =>
@@ -453,6 +475,10 @@ async function main(): Promise<void> {
       thievingSources: skill === 'Thieving' ? thievingSources : [],
       fishingSources: skill === 'Fishing' ? fishingSources : [],
       hunterSources: skill === 'Hunter' ? hunterSources : [],
+      lootSources: lootSources.filter(
+        (source) =>
+          LOOT_ROWS.find((row) => row.label === source.name)?.skill === skill,
+      ),
       bankTilesByPage,
       gatherBankTilesByItem,
       stackableByItem,
@@ -469,6 +495,10 @@ async function main(): Promise<void> {
       thievingSources: skill === 'Thieving' ? thievingSources : [],
       fishingSources: skill === 'Fishing' ? fishingSources : [],
       hunterSources: skill === 'Hunter' ? hunterSources : [],
+      lootSources: lootSources.filter(
+        (source) =>
+          LOOT_ROWS.find((row) => row.label === source.name)?.skill === skill,
+      ),
       bankTilesByPage,
       gatherBankTilesByItem,
       stackableByItem,

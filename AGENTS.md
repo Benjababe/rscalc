@@ -456,6 +456,14 @@ problem is not a cost. Tests pin both branches.
   - a chart **label is not an item name** (`Harpoon`, `Sandworms`, `Normal`), so
     Fishing refuses a chart unless every label matches an item on the page's own
     drop table.
+- **A ranged quantity is priced at its midpoint, and says so** (operator decision,
+  `docs/skilling-plan.md` §3.1a). `Air rune 500-750` becomes 625 with
+  `assumedQuantity: true` and the range stored beside it; the page marks the row
+  `ranges at midpoint` and the tooltip shows the range. Refusing the line instead
+  deleted the outcome, which understated the row by more. Two things are still
+  refused: a quantity written as a word (`Varies` has no midpoint — this is what keeps
+  Fishing Trawler out), and an **unmarked** fractional quantity, so a caller cannot
+  invent a fraction without declaring it.
   A row with no published attempt interval keeps `gpPerHour = null`: fishing and
   hunter price the attempt and nothing else. The box trap's "attempt every 3 ticks"
   is a per-trap **ceiling**, not throughput (no spawn-density or competition model),
@@ -478,6 +486,18 @@ problem is not a cost. Tests pin both branches.
   (`docs/skilling-plan.md` §8.13b). Sailing's 124 rows are all `Cost`; the skilling
   page's skill filter prints a per-skill row count so a cost-only skill cannot read as
   absent from a list sorted by gp/hour.
+- **An outcome with no GE market counts as 0 gp, and is marked** (§3.1b). `gemw=no`, or
+  an item absent from the mapping, gives the line `unpriced: true` and 0 gp rather than
+  refusing the row — that is what let Zalcano price despite its unmapped `Crystal
+  shard`. The row's mean is therefore a **floor**, and the page says so (`· n at 0 gp`,
+  tooltip "no GE market"). A table where *nothing* is priced is still refused.
+- **A minigame payout is read from `{{DropsLine}}` / `{{DropsLineReward}}`**
+  (`src/api/wikiLootTable.ts`, §8.21), never from the recipe bucket. Tables are grouped
+  into **rolls** whose chances add up to 1.0 — the Hallowed sack has three such tiers,
+  Zalcano has `Runes` 0.167 + `Materials` 0.833 — and a group that does not reach 1 is
+  refused rather than priced. Every such row is `secondsPerAction: null`, because no
+  minigame page publishes kills/rounds/sacks per hour: the distribution is sourced, the
+  hour is not. Curation and refusals live in `scripts/lootTableSources.ts`.
 - **A minigame needs both halves to be priced, and the survey is exhaustive.** 29
   pages were read; the Blast Furnace is the only minigame with a published throughput
   *and* a published fee, and it is the only one with an overlay. Everything else is

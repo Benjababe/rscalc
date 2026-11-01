@@ -702,11 +702,31 @@ function ActivityCell(props: { row: Row }): JSX.Element {
           title={activity.distribution
             .map(
               (line) =>
-                `${line.item} ×${line.quantity} — ${(line.chance * 100).toFixed(1)}% (${formatGp(line.expectedGp)} gp)`,
+                `${line.item} ×${line.quantity}${
+                  line.assumedQuantity && line.quantityRange !== null
+                    ? ` (midpoint of ${line.quantityRange.min}-${line.quantityRange.max})`
+                    : ""
+                } — ${(line.chance * 100).toFixed(1)}% (${
+                  line.unpriced
+                    ? "no GE market, counted as 0 gp"
+                    : `${formatGp(line.expectedGp)} gp`
+                })`,
             )
-            .join("\n")}
+            .join("\n") +
+            (activity.distribution.some((line) => line.assumedQuantity)
+              ? "\n\nA quantity the wiki publishes as a range is priced at its midpoint: the range has no published weights, so this is an assumption, not a quoted quantity."
+              : "")}
         >
           {activity.distribution.length} outcomes, mean
+          {activity.distribution.some((line) => line.assumedQuantity) && (
+            <> · ranges at midpoint</>
+          )}
+          {activity.distribution.some((line) => line.unpriced) && (
+            <>
+              {" · "}
+              {activity.distribution.filter((line) => line.unpriced).length} at 0 gp
+            </>
+          )}
         </span>
       )}
       {activity.feeGp > 0 && (

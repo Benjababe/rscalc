@@ -58,17 +58,26 @@ export const MINIGAME_RATES: readonly MinigameRate[] = [BLAST_FURNACE];
  * published rate — and each entry below names the half that is missing. Grouped by
  * the failure, with the pages read:
  *
- * **Reward tables exist but their quantities are ranges or `Varies`.** The
- * distribution half fails, so there is no expectation to compute:
- *  - Zalcano — 21 of 26 lines ranged (`Blood rune 64-480`, `Runite ore 3-31`), no
- *    kills-per-hour either.
- *  - Wintertodt supply crate — 63 of 75 lines ranged.
- *  - Hallowed Sepulchre (`Hallowed sack`) — 20 of 30 lines ranged.
- *  - Guardians of the Rift (`Rewards Guardian`) — 13 of 44 lines ranged, and the
- *    rewards are priced in abyssal pearls, a currency with no GE value.
- *  - Fishing Trawler — 18 of 23 lines are `quantity=Varies|rarity=Varies`, i.e. no
- *    distribution at all; only the four angler pieces are fixed (`1/12`).
- *  - Tempoross — the pool does not tabulate fixed quantities either.
+ * **A reward table exists, but nothing publishes a rate.** Since the midpoint rule in
+ * `docs/skilling-plan.md` §3.1, a published *range* is no longer an objection: those
+ * lines are priced at their midpoint and marked as an assumption. What these pages
+ * still lack is the other half — how many kills, rounds, sacks or crates happen per
+ * hour — so the row would be a per-attempt expectation with `gpPerHour = null`, and
+ * the loot parser that reads their `{{DropsLine}}` tables (as opposed to the bucket's
+ * recipes) does not exist yet:
+ *  - Zalcano — 21 of 26 lines ranged (`Blood rune 64-480`), and no kills-per-hour.
+ *  - Wintertodt supply crate — 63 of 75 lines ranged, and no crates-per-hour.
+ *  - Hallowed Sepulchre (`Hallowed sack`) — three tier tables of 10 lines at 1/10,
+ *    20 of them ranged, and floor timers rather than sacks per hour.
+ *  - Guardians of the Rift (`Rewards Guardian`) — 13 of 44 lines ranged, and rewards
+ *    are priced in abyssal pearls, a currency with no GE value.
+ *  - Tempoross — the pool tabulates no fixed quantities, and there is no
+ *    rounds-per-hour.
+ *
+ * **Still refused outright, because there is nothing to take a midpoint of:**
+ *  - Fishing Trawler — 18 of 23 lines are `quantity=Varies|rarity=Varies`. `Varies`
+ *    is a word, not a range, so there is no midpoint; only the four angler pieces are
+ *    numbers (`1/12`).
  *
  * **Point shops with no published points-per-hour.** The rate half fails. A reward
  * that costs 1,000 points is not an hourly figure unless something publishes how fast
@@ -93,30 +102,32 @@ export const MINIGAME_REFUSALS: readonly { name: string; reason: string }[] = [
   {
     name: 'Zalcano',
     reason:
-      '21 of 26 drop lines are ranged quantities with no weights (64-480 runes, 86-800 ore), and no kills-per-hour',
+      'its 21 of 26 ranged lines now price at midpoint (§3.1), but no kills-per-hour is published and it has no loot-table parser',
   },
   {
     name: 'Wintertodt',
     reason:
-      'supply crate: 63 of 75 reward lines are ranged quantities, and no rounds-per-hour',
+      'supply crate: 63 of 75 ranged lines now price at midpoint, but no crates-per-hour is published',
   },
   {
     name: 'Tempoross',
-    reason: 'reward pool tabulates no fixed quantities, and no rounds-per-hour',
+    reason:
+      'the reward pool tabulates no quantities at all (not even ranges), and no rounds-per-hour',
   },
   {
     name: 'Guardians of the Rift',
     reason:
-      '13 of 44 reward lines are ranged, and rewards cost abyssal pearls — a currency with no GE value',
+      'rewards cost abyssal pearls — a currency with no GE value — and neither pearls-per-round nor a rune reward table is published',
   },
   {
     name: 'Hallowed Sepulchre',
-    reason: 'Hallowed sack: 20 of 30 reward lines are ranged quantities',
+    reason:
+      'Hallowed sack: three tier tables of 10 lines at 1/10; 20 of 30 lines are ranged and now price at midpoint, but no sacks-per-hour is published',
   },
   {
     name: 'Fishing Trawler',
     reason:
-      '18 of 23 reward lines are quantity=Varies / rarity=Varies, so there is no distribution; only the angler pieces are fixed',
+      '18 of 23 reward lines are quantity=Varies / rarity=Varies: `Varies` is a word, so there is no midpoint to take; only the angler pieces are numbers',
   },
   {
     name: 'Volcanic Mine',

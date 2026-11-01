@@ -75,7 +75,9 @@ describe('pickpockets', () => {
     expect(source.kind).toBe('Pickpocket');
     // The table is what a *successful* attempt gives, so it is marked conditional.
     expect(source.dropsConditionalOnSuccess).toBe(true);
-    expect(source.drops).toEqual([{ item: 'Coins', quantity: 3, chance: 1 }]);
+    // The exact quantity also carries `assumedQuantity: false` and a null range.
+    expect(source.drops).toMatchObject([{ item: 'Coins', quantity: 3, chance: 1 }]);
+    expect(source.drops[0]?.assumedQuantity).toBe(false);
     // 181/256 at level 1, from the published formula.
     expect(source.successChance).toBeCloseTo(181 / 256, 6);
     // 2 ticks + 4.8s of stun at the 29.3% failure rate.
@@ -93,15 +95,35 @@ describe('pickpockets', () => {
     expect(pickpocketSeconds(4.8, 0)).toBeCloseTo(0.6 * PICKPOCKET_ATTEMPT_TICKS + 4.8, 6);
   });
 
-  it('counts a ranged loot line and expects the engine to refuse the row', () => {
+  it('prices a ranged loot line at its midpoint, marked as an assumption', () => {
+    // Operator decision (§3.1): a range is priced at its midpoint and flagged, so the
+    // row survives and the page can show that the quantity is assumed.
     const ranged = MAN.replace(
       '{{DropsLineSkill|name=Coins|quantity=3|rarity=Always|skill=Thieving}}',
       '{{DropsLineSkill|name=Coins|quantity=230-315|rarity=109/132|skill=Thieving}}',
     );
     const { source } = parseThievingSource('Vyre', ranged);
     if (source === null) throw new Error('expected a source');
-    expect(source.drops).toHaveLength(0);
+    expect(source.droppedLines).toBe(0);
+    expect(source.drops[0]).toMatchObject({
+      item: 'Coins',
+      quantity: 272.5,
+      assumedQuantity: true,
+      quantityRange: { min: 230, max: 315 },
+    });
+  });
+
+  it('still refuses a quantity written as a word', () => {
+    const vague = MAN.replace(
+      '{{DropsLineSkill|name=Coins|quantity=3|rarity=Always|skill=Thieving}}',
+      '{{DropsLineSkill|name=Coins|quantity=Varies|rarity=1/2|skill=Thieving}}',
+    );
+    const { source } = parseThievingSource('Vyre', vague);
+    if (source === null) throw new Error('expected a source');
+    // No midpoint exists for `Varies`, so the line is counted and the row is refused
+    // by the engine (a table minus its biggest outcome is not the table).
     expect(source.droppedLines).toBe(1);
+    expect(source.drops).toHaveLength(0);
   });
 
   it('keeps a stall on its published action time', () => {
@@ -222,7 +244,10 @@ describe('hunter', () => {
     // no rate and the interval is only recorded.
     expect(source.trapAttemptSeconds).toBe(BOX_TRAP_ATTEMPT_SECONDS);
     expect(source.secondsPerAction).toBeNull();
-    expect(source.drops).toEqual([{ item: 'Red chinchompa', quantity: 1, chance: 1 }]);
+    expect(source.drops).toMatchObject([
+      { item: 'Red chinchompa', quantity: 1, chance: 1 },
+    ]);
+    expect(source.drops[0]?.assumedQuantity).toBe(false);
     // The rumour-only tuft and the unreadable pet roll are counted, not folded in.
     expect(source.ignoredDrops).toBe(2);
   });

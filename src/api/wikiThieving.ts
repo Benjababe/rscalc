@@ -47,7 +47,7 @@
  * cannot be priced; each of those is counted, never guessed.
  */
 
-import { parseRarity } from '../domain/ev.js';
+import { parseQuantity, parseRarity } from '../domain/ev.js';
 import type { EvDrop } from '../domain/ev.js';
 import { SECONDS_PER_TICK } from '../domain/processTime.js';
 import { successChanceAt } from '../domain/successChance.js';
@@ -164,16 +164,14 @@ export function parseLootDrops(text: string): { drops: EvDrop[]; rejected: numbe
       continue;
     }
 
-    // `1-4`, `1 - 4`, `1,000` (a comma is a thousands separator, not a range).
-    const quantity = /-\s*\d/.test(quantityRaw)
-      ? Number.NaN
-      : Number.parseFloat(quantityRaw.replace(/,/g, ''));
+    // `1-4` becomes its midpoint, flagged as an assumption; a word has no midpoint.
+    const quantity = parseQuantity(quantityRaw);
     const chance = parseRarity(rarityRaw);
-    if (!Number.isFinite(quantity) || quantity <= 0 || chance === null) {
+    if (quantity === null || chance === null) {
       rejected += 1;
       continue;
     }
-    drops.push({ item, quantity, chance });
+    drops.push({ item, ...quantity, chance });
   }
 
   return { drops, rejected };

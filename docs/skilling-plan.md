@@ -127,7 +127,27 @@ being excluded:
 EV per action = sum over outcomes ( probability × net value of outcome )
 ```
 
-Two conditions keep this honest:
+### 3.1a Ranged quantities are priced at the midpoint (operator decision)
+
+The first version of this rule refused a ranged quantity outright: `Air rune 500-750`
+says nothing about weights, so the midpoint would be an invented distribution. The
+operator has since decided the other way — **a range is priced at its midpoint** —
+because refusing the line deletes the outcome, which understates a row by more than the
+midpoint overstates a single line.
+
+The compromise is that the assumption is carried, not hidden:
+
+- `parseQuantity` returns the midpoint **plus** `assumedQuantity: true` and the
+  `quantityRange` it came from, and the artifact stores both on every distribution line.
+- The page marks such a row `· ranges at midpoint`, and the tooltip shows each line as
+  `Air rune ×625 (midpoint of 500-750)`, with a sentence saying the figure is an
+  assumption rather than a quoted quantity.
+- A quantity written as a word is still refused: `Varies` is not a range, so there is no
+  midpoint to take (this is what keeps Fishing Trawler out).
+- An unmarked fractional quantity is still refused, so a caller cannot invent a
+  fraction without declaring where it came from.
+
+The two original refusal conditions stand as consequences of that:
 
 - **The distribution is sourced.** A published drop rate, a `1/128` rarity, a
 yield-by-level table. A prose "anywhere from 1 to 6" is not: without
@@ -1197,6 +1217,49 @@ contracts/hour).
 That is a deliberate outcome, not an unfinished one: under §4 a figure is sourced or
 it is absent, and a minigame row needs **both** halves — a published reward and a
 published rate.
+
+### 3.1b An outcome with no market counts as 0 gp (operator decision)
+
+When a loot line's item has **no GE market** — `gemw=no` on the template, or simply
+absent from the item mapping — the line is now valued at **0 gp** instead of refusing
+the whole row. The alternative is what kept Zalcano off the page: its guaranteed
+`Crystal shard` has no GE entry, so the entire table was refused.
+
+What keeps this honest:
+
+- the line still appears in the row's `distribution`, with `unpriced: true` and
+  `expectedGp: 0`, and the page's tooltip reads `Crystal shard ×2 — 100% (no GE market,
+  counted as 0 gp)`, with `· 2 at 0 gp` on the row itself;
+- so the row's mean is a **floor**: the item has value, this site just cannot price it;
+- a table where **nothing** has a market is still refused, because a mean of 0 there
+  would say the loot is worthless rather than "we know no prices for any of it".
+
+### 8.21 Minigame payouts: reading `{{DropsLine}}` tables
+
+The bucket only knows recipes, so a boss or minigame payout needed its own source:
+`src/api/wikiLootTable.ts` reads `{{DropsLine}}` and `{{DropsLineReward}}`, keeps each
+table's **heading path**, and groups consecutive tables into **rolls** — a group that
+adds up to 1.0. That grouping is checked against the sum, so a mis-curated page becomes
+a warning rather than a wrong number.
+
+Three shapes came out of it, and they are why the parser is worth having:
+
+| Page | Structure | Outcome |
+| --- | --- | --- |
+| `Hallowed sack` | three tiers, each four tables summing to 1.000 | **3 rows priced** (low/mid/high), one sack each |
+| `Zalcano` | `100%` (two `Always`) + `Runes` 0.167 + `Materials` 0.833 = one roll | **refused today**: its guaranteed `Crystal shard` drop has no GE mapping, and one unpriced outcome refuses the table |
+| `Supply crate (Wintertodt)` | `Unique` 0.064 + `Other` 0.280 | refused: no per-crate roll at all, because contents scale with points |
+
+Every row is `secondsPerAction: null`. No minigame page publishes kills, rounds, sacks or
+crates per hour, so the row is a per-action expectation with `gpPerHour = null` — the
+same shape as every fishing method (§8.19), and the page shows `—` for the hour. That is
+the deliberate split: the **distribution** is now sourced (with ranged quantities at
+their published midpoint, §3.1a), and the **rate** is not invented.
+
+`scripts/lootTableSources.ts` holds the curation: four rows (Zalcano, three sack tiers)
+and six refusals, each with the measured reason. `tests/lootTable.test.ts` pins the
+three readings above — including that a table summing to 1.167 is refused rather than
+priced, which is the check that caught a wrong fixture while this was being built.
 
 ### 8.11 The instant default, and why the page must own it
 

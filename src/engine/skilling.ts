@@ -166,6 +166,12 @@ export interface SkillActivityOptions {
    * published 1.8s attempt); every other trap type keeps `gpPerHour = null`.
    */
   hunterSources?: readonly HunterSource[];
+  /**
+   * Curated `{{DropsLine}}` / `{{DropsLineReward}}` reward tables (minigame and boss
+   * payouts). Their pages publish no per-hour rate, so every row is a per-action
+   * expectation with `gpPerHour = null`.
+   */
+  lootSources?: readonly EvSource[];
   /** Tiles from each EV source page to its nearest bank, keyed by page title. */
   bankTilesByPage?: ReadonlyMap<string, number | null>;
   /** Tiles from a gathering node to its nearest bank, keyed by item name. */
@@ -794,6 +800,7 @@ export function rankSkillActivities(
     ...(options.thievingSources ?? []),
     ...(options.fishingSources ?? []),
     ...(options.hunterSources ?? []),
+    ...(options.lootSources ?? []),
   ];
   let ignoredDrops = 0;
   for (const source of options.hunterSources ?? []) ignoredDrops += source.ignoredDrops;

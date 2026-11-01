@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   analyseDistribution,
+  parseQuantity,
   parseRarity,
   priceDistribution,
 } from '../src/domain/ev.js';
@@ -44,13 +45,27 @@ describe('analyseDistribution', () => {
     expect(analysis.distribution?.totalChance).toBeCloseTo(0.9);
   });
 
-  it('refuses a ranged quantity instead of averaging it', () => {
-    // `1-4` has no published weights, so there is no expectation to compute.
-    const analysis = analyseDistribution([
+  it('accepts a marked midpoint but not an unmarked fraction', () => {
+    // Operator decision (§3.1): a published range is priced at its midpoint, but the
+    // line has to say so. An unmarked 2.5 is still refused — that is an invented
+    // fraction with no range behind it.
+    const marked = analyseDistribution([
+      {
+        item: 'Potato seed',
+        quantity: 2.5,
+        chance: 0.5,
+        assumedQuantity: true,
+        quantityRange: { min: 1, max: 4 },
+      },
+    ]);
+    expect(marked.rejected).toBeNull();
+    expect(marked.distribution?.drops[0]?.quantity).toBe(2.5);
+
+    const unmarked = analyseDistribution([
       { item: 'Potato seed', quantity: 2.5, chance: 0.5 },
     ]);
-    expect(analysis.rejected).toBe('ranged-quantity');
-    expect(analysis.distribution).toBeNull();
+    expect(unmarked.rejected).toBe('ranged-quantity');
+    expect(unmarked.distribution).toBeNull();
   });
 
   it('refuses a table whose rolled chances exceed one roll', () => {
@@ -89,6 +104,42 @@ describe('analyseDistribution', () => {
   });
 });
 
+describe('parseQuantity', () => {
+  it('reads an exact quantity, a comma group and a range', () => {
+    expect(parseQuantity('3')).toEqual({
+      quantity: 3,
+      assumedQuantity: false,
+      quantityRange: null,
+    });
+    expect(parseQuantity('1,000')?.quantity).toBe(1000);
+    // A range is the midpoint, and it says so.
+    expect(parseQuantity('500-750')).toEqual({
+      quantity: 625,
+      assumedQuantity: true,
+      quantityRange: { min: 500, max: 750 },
+    });
+    // Wiki annotations are dropped before parsing.
+    expect(parseQuantity('1-3 (noted)')).toEqual({
+      quantity: 2,
+      assumedQuantity: true,
+      quantityRange: { min: 1, max: 3 },
+    });
+  });
+
+  it('refuses a word, a degenerate or an inverted range', () => {
+    // `Varies` has no numbers, so there is no midpoint to take.
+    expect(parseQuantity('Varies')).toBeNull();
+    expect(parseQuantity('')).toBeNull();
+    expect(parseQuantity('5-5')).toEqual({
+      quantity: 5,
+      assumedQuantity: false,
+      quantityRange: null,
+    });
+    expect(parseQuantity('10-2')).toBeNull();
+    expect(parseQuantity('0-5')).toBeNull();
+  });
+});
+
 describe('priceDistribution', () => {
   const table = {
     drops: [
@@ -109,12 +160,26 @@ describe('priceDistribution', () => {
     expect(priced.perAction).toBe(80);
   });
 
-  it('refuses the whole table when one outcome has no market', () => {
-    // Dropping the expensive outcome would understate the row, which is worse
-    // than publishing nothing.
-    expect(
-      priceDistribution(table, (item) => (item === 'Cake' ? null : 1)),
-    ).toBeNull();
+  it('counts an outcome with no market as 0 gp, and says so', () => {
+    // Operator decision (§3.1b): the item is worth something, this site just cannot
+    // price it, so the row is a floor rather than absent. Nothing is dropped.
+    const priced = priceDistribution(table, (item) => (item === 'Cake' ? null : 1));
+    if (priced === null) throw new Error('expected a priced table');
+
+    const cake = priced.lines.find((line) => line.item === 'Cake');
+    expect(cake?.expectedGp).toBe(0);
+    expect(cake?.unpriced).toBe(true);
+    // Coins still contribute, so the mean is the priced part.
+    expect(priced.perAction).toBe(30);
+
+    const coins = priced.lines.find((line) => line.item === 'Coins');
+    expect(coins?.unpriced).toBe(false);
+  });
+
+  it('refuses a table where nothing has a market', () => {
+    // A mean of 0 here would say the loot is worthless, when the truth is that the
+    // site knows no prices for any of it.
+    expect(priceDistribution(table, () => null)).toBeNull();
   });
 });
 
@@ -231,7 +296,9 @@ describe('rankEvActivities', () => {
     expect(result.rejected).toBe(1);
   });
 
-  it('counts a table with an unpriced outcome as unpriced, not free', () => {
+  it('prices a table with an unpriced outcome, marking that line at 0 gp', () => {
+    // §3.1b: an item with no GE market contributes 0 and is marked, so the row is a
+    // floor. The engine keeps the row and the artifact shows which line is unpriced.
     const result = rankEvActivities(
       [
         source({
@@ -245,8 +312,13 @@ describe('rankEvActivities', () => {
       { skill: 'Thieving', mode: 'pessimistic' },
     );
 
-    expect(result.activities).toHaveLength(0);
-    expect(result.unpriced).toBe(1);
+    const row = result.activities[0];
+    if (row === undefined) throw new Error('expected an EV row');
+    const diamonds = row.distribution?.find((line) => line.item === 'Diamonds');
+    expect(diamonds?.unpriced).toBe(true);
+    expect(diamonds?.expectedGp).toBe(0);
+    // The priced half still counts: 0.5 x 49 gp.
+    expect(row.profit).toBe(25);
   });
 
   it('charges the bank trip per load, using the page pins', () => {
