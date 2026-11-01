@@ -257,107 +257,111 @@ export function GeToShopPage(): JSX.Element {
 
   return (
     <div className="page">
-      <div className="pagebar">
-        <div className="asof">
-          <span className="label">GE prices as of</span>
-          <strong title={formatSourceDateTime(ranking.pricesAsOf)}>
-            {formatTime(ranking.pricesAsOf)}
-          </strong>
-          <span
-            className="label"
-            title={formatSourceDateTime(DATA.generatedAt)}
-          >
-            built {formatTime(DATA.generatedAt)}
-          </span>
-        </div>
-      </div>
+      <section className="toolbar" aria-label="Filters">
+        <div className="toolbar-row">
+          <div className="modes" role="group" aria-label="Buy mode">
+            {(["pessimistic", "patient"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                className={m === mode ? "mode active" : "mode"}
+                onClick={() => setMode(m)}
+                aria-pressed={m === mode}
+              >
+                {MODE_LABEL[m]}
+              </button>
+            ))}
+          </div>
 
-      <section className="controls">
-        <div className="modes" role="group" aria-label="Buy mode">
-          {(["pessimistic", "patient"] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              className={m === mode ? "mode active" : "mode"}
-              onClick={() => setMode(m)}
-              aria-pressed={m === mode}
+          <input
+            className="search"
+            type="search"
+            placeholder="Filter by item, shop or location…"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            aria-label="Filter"
+          />
+
+          <div className="asof">
+            <span className="label">GE prices as of</span>
+            <strong title={formatSourceDateTime(ranking.pricesAsOf)}>
+              {formatTime(ranking.pricesAsOf)}
+            </strong>
+            <span
+              className="label"
+              title={formatSourceDateTime(DATA.generatedAt)}
             >
-              {MODE_LABEL[m]}
-            </button>
-          ))}
+              built {formatTime(DATA.generatedAt)}
+            </span>
+          </div>
         </div>
 
-        <input
-          className="search"
-          type="search"
-          placeholder="Filter by item, shop or location…"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          aria-label="Filter"
-        />
+        <div className="toolbar-row chips">
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={membersOnly}
+              onChange={(event) => setMembersOnly(event.target.checked)}
+            />
+            Members only
+          </label>
 
-        <label className="toggle">
-          <input
-            type="checkbox"
-            checked={membersOnly}
-            onChange={(event) => setMembersOnly(event.target.checked)}
+          <label
+            className="toggle"
+            title="Hide shops with a known access requirement from the curated, wiki-sourced access table"
+          >
+            <input
+              type="checkbox"
+              checked={hideLocked}
+              onChange={(event) => setHideLocked(event.target.checked)}
+            />
+            Hide locked
+          </label>
+
+          <label
+            className="toggle"
+            title="Minimum total profit for the planned sale"
+          >
+            Min profit
+            <input
+              className="num"
+              type="number"
+              min={0}
+              step={1000}
+              value={minProfit}
+              onChange={(event) => setMinProfit(Number(event.target.value) || 0)}
+              aria-label="Minimum total profit"
+            />
+          </label>
+
+          <label
+            className="toggle"
+            title="Minimum units the GE can supply in a 4h window (buy limit and 24h volume)"
+          >
+            Min 4h supply
+            <input
+              className="num"
+              type="number"
+              min={0}
+              step={10}
+              value={minVolume}
+              onChange={(event) => setMinVolume(Number(event.target.value) || 0)}
+              aria-label="Minimum purchasable units per 4 hours"
+            />
+          </label>
+
+          <span className="toolbar-spacer" />
+
+          <ColumnPicker
+            columns={GE_TO_SHOP_COLUMNS}
+            visible={visible}
+            onToggle={toggleColumn}
+            onReset={resetColumns}
           />
-          Members only
-        </label>
-
-        <label
-          className="toggle"
-          title="Hide shops with a known access requirement from the curated, wiki-sourced access table"
-        >
-          <input
-            type="checkbox"
-            checked={hideLocked}
-            onChange={(event) => setHideLocked(event.target.checked)}
-          />
-          Hide locked
-        </label>
-
-        <label
-          className="toggle"
-          title="Minimum total profit for the planned sale"
-        >
-          Min profit
-          <input
-            className="num"
-            type="number"
-            min={0}
-            step={1000}
-            value={minProfit}
-            onChange={(event) => setMinProfit(Number(event.target.value) || 0)}
-            aria-label="Minimum total profit"
-          />
-        </label>
-
-        <label
-          className="toggle"
-          title="Minimum units the GE can supply in a 4h window (buy limit and 24h volume)"
-        >
-          Min 4h supply
-          <input
-            className="num"
-            type="number"
-            min={0}
-            step={10}
-            value={minVolume}
-            onChange={(event) => setMinVolume(Number(event.target.value) || 0)}
-            aria-label="Minimum purchasable units per 4 hours"
-          />
-        </label>
-
-        <ColumnPicker
-          columns={GE_TO_SHOP_COLUMNS}
-          visible={visible}
-          onToggle={toggleColumn}
-          onReset={resetColumns}
-        />
+        </div>
       </section>
 
-      <section className="controls budget">
+      <section className="toolbar budget">
         <div className="budget-inputs">
           <div className="gold-compartment">
             <label className="toggle">

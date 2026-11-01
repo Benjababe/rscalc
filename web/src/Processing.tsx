@@ -328,97 +328,101 @@ export function ProcessingPage(): JSX.Element {
 
   return (
     <div className="page">
-      <div className="pagebar">
-        <div className="asof">
-          <span className="label">GE prices as of</span>
-          <strong title={formatSourceDateTime(ranking.pricesAsOf)}>
-            {formatTime(ranking.pricesAsOf)}
-          </strong>
-          <span
-            className="label"
-            title={formatSourceDateTime(DATA.generatedAt)}
-          >
-            built {formatTime(DATA.generatedAt)}
-          </span>
-        </div>
-      </div>
-
-      <section className="controls">
-        <div className="modes" role="group" aria-label="Price mode">
-          {(["pessimistic", "patient"] as const).map((candidate) => (
-            <button
-              key={candidate}
-              type="button"
-              className={candidate === mode ? "mode active" : "mode"}
-              onClick={() => setMode(candidate)}
-              aria-pressed={candidate === mode}
-              title={MODE_TITLE[candidate]}
-            >
-              {MODE_LABEL[candidate]}
-            </button>
-          ))}
-        </div>
-
-        <input
-          className="search"
-          type="search"
-          placeholder="Filter by output, input, method, facility or skill…"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          aria-label="Filter recipes"
-        />
-
-        <label className="toggle">
-          <input
-            type="checkbox"
-            checked={membersOnly}
-            onChange={(event) => setMembersOnly(event.target.checked)}
-          />
-          Members only
-        </label>
-
-        <label className="toggle">
-          Skill
-          <select
-            className="select"
-            value={skill}
-            onChange={(event) => setSkill(event.target.value)}
-            aria-label="Skill filter"
-          >
-            <option value="all">All skills</option>
-            <option value="none">No skill (facility)</option>
-            {skillOptions.map((option) => (
-              <option key={option} value={option}>
-                {titleCase(option)}
-              </option>
+      <section className="toolbar" aria-label="Filters">
+        <div className="toolbar-row">
+          <div className="modes" role="group" aria-label="Price mode">
+            {(["pessimistic", "patient"] as const).map((candidate) => (
+              <button
+                key={candidate}
+                type="button"
+                className={candidate === mode ? "mode active" : "mode"}
+                onClick={() => setMode(candidate)}
+                aria-pressed={candidate === mode}
+                title={MODE_TITLE[candidate]}
+              >
+                {MODE_LABEL[candidate]}
+              </button>
             ))}
-          </select>
-        </label>
+          </div>
 
-        <label className="toggle" title="Minimum profit for one action, before sizing">
-          Min profit / action
           <input
-            className="num"
-            type="number"
-            min={0}
-            step={1}
-            value={minProfit}
-            onChange={(event) =>
-              setMinProfit(Math.max(0, Number(event.target.value) || 0))
-            }
-            aria-label="Minimum profit per action"
+            className="search"
+            type="search"
+            placeholder="Filter by output, input, method, facility or skill…"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            aria-label="Filter recipes"
           />
-        </label>
 
-        <ColumnPicker
-          columns={PROCESSING_COLUMNS}
-          visible={visible}
-          onToggle={toggleColumn}
-          onReset={resetColumns}
-        />
+          <div className="asof">
+            <span className="label">GE prices as of</span>
+            <strong title={formatSourceDateTime(ranking.pricesAsOf)}>
+              {formatTime(ranking.pricesAsOf)}
+            </strong>
+            <span
+              className="label"
+              title={formatSourceDateTime(DATA.generatedAt)}
+            >
+              built {formatTime(DATA.generatedAt)}
+            </span>
+          </div>
+        </div>
+
+        <div className="toolbar-row chips">
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={membersOnly}
+              onChange={(event) => setMembersOnly(event.target.checked)}
+            />
+            Members only
+          </label>
+
+          <label className="toggle">
+            Skill
+            <select
+              className="select"
+              value={skill}
+              onChange={(event) => setSkill(event.target.value)}
+              aria-label="Skill filter"
+            >
+              <option value="all">All skills</option>
+              <option value="none">No skill (facility)</option>
+              {skillOptions.map((option) => (
+                <option key={option} value={option}>
+                  {titleCase(option)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="toggle" title="Minimum profit for one action, before sizing">
+            Min profit / action
+            <input
+              className="num"
+              type="number"
+              min={0}
+              step={1}
+              value={minProfit}
+              onChange={(event) =>
+                setMinProfit(Math.max(0, Number(event.target.value) || 0))
+              }
+              aria-label="Minimum profit per action"
+            />
+          </label>
+
+          <span className="toolbar-spacer" />
+
+          <ColumnPicker
+            columns={PROCESSING_COLUMNS}
+            visible={visible}
+            onToggle={toggleColumn}
+            onReset={resetColumns}
+          />
+        </div>
       </section>
 
-      <section className="controls budget">
+      <section className="toolbar budget">
         <div className="budget-inputs">
           <div className="gold-compartment">
             <label className="toggle">
