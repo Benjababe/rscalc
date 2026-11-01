@@ -31,8 +31,7 @@ import type {
   Ranking,
   SellMode,
   ShopSinkRanking,
-  SkillActivity,
-  SkillActivityCatalog,
+  SkillingPayload,
 } from "../../src/types";
 import { wikiUrl } from "../../src/util/wiki";
 import { ACCESS_MAP } from "./access";
@@ -77,16 +76,14 @@ const PROCESS = processPayload as unknown as ProcessPayload;
 
 /**
  * SAFETY: the artifact is written by `scripts/refresh-skilling.ts`, which refuses
- * to write a payload that fails `SkillingPayloadSchema`, so the shape here is the
- * one that schema validated.
+ * to write a payload that fails `SkillingPayloadSchema` (zod), so the shape here is
+ * the one that schema validated. Typed with `SkillingPayload` — the schema's own
+ * inferred type — rather than a hand-written interface: a local interface is
+ * exactly how this cast went wrong the first time, declaring `pessimistic` and
+ * `patient` at the top level when the artifact nests them per skill. Nothing read
+ * those fields, so the lie compiled.
  */
-const SKILLING = skillingPayload as unknown as SkillingData;
-
-interface SkillingData {
-  pessimistic: { opportunities: SkillActivity[] };
-  patient: { opportunities: SkillActivity[] };
-  skills: SkillActivityCatalog[];
-}
+const SKILLING = skillingPayload as unknown as SkillingPayload;
 
 /**
  * Flatten the per-skill artifact into one list for the leaderboard, carrying the

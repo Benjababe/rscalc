@@ -248,6 +248,9 @@ async function main(): Promise<void> {
     }
   }
 
+  // A mutable map, not an object literal: entries are added per item id in the
+  // loop below, so `satisfies` cannot apply and inference would be `{}`. The
+  // annotation is the shape `MarketSnapshot.quotes` expects.
   const quotes: Record<string, MarketQuote> = {};
   for (const id of wanted) {
     const meta = metaById.get(id);
