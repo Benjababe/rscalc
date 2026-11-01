@@ -409,6 +409,10 @@ unpriced count is stated, never closed with an estimate.
 `kind: 'train'` row: `output: null`, `profit = -spend`, i.e. the cost of one
 action. A tradeable output that merely has no 4h volume stays unpriced — a market
 problem is not a cost. Tests pin both branches.
+- `TRAIN_SKILLS` holds only skills whose **own** product is untradeable
+  (Construction's furniture, Sailing's boat parts). A skill that merely touches an
+  untradeable item — Prayer's heraldic armour, Slayer's mounted trophies — does not
+  qualify, because those are Construction work wearing the wrong tag.
 - **Phase 2 needs a different model.** Farming priced only its compost chain (12 of
   138 recipes): crop harvesting has no bucket recipe at all, and the nursery chain
   (acorn -> untradeable seedling -> sapling) cannot be priced one recipe at a time.
@@ -432,8 +436,8 @@ and an activity whose profit only exists as a rate is skipped and counted.
 - Chance, range and level-scaled quantities are priced at a **sourced expected
 value** and labelled `EV`; without a published distribution the row stays out.
 - Phase 1 done: Smithing, Crafting, Fletching, Herblore, Runecraft, Construction,
-  Magic, Cooking, Farming and Sailing ✅ — 2,075 priced activities from 4,229 bucket
-  recipes and 27 gathering nodes, all
+  Magic, Cooking, Farming, Sailing, Prayer, Firemaking, Agility and Slayer ✅ — 2,086
+  priced activities from 4,307 bucket recipes and 27 gathering nodes, all
   re-framed by the same engine. The unpriced remainder is untradeable legs, no 4h
   liquidity, unmapped combined-item names, a chance note, or a Cooking food with
   no published no-burn level: counted, never estimated. Tanning hides is out

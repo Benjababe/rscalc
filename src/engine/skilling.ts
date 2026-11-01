@@ -88,6 +88,10 @@ export const SKILLING_SKILLS = [
   'Fishing',
   'Hunter',
   'Thieving',
+  'Prayer',
+  'Firemaking',
+  'Agility',
+  'Slayer',
 ] as const;
 export type SkillingSkill = (typeof SKILLING_SKILLS)[number];
 

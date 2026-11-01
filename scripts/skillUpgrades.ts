@@ -73,6 +73,11 @@ export const SKILL_UPGRADES: readonly SkillUpgrade[] = [
   entry('Magic', 'Primordial boots'),
   entry('Runecraft', 'Eternal boots'),
   entry('Magic', 'Eternal boots'),
+  // Spirit shields: a sigil fused into an existing blessed shield. The bucket
+  // tags this recipe with more than one skill, so each tag needs its own key or
+  // the row prices as a Prayer "money maker", which it is not.
+  entry('Smithing', 'Arcane spirit shield'),
+  entry('Prayer', 'Arcane spirit shield'),
   // Dragonic visages attached to a shield.
   entry('Smithing', 'Dragonfire shield'),
   entry('Smithing', 'Dragonfire ward'),

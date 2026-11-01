@@ -66,8 +66,12 @@ Treat the split as a shape, not a constant.
 | Fishing | 18 | 0 | 0 / 0 | 0 |
 | Hunter | 5 | 4 | 0 / 4 | 4 |
 | Thieving | 0 | 0 | 0 / 0 | 0 |
+| Prayer | 32 | 3 | 2 / 1 | 3 |
+| Firemaking | 32 | 8 | 7 / 1 | 8 |
+| Agility | 1 | 0 | 0 / 0 | 0 |
+| Slayer | 13 | 0 | 0 / 0 | 0 |
 
-2,075 activities priced in total, from 4,229 bucket recipes and 27 gathering nodes. Cooking rows carry a
+2,086 activities priced in total, from 4,307 bucket recipes and 27 gathering nodes. Cooking rows carry a
 `noBurnLevel` and are gated on a level the player enters (§8.10). See §8 for why
 the rest are unpriced, and for Construction's 736 `train` rows — activities whose
 output cannot be sold at all, priced as the cost of one action.
@@ -190,12 +194,12 @@ Do not pad it with a player-entered rate.
 
 ### Phase 3 — loss / cost-of-training (`kind: train`, negative gp)
 
-| # | Skill | Note |
-|---|---|---|
-| 16 | Prayer | bones → altar/chaos altar; always negative, that is the point |
-| 17 | Firemaking | logs burned; gp/hour stays `—` unless a burn rate is published |
-| 18 | Agility | marks of grace as the only output; otherwise pure cost |
-| 19 | Slayer | needs monster model — see Q4, may be deferred |
+| # | Skill | Status | Note |
+|---|---|---|---|
+| 16 | Prayer | **✅ scanned — see §8.16** | 3 rows: blessing symbols; bones have no recipe |
+| 17 | Firemaking | **✅ scanned — see §8.16** | 8 pyre-log rows; burning has no output |
+| 18 | Agility | **✅ scanned — see §8.16** | 1 recipe, unpriced at both ends |
+| 19 | Slayer | **✅ scanned — see §8.16** | 13 recipes, all house trophies |
 
 ### Phase 4 — needs an explicit decision before any scanning
 
@@ -744,6 +748,59 @@ Fishing, Hunter and Thieving are untouched by this: their rate depends on a
 success chance or a loot distribution, which is the EV work in §3.1, not a respawn
 constant.
 
+### 8.16 Phase 3 complete: Prayer, Firemaking, Agility, Slayer
+
+Eleven rows between the four, and the split is instructive: two of these skills
+price a *real* activity, two price nothing at all.
+
+| Skill | Recipes | Priced | What priced, and what did not |
+|---|---|---|---|
+| Prayer | 32 | 3 | blessing unblessed symbols; heraldic armour is untradeable |
+| Firemaking | 32 | 8 | pyre logs (logs + sacred oil); burning has no output |
+| Agility | 1 | 0 | a single recipe, untradeable at both ends |
+| Slayer | 13 | 0 | mounted head trophies, all untradeable |
+
+**Prayer** prices the one thing Prayer actually produces for sale: `Holy symbol ←
+Unblessed symbol`, 205 gp an action, twice (two recipe variants). Its other 29
+recipes are heraldic and painted armour — Guthix/Saradomin/Zamorak helms,
+kiteshields and banners — which are untradeable. Offering bones at an altar has no
+recipe at all: the bone is consumed for experience and produces nothing, so there is
+no output to price.
+
+**Firemaking** prices pyre logs, which is genuine Firemaking work: `Yew pyre logs ←
+Yew logs + Sacred oil(4)` at 233 gp, and seven more, from 69 to 458 gp. Ironwood
+pyre logs lose 1,044. Burning a log produces no item, so the skill's main loop is
+invisible here for the same reason as Prayer's.
+
+**Agility** has exactly one recipe in the bucket — `Snake basket full` — untradeable
+in and out. Laps, marks of grace and the rooftop courses are not transformations.
+
+**Slayer** has 13, every one a mounted head trophy for the player's house. Killing
+monsters is a loot table, not a recipe.
+
+#### Why the untradeable half was **not** turned into `train` rows
+
+Fifty-ish of these recipes build things you cannot sell, which is the same shape as
+Construction and Sailing. They stay unpriced on purpose:
+
+- a mounted basilisk head, a Fire of Eternal Light and a Guthix banner are
+  **furniture**, built at a Construction bench. Pricing them as Prayer or Slayer
+  training would put the wrong skill on the row and double-count work Construction
+  already costs honestly;
+- unlike Construction and Sailing, the skill tag on those recipes is incidental —
+  the player is building a display, not training Prayer.
+
+The rule that falls out: `TRAIN_SKILLS` holds skills whose **own** product is
+untradeable (Construction's furniture, Sailing's boat parts). A skill that merely
+*touches* an untradeable item does not qualify.
+
+#### One classification fix this exposed
+
+`Arcane spirit shield` was pricing as a **Prayer** money maker at −2,907,706 gp,
+because the bucket tags that recipe with both Smithing and Prayer. It is an upgrade —
+a sigil fused into a blessed shield — so it joined the curated upgrade list under
+both tags (`scripts/skillUpgrades.ts`) and now reads `Upgrade` in either view.
+
 ### 8.11 The instant default, and why the page must own it
 
 Q10 settled that `#/skilling` opens in **instant** mode (buy at `high`, sell at
@@ -796,7 +853,7 @@ patient toggle is a UI-only change later. Nothing needs regenerating for it.
 | Magic | ✅ §8.9 | 146 |
 | Cooking | ✅ §8.10 — gated on the player's Cooking level | 47 |
 
-**2,075 activities priced from 4,229 bucket recipes and 27 gathering nodes**, with no hand-typed item,
+**2,086 activities priced from 4,307 bucket recipes and 27 gathering nodes**, with no hand-typed item,
 price or rate anywhere: every number is a GE quote joined to the wiki's own recipe
 table. The one curated input is the Cooking no-burn table, which is a game
 constant read off a wiki page that states it.
