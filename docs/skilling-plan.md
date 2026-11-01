@@ -48,14 +48,20 @@ built by `pnpm skilling`.
 | | Pessimistic (instant buy, instant sell) | Patient (rested offers) |
 |---|---|---|
 | Crafting — priced | 299 | 301 |
-| Crafting — profitable / loss | 109 / 190 | 167 / 134 |
+| Crafting — profitable / loss | 110 / 189 | 167 / 134 |
 | Fletching — priced | 238 | 268 |
-| Fletching — profitable / loss | 38 / 200 | 78 / 190 |
+| Fletching — profitable / loss | 39 / 199 | 78 / 190 |
 | Smithing — priced | 230 | 230 |
-| Smithing — profitable / loss | 56 / 174 | 89 / 141 |
+| Smithing — profitable / loss | 60 / 170 | 89 / 141 |
+| Runecraft — priced | 51 | 52 |
+| Runecraft — profitable / loss | 18 / 33 | 26 / 26 |
+| Construction — priced | 756 | 745 |
+| Construction — profitable / loss | 2 / 754 | 7 / 738 |
 
-Bucket recipes naming the skill, and how many could not be priced at all: Crafting
-727 / 428, Fletching 420 / 182, Smithing 416 / 186. See §8 for why.
+Bucket recipes naming the skill, and how many could not be priced at all:
+Crafting 727/428, Fletching 420/182, Smithing 416/186, Runecraft 195/144,
+Construction 959/203. See §8 for why, and for Construction's 736 `train` rows —
+activities whose output cannot be sold at all, priced as the cost of one action.
 
 ## 2. Row model
 
@@ -152,8 +158,8 @@ estimates are for sanity-checking the output, not targets.
 | 2 | Crafting | **✅ scanned — see §8.1** |
 | 3 | Fletching | **✅ scanned — see §8.2** |
 | 4 | Herblore | verify 41, potion finishing vs unfinished, cleaning |
-| 5 | Runecraft | verify 15, add essence→rune with altar multipliers, combination runes |
-| 6 | Construction | planks + sawmill fee, butler cost, flatpack vs furniture (may be loss-only) |
+| 5 | Runecraft | **✅ scanned — see §8.5** |
+| 6 | Construction | **✅ scanned — see §8.6** (needed a new `train` row kind) |
 | 7 | Magic | verify 69, add high-alch as an **output channel** (see Q6), spell costs |
 | 8 | Cooking | burn chance is now an expected value (§3.1), so the skill is priceable; needs a sourced burn-chance table by level and Cooking gauntlets |
 
@@ -351,7 +357,7 @@ three recipes whose combined-shard material has no GE mapping. The rest are
 untradeable (Shayzien supply sets, Blisterwood, Crystal items, Infernal pieces,
 Gauntlet tools) or Varlamore-era items with no market yet.
 
-### 8.4 What these three skills now tell us
+### 8.4 What the first three skills told us
 
 - The recipe bucket is a genuinely complete activity list for these skills; the
   remaining gaps are market-side, not data-side. That makes Phase 1 cheap.
@@ -362,7 +368,76 @@ Gauntlet tools) or Varlamore-era items with no market yet.
   rancour, onyx tips, Torva/Godsword paths), not repeatable training. The `kind`
   split described in §8.1 is now the biggest open design question.
 
+### 8.5 Runecraft ✅
+
+195 bucket recipes name Runecraft; **51 priced** (18 profitable, 33 loss-making),
+52 in patient mode. 144 unpriced.
+
+Priced leaders are all altar conversions off pure essence: Blood rune 322
+gp/action, Wrath 290, Death 164, Nature 146, Astral 116, Law 113. The rest are the
+tiara/bark-armour and combination-rune recipes (lava, smoke, steam), plus the
+Varlamore "blank rune" line.
+
+**The rate is the problem, and the page must say so.** The bucket's 1 tick is the
+*altar* action; the bank-to-altar run and pouch management are not modelled, and
+they dominate a real run. So `1,932,000/h` for blood runes is an altar-rate upper
+bound: it is what the altar action alone allows, not what a run sustains. That is
+the same "banking and travel excluded" caveat the processing page documents, but
+it is far more visible here because Runecraft's margin per essence is small and
+the rate is everything. Options when
+the page is built: label the rate as an altar rate, or suppress `gp/hour` for
+`BATCH_TICK_SKILLS = ['Runecraft']` until a sourced run model exists. Not decided
+yet (§7 Q1 is about the general rule).
+
+The 144 unpriced rows are untradeable outputs (elemental/bloodbark tiaras, bark
+armour of the wrong tier) and combination runes whose template materials include
+a talisman that is not consumed in game. Nothing was estimated.
+
+### 8.6 Construction ✅
+
+**Construction sells nothing, and the first pass proved it.** 959 recipes name
+the skill; only 20 could be priced as transforms, and every priced output is a
+*Sailing* ship component (Large teak hull parts, 3,516 gp/action). The other 936
+build furniture that stands in the player's house — `Mahogany table`,
+`Gilded adventure log`, `Crystal throne`, `Mounted coins` — none of which appear
+in the GE mapping at all. There is no market to price.
+
+So Construction needed a row shape the artifact did not have: `kind: 'train'`,
+`output: null`, `profit = -spend`. 736 rows are now cost-only, and they answer the
+only question the skill can answer — what training costs per action and per hour:
+
+| Build | Cost / action | Cost / hour |
+|---|---|---|
+| Vale offerings (oak logs + oak shield x4) | −116 gp | −203 |
+| Wooden hull (hull parts x10 + 300 bronze nails) | −1,930 gp | −965 |
+| Gold candlesticks (6 bars + 6 candles) | −1,770 gp | −2,655 |
+| Crystal throne (15 magic stones) | −15,000,000 gp | −63,750,000 |
+| Mounted coins (marble + gold leaf + **100,000,000 gp fee**) | −100,471,805 gp | — |
+
+`Mounted coins` is a real row: the recipe template charges a 100M gp fee. It is
+the useful kind of absurd — it shows the page is reading the source rather than
+guessing.
+
+Rule that keeps `train` honest: a recipe becomes a cost row **only when its
+output has no GE market at all** (absent from the mapping = not a tradeable item).
+An output that is tradeable but has no 4h volume — a heraldic helm, a Vale
+offering — stays *unpriced*, because that is a market problem, not a cost. Tests
+pin both branches. The 203 unpriced rows are recipes whose inputs are untradeable
+(Pharaoh's sceptre, ancient signet, marble blocks as quest rewards).
+
+### 8.7 What five skills now tell us
+
+- The recipe bucket is complete enough to price 1,574 activities across five
+  skills without a single hand-typed item, fee or rate.
+- Two of the five needed a new concept: **cost-only rows** (Construction) and a
+  **rate caveat** (Runecraft). Both are cases where the honest answer is not
+  "profit per hour", and the row shape now has room for that (`kind`).
+- The `kind` field is only two values (`transform`, `train`). The *third* kind
+  the page needs — `upgrade`, for one-off 40M conversions like Necklace of
+  rupture — is still an open design question, and it is the one that decides how
+  the table sorts.
+
 ### Next skill
 
-Construction or Runecraft: both are Phase 1 leftovers with real non-recipe work
-(plank fees and butler costs; altar multipliers and pouch capacity).
+Magic or Herblore: both are recipe-backed and mostly already priced (69 and 41
+rows in `data/process.json`), so they are the cheapest remaining Phase 1 skills.

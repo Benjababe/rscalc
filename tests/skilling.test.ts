@@ -114,7 +114,7 @@ describe('rankSkillActivities', () => {
     });
 
     const ring = result.ranking.opportunities.find(
-      (row) => row.output.itemName === 'Ruby ring',
+      (row) => row.outputName === 'Ruby ring',
     );
     if (ring === undefined) throw new Error('expected the ruby ring row');
     // 900 gp in, 700 gp out minus the 14 gp GE tax = -214 gp per action.
@@ -129,6 +129,7 @@ describe('rankSkillActivities', () => {
       profitable: 1,
       lossMaking: 1,
       unknownRate: 0,
+      trainOnly: 0,
       unpriced: 0,
     });
     expect(NO_PROFIT_FLOOR).toBeLessThan(0);
@@ -175,11 +176,96 @@ describe('rankSkillActivities', () => {
       mode: 'pessimistic',
     });
 
-    expect(result.ranking.opportunities.map((row) => row.output.itemName)).toEqual(
-      ['Bow string', 'Bow string'],
-    );
+    expect(result.ranking.opportunities.map((row) => row.outputName)).toEqual([
+      'Bow string',
+      'Bow string',
+    ]);
     expect(result.ranking.opportunities[0]?.gpPerHour).not.toBeNull();
     expect(result.ranking.opportunities[1]?.gpPerHour).toBeNull();
+  });
+});
+
+/** House furniture: the output is not a GE item at all, so it is a cost. */
+const MAHOGANY_PLANK = quote({
+  id: 6,
+  name: 'Mahogany plank',
+  high: 1500,
+  low: 1500,
+  highVolume24h: 60_000,
+  lowVolume24h: 60_000,
+  limit: 10_000,
+});
+const TABLE = recipe({
+  id: 'mahogany-table',
+  page: 'Mahogany table',
+  ticks: 5,
+  materials: [{ name: 'Mahogany plank', quantity: 6, note: null }],
+  output: { name: 'Mahogany table', quantity: 1, note: null },
+  skills: [{ name: 'Construction', level: 50 }],
+});
+
+/** A tradeable item with no volume at all: a market problem, not a cost. */
+const ILLIQUID_OUTPUT = quote({
+  id: 7,
+  name: 'Vale offerings',
+  high: 100,
+  low: 100,
+  highVolume24h: 0,
+  lowVolume24h: 0,
+});
+const ILLIQUID = recipe({
+  id: 'vale-offerings',
+  page: 'Vale offerings',
+  materials: [{ name: 'Flax', quantity: 1, note: null }],
+  output: { name: 'Vale offerings', quantity: 1, note: null },
+  skills: [{ name: 'Construction', level: 50 }],
+});
+
+describe('train rows', () => {
+  it('prices an unsellable output as the cost of one action', () => {
+    const result = rankSkillActivities([TABLE], market([MAHOGANY_PLANK]), {
+      skill: 'Construction',
+      mode: 'pessimistic',
+    });
+
+    const row = result.ranking.opportunities[0];
+    if (row === undefined) throw new Error('expected a construction row');
+    expect(row.kind).toBe('train');
+    expect(row.output).toBeNull();
+    expect(row.outputName).toBe('Mahogany table');
+    expect(row.spend).toBe(9000);
+    expect(row.profit).toBe(-9000);
+    expect(row.grossRevenue).toBe(0);
+    expect(row.tax).toBe(0);
+    expect(row.gpPer4h).toBe(-9000 * row.actions4h);
+    expect(row.gpPerHour).toBeLessThan(0);
+    expect(result.coverage.trainOnly).toBe(1);
+    expect(result.coverage.profitable).toBe(0);
+  });
+
+  it('keeps an illiquid tradeable output unpriced instead of calling it a cost', () => {
+    const result = rankSkillActivities(
+      [ILLIQUID],
+      market([FLAX, ILLIQUID_OUTPUT]),
+      { skill: 'Construction', mode: 'pessimistic' },
+    );
+
+    expect(result.ranking.opportunities).toHaveLength(0);
+    expect(result.coverage.trainOnly).toBe(0);
+    expect(result.coverage.unpriced).toBe(1);
+  });
+
+  it('only emits train rows for the skills whose outputs cannot be sold', () => {
+    // Same shape, but Crafting is a transform skill: an untradeable output there
+    // is unpriced, not a "cost of training".
+    const result = rankSkillActivities(
+      [{ ...TABLE, skills: [{ name: 'Crafting', level: 50 }] }],
+      market([MAHOGANY_PLANK]),
+      { skill: 'Crafting', mode: 'pessimistic' },
+    );
+
+    expect(result.ranking.opportunities).toHaveLength(0);
+    expect(result.coverage.trainOnly).toBe(0);
   });
 });
 
@@ -204,6 +290,18 @@ describe('committed skilling artifact', () => {
       const rows = catalog.pessimistic.opportunities;
       expect(coverage.activities).toBe(rows.length);
       expect(coverage.profitable + coverage.lossMaking).toBe(rows.length);
+      expect(coverage.trainOnly).toBe(
+        rows.filter((row) => row.kind === 'train').length,
+      );
+      for (const row of rows) {
+        // A train row sells nothing: no output, no revenue, cost only.
+        expect(row.output === null).toBe(row.kind === 'train');
+        if (row.kind === 'train') {
+          expect(row.profit).toBe(-row.spend);
+          expect(row.gpPer4h).toBeLessThanOrEqual(0);
+          expect(row.gpPerHour ?? 0).toBeLessThanOrEqual(0);
+        }
+      }
       expect(coverage.unknownRate).toBe(
         rows.filter((row) => row.gpPerHour === null).length,
       );

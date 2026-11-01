@@ -483,6 +483,42 @@ export type ProcessPayload = z.infer<typeof ProcessPayloadSchema>;
 // ---------------------------------------------------------------------------
 
 /**
+ * One row's economic kind.
+ *
+ * `transform` sells something: buy the inputs, make the output, sell it on the
+ * GE. `train` sells nothing — the output is house furniture or another object
+ * that cannot be traded, so the row is the **cost** of one action and the only
+ * question it can answer is "what does training this skill cost per hour?".
+ */
+export const SkillActivityKindSchema = z.enum(['transform', 'train']);
+export type SkillActivityKind = z.infer<typeof SkillActivityKindSchema>;
+
+/**
+ * A skilling row: the processing row shape, widened.
+ *
+ * `output` is null exactly when `kind === 'train'`; every money field then
+ * carries the cost, negated (`profit = -spend`). `data/process.json` keeps the
+ * narrow `ProcessOpportunity` shape because it only ever lists transforms.
+ */
+export const SkillActivitySchema = ProcessOpportunitySchema.extend({
+  kind: SkillActivityKindSchema,
+  output: ProcessItemSchema.nullable(),
+  /**
+   * The recipe's output name, always present. A `train` row has no priced
+   * output, but the page still has to say what you are building.
+   */
+  outputName: z.string().min(1),
+});
+export type SkillActivity = z.infer<typeof SkillActivitySchema>;
+
+export const SkillActivityRankingSchema = ProcessRankingSchema.extend({
+  opportunities: z.array(SkillActivitySchema),
+});
+export type SkillActivityRanking = z.infer<
+  typeof SkillActivityRankingSchema
+>;
+
+/**
  * How much of one scanned skill actually reached the artifact.
  *
  * `recipes` counts the bucket rows that name the skill; `unpriced` is the rest
@@ -500,6 +536,8 @@ export const SkillCoverageSchema = z.object({
   lossMaking: z.number().int().nonnegative(),
   /** Rows with no published tick count, so gp/hour is null. */
   unknownRate: z.number().int().nonnegative(),
+  /** Rows whose output cannot be sold, so the row is a training cost. */
+  trainOnly: z.number().int().nonnegative(),
   unpriced: z.number().int().nonnegative(),
 });
 export type SkillCoverage = z.infer<typeof SkillCoverageSchema>;
@@ -508,8 +546,8 @@ export type SkillCoverage = z.infer<typeof SkillCoverageSchema>;
 export const SkillActivityCatalogSchema = z.object({
   skill: z.string(),
   coverage: SkillCoverageSchema,
-  pessimistic: ProcessRankingSchema,
-  patient: ProcessRankingSchema,
+  pessimistic: SkillActivityRankingSchema,
+  patient: SkillActivityRankingSchema,
 });
 export type SkillActivityCatalog = z.infer<typeof SkillActivityCatalogSchema>;
 

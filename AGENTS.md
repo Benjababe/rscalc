@@ -145,9 +145,10 @@ data/shop-access.json    per-shop known access requirements (265 pages), cited;
 data/process.json        deterministic processing recipes for both price modes,
                          with inputs, output, fees, caps and tick time
 data/skilling.json       per scanned skill, every priced activity in both modes
-                         (Crafting, Fletching, Smithing today), with a coverage
-                         line: priced rows, profitable, loss-making, unknown
-                         rate, unpriced
+                         (Crafting, Fletching, Smithing, Runecraft,
+                         Construction today), with a coverage line: priced rows,
+                         profitable, loss-making, cost-only, unknown rate,
+                         unpriced
 ```
 
 Coverage at the last refresh: 526/593 shops have a bank distance (5 have no map
@@ -394,21 +395,28 @@ cost is a result, not a filter. The maths, tax, caps and tick conversion stay in
 one place, so `#/skilling` and `#/processing` can never disagree about a recipe.
 - `data/skilling.json` (`pnpm skilling`) carries, per scanned skill, both price
 modes plus a **coverage line**: bucket recipes naming the skill, activities
-priced, profitable, loss-making, unknown rate, and unpriced. The unpriced count
-is stated, never closed with an estimate.
+priced, profitable, loss-making, cost-only, unknown rate, and unpriced. The
+unpriced count is stated, never closed with an estimate.
+- A recipe whose output has **no GE market at all** (house furniture) is a
+`kind: 'train'` row: `output: null`, `profit = -spend`, i.e. the cost of one
+action. A tradeable output that merely has no 4h volume stays unpriced — a market
+problem is not a cost. Tests pin both branches.
 - Time follows the plan's rule: a sourced action time gives gp/hour, a
 deterministic per-action profit with no clock keeps `gpPerHour = null` (`—`),
 and an activity whose profit only exists as a rate is skipped and counted.
 - Chance, range and level-scaled quantities are priced at a **sourced expected
 value** and labelled `EV`; without a published distribution the row stays out.
-- Crafting ✅, Fletching ✅, Smithing ✅ — 767 priced activities between them
-  (pessimistic mode), from 1,563 bucket recipes. Everything else those recipes
-  needed was already in the bucket; the unpriced remainder is market-side
-  (no GE price, no 4h liquidity, unmapped combined-item names), counted and
-  never estimated. Tanning hides is out (no xp, no recipe); alch and shop sale
-  as output channels are still open (Q6 in the plan).
+- Crafting ✅, Fletching ✅, Smithing ✅, Runecraft ✅, Construction ✅ — 1,574
+  priced activities between them (pessimistic mode), from 2,717 bucket recipes.
+  Everything else those recipes needed was already in the bucket; the unpriced
+  remainder is market-side (no GE price, no 4h liquidity, unmapped combined-item
+  names), counted and never estimated. Tanning hides is out (no xp, no recipe);
+  alch and shop sale as output channels are still open (Q6 in the plan).
+- Runecraft's published tick is the altar action, so its gp/hour is an altar-rate
+  upper bound (banking excluded, as on the processing page) — labelled, not fixed.
 **Accept:** tests pin the loss-side inclusion, skill filtering, the unpriced
-count, null-rate rows kept with `gpPerHour = null`, and the artifact's coverage
+count, null-rate rows kept with `gpPerHour = null`, the two `train` branches
+(no market → cost row; no liquidity → unpriced), and the artifact's coverage
 line reconciling against its own rows.
 
 ## Engineering conventions

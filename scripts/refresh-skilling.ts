@@ -31,7 +31,7 @@ import {
   SkillingPayloadSchema,
   type MarketQuote,
   type MarketSnapshot,
-  type ProcessOpportunity,
+  type SkillActivity,
   type SkillActivityCatalog,
   type SellMode,
 } from '../src/types.js';
@@ -117,7 +117,7 @@ function wantedItemIds(
 }
 
 /** One activity as a terminal line: gp/action, gp/hour, then its inputs. */
-function formatActivity(row: ProcessOpportunity): string {
+function formatActivity(row: SkillActivity): string {
   const perHour =
     row.gpPerHour === null
       ? '—'
@@ -126,10 +126,14 @@ function formatActivity(row: ProcessOpportunity): string {
     row.inputs.map((item) => `${item.itemName} x${item.quantity}`).join(' + ') ||
     'nothing';
   const fee = row.feeGp > 0 ? ` + ${row.feeGp} gp fee` : '';
+  // A train row has no priced output: name what is being built and say so.
+  const output =
+    row.output === null
+      ? `${row.outputName} (built, not sold)`
+      : `${row.output.itemName} x${row.output.quantity}`;
   return (
     `${String(row.profit).padStart(9)} gp  ${perHour.padStart(12)}  ` +
-    `${`${row.output.itemName} x${row.output.quantity}`.padEnd(32)} ` +
-    `from ${inputs}${fee}`
+    `${output.padEnd(32)} from ${inputs}${fee}`
   );
 }
 
@@ -143,6 +147,7 @@ function printTable(
   log(
     `\n${catalog.skill} — ${coverage.activities} activities priced ` +
       `(${coverage.profitable} profitable, ${coverage.lossMaking} loss-making, ` +
+      `${coverage.trainOnly} cost-only, ` +
       `${coverage.unpriced} of ${coverage.recipes} bucket recipes unpriced)`,
   );
 

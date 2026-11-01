@@ -136,15 +136,26 @@ export function outputVolume24h(quote: MarketQuote, mode: SellMode): number {
  */
 export { secondsPerAction };
 
-function fourHourSlice(volume24h: number): number {
+/**
+ * The slice of a 24h volume a 4h GE window can supply or absorb.
+ *
+ * Exported so the skilling engine prices a `train` row's input cap with the
+ * same arithmetic instead of re-deriving it.
+ */
+export function fourHourSlice(volume24h: number): number {
   return Math.floor(Math.max(0, volume24h) / (HOURS_PER_DAY / GE_WINDOW_HOURS));
 }
 
-function isPositiveInteger(value: number): boolean {
+/** A whole, positive quantity; a fractional one is never estimated. */
+export function isPositiveInteger(value: number): boolean {
   return Number.isInteger(value) && value > 0;
 }
 
-function hasChanceOrAverageNote(recipe: RawRecipe): boolean {
+/**
+ * True when the wiki flags the recipe's quantity as a chance, an average or a
+ * level-scaled value. Exported so the skilling engine applies the same rule.
+ */
+export function hasChanceOrAverageNote(recipe: RawRecipe): boolean {
   if (
     recipe.output.note !== null &&
     CHANCE_OR_AVERAGE_NOTE.test(recipe.output.note)
@@ -184,7 +195,11 @@ function isRecipeAllowed(
  * Name -> quote index. Names are unique in the GE mapping; if a duplicate ever
  * appears, the lower item id wins so the choice is deterministic.
  */
-function quoteIndex(market: MarketSnapshot): Map<string, MarketQuote> {
+/**
+ * Name -> quote index, with the lower item id winning a duplicate name so the
+ * choice is deterministic. Exported for the skilling engine's `train` rows.
+ */
+export function quoteIndex(market: MarketSnapshot): Map<string, MarketQuote> {
   const index = new Map<string, MarketQuote>();
   for (const quote of Object.values(market.quotes)) {
     const key = quote.name.toLowerCase();
