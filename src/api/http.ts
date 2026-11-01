@@ -14,18 +14,17 @@
  *     and a transient 429 doesn't corrupt a snapshot.
  */
 
-// Bare builtin specifiers, not the prefixed protocol form.
+// Node builtins use the `node:` protocol.
 //
-// Node's ESM resolver matches bare builtin names (crypto, path, fs/promises,
-// url) before consulting node_modules, so this is behaviourally identical to
-// the prefixed form and needs no node_modules entry. The bare form is used
-// because some language servers fail to resolve the prefixed protocol specifier
-// even when @types/node is installed, reporting a spurious "cannot find module"
-// against a file that `tsc` compiles cleanly. See docs/tooling-notes.md.
-import { createHash } from "crypto";
-import { mkdir, readFile, writeFile } from "fs/promises";
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
+// An earlier revision used the bare form because a language server here failed to
+// resolve the prefixed specifier, reporting "cannot find module" against a file
+// `tsc` compiled cleanly. That no longer reproduces (tsc, eslint, vitest, smoke
+// and the LSP check are all clean with the prefix), and the bare form raised an
+// `enforce-node-protocol` warning. See docs/tooling-notes.md §1.
+import { createHash } from "node:crypto";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const VERSION = "0.1.0";
 const CONTACT = process.env.RSCALC_CONTACT ?? "https://github.com/rscalc";
@@ -90,15 +89,27 @@ function cacheKeyFor(url: string): string {
   return createHash("sha1").update(url).digest("hex");
 }
 
+/**
+ * The cache file for a URL.
+ *
+ * `cacheKeyFor` returns a sha1 digest, which cannot contain a path separator, but
+ * the guard states that rather than assuming it: a future change to the key
+ * function must not be able to turn a cache write into a path traversal.
+ */
+function cacheFile(url: string): string {
+  const key = cacheKeyFor(url);
+  if (!/^[0-9a-f]{40}$/.test(key)) {
+    throw new Error(`refusing a non-digest cache key: ${key}`);
+  }
+  return join(CACHE_DIR, `${key}.json`);
+}
+
 async function readCache<T>(
   url: string,
   ttlMs: number,
 ): Promise<T | undefined> {
   try {
-    const raw = await readFile(
-      join(CACHE_DIR, `${cacheKeyFor(url)}.json`),
-      "utf8",
-    );
+    const raw = await readFile(cacheFile(url), "utf8");
     const entry = JSON.parse(raw) as CacheEntry<T>;
     if (entry.url !== url) return undefined;
     if (Date.now() - entry.fetchedAt > ttlMs) return undefined;
@@ -112,11 +123,7 @@ async function writeCache<T>(url: string, body: T): Promise<void> {
   try {
     await mkdir(CACHE_DIR, { recursive: true });
     const entry: CacheEntry<T> = { fetchedAt: Date.now(), url, body };
-    await writeFile(
-      join(CACHE_DIR, `${cacheKeyFor(url)}.json`),
-      JSON.stringify(entry),
-      "utf8",
-    );
+    await writeFile(cacheFile(url), JSON.stringify(entry), "utf8");
   } catch {
     // A cache write failure must never fail a refresh.
   }
@@ -127,10 +134,7 @@ export async function readCacheTimestamp(
   url: string,
 ): Promise<number | undefined> {
   try {
-    const raw = await readFile(
-      join(CACHE_DIR, `${cacheKeyFor(url)}.json`),
-      "utf8",
-    );
+    const raw = await readFile(cacheFile(url), "utf8");
     const entry = JSON.parse(raw) as CacheEntry<unknown>;
     return entry.url === url ? entry.fetchedAt : undefined;
   } catch {

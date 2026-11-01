@@ -42,7 +42,7 @@ const MapOptionsSchema = z.object({
   mapID: z.number().optional(),
 });
 
-export interface MapBucketRow {
+interface MapBucketRow {
   pageName: string;
   point: MapPoint;
 }
@@ -280,7 +280,7 @@ export function extractMapTemplatePoint(wikitext: string): MapPoint | null {
  * This is what makes a per-location bank distance possible for a stall, a rock or
  * a furnace: the same join the shop catalogue uses.
  */
-export interface PageLocation {
+interface PageLocation {
   x: number;
   y: number;
   /** `0` is the overworld; `-1` is a custom map and never matched across. */

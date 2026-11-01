@@ -193,11 +193,15 @@ export function planShopSink(
   const worlds = unitsPerWorld > 0 ? Math.ceil(units / unitsPerWorld) : 0;
   const fullWorlds = unitsPerWorld > 0 ? Math.floor(units / unitsPerWorld) : 0;
   const remainder = unitsPerWorld > 0 ? units % unitsPerWorld : 0;
-  const totalRevenue =
-    unitsPerWorld > 0
-      ? fullWorlds * perWorld.totalRevenue +
-        (remainder > 0 ? sellTotalRevenue(row, remainder, startStock) : 0)
-      : 0;
+  // Whole worlds pay the full per-world total; the remainder is priced against the
+  // decreasing curve. Written out because the nested ternary was unreadable.
+  let totalRevenue = 0;
+  if (unitsPerWorld > 0) {
+    totalRevenue = fullWorlds * perWorld.totalRevenue;
+    if (remainder > 0) {
+      totalRevenue += sellTotalRevenue(row, remainder, startStock);
+    }
+  }
 
   const totalCost = units * options.geCostPerUnit;
   const profit = totalRevenue - totalCost;

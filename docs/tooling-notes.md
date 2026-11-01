@@ -3,22 +3,24 @@
 Non-obvious environment quirks. Recorded so the next person doesn't lose an hour
 to them.
 
-## 1. Prefer bare builtin specifiers (`crypto`, not `node:crypto`)
+## 1. Builtin specifiers use the `node:` protocol
 
-`src/api/http.ts` imports Node builtins without the protocol prefix:
+`src/api/http.ts` imports Node builtins with the prefix:
 
 ```ts
-import { createHash } from "crypto";
+import { createHash } from "node:crypto";
 ```
 
-Node's ESM resolver matches bare builtin names before consulting `node_modules`,
-so this is behaviourally identical to the prefixed form and cannot be shadowed
-by an npm package. The prefixed form is otherwise the more explicit choice, and
-is what you should reach for in a project without this issue.
+An earlier revision used the bare form (`"crypto"`) because a language server in
+this environment failed to resolve the prefixed specifier, reporting "cannot find
+module" against a file `tsc` compiled cleanly. That symptom no longer reproduces:
+with `node:` in place, `tsc --noEmit`, `eslint`, `vitest`, `pnpm smoke` (which
+exercises the whole cache path) and the pi-lens LSP check are all clean, and the
+`enforce-node-protocol` warning that the bare form raised is gone.
 
-Reason: a language server in this environment fails to resolve the prefixed
-protocol specifier even when `@types/node` is installed, producing a "cannot find
-module" diagnostic against a file `tsc` compiles cleanly.
+If "cannot find module" returns for a `node:` specifier, it is a server-side
+resolution problem, not a code problem — check `node-linker=hoisted` (§2) and the
+server's `@types/node` before reverting to bare names.
 
 ## 2. `node-linker=hoisted` is required (see `.npmrc`)
 

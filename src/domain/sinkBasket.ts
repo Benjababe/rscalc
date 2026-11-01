@@ -428,15 +428,14 @@ export function planShopSinkBasket(
       ? null
       : roundTripSeconds(options.geTiles, secondsPerTile, handoverSeconds);
   const buySeconds = buyMakespan(itemPlans, offerSlots);
-  const timeSeconds =
-    totalUnits <= 0
-      ? 0
-      : Math.max(
-          tripSeconds === null
-            ? hopSecondsTotal
-            : tripSeconds + hopSecondsTotal,
-          buySeconds,
-        );
+  // Nothing to do means no time; otherwise the trip and the hops run before the GE
+  // offers finish filling, and the slower of the two is the plan's duration.
+  let timeSeconds = 0;
+  if (totalUnits > 0) {
+    const travelSeconds =
+      tripSeconds === null ? hopSecondsTotal : tripSeconds + hopSecondsTotal;
+    timeSeconds = Math.max(travelSeconds, buySeconds);
+  }
   const timeKnown = tripSeconds !== null;
 
   let gpPerHour: number | null;
