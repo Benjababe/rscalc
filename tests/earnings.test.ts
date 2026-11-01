@@ -173,6 +173,9 @@ function activity(
     kind: 'transform',
     outputName: 'Blood rune',
     noBurnLevel: null,
+    distribution: null,
+    bankTiles: null,
+    effectiveSecondsPerAction: 0.6,
     ...overrides,
   };
 }

@@ -1,3 +1,4 @@
+import { parseObjectLocLines } from '../src/api/wikiMap.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   extractMapTemplatePoint,
@@ -140,5 +141,53 @@ describe('fetchPageMapPoints', () => {
     expect(result.points.has(missing)).toBe(false);
     expect(result.missing).toBe(1);
     expect(result.requests).toBe(1);
+  });
+});
+
+describe('parseObjectLocLines', () => {
+  const wikitext = `{{Infobox Scenery
+|name = Tea stall
+|map = No
+}}
+{{ObjectLocLine
+|name = Tea stall
+|location = [[Kourend Castle]] Courtyard
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:1648,y:3683
+|mtype = pin
+}}
+{{ObjectLocLine
+|name = Tea stall
+|location = [[Varrock]]
+|x:3269,y:3410
+|mtype = pin
+}}
+{{ObjectLocLine
+|name = Runite rocks
+|location = [[Charred Dungeon]]
+|mapID = -1
+|x:2635,y:8853|x:2638,y:8844
+}}`;
+
+  it('reads pins the infobox map field does not carry', () => {
+    const pins = parseObjectLocLines(wikitext);
+    expect(pins).toHaveLength(4);
+    expect(pins[0]).toMatchObject({ x: 1648, y: 3683, mapID: 0, plane: 0 });
+    expect(pins[1]).toMatchObject({ x: 3269, y: 3410 });
+    expect(pins[1]?.label).toContain('Varrock');
+  });
+
+  it('reads several pins on one line and keeps the custom map id', () => {
+    const pins = parseObjectLocLines(wikitext).filter((pin) => pin.mapID === -1);
+    expect(pins.map((pin) => [pin.x, pin.y])).toEqual([
+      [2635, 8853],
+      [2638, 8844],
+    ]);
+  });
+
+  it('returns nothing for a page with no pin block', () => {
+    expect(parseObjectLocLines('{{Infobox Scenery|name = Range|map = No}}')).toEqual([]);
   });
 });

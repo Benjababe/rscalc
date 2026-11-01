@@ -499,6 +499,7 @@ export const SkillActivityKindSchema = z.enum([
   'train',
   'upgrade',
   'gather',
+  'ev',
 ]);
 export type SkillActivityKind = z.infer<typeof SkillActivityKindSchema>;
 
@@ -523,6 +524,32 @@ export const SkillActivitySchema = ProcessOpportunitySchema.extend({
    * food that never stops burning on a plain source (such a row is not priced).
    */
   noBurnLevel: z.number().int().min(1).max(99).nullable(),
+  /**
+   * Distance in tiles from this activity's location to its nearest bank, from the
+   * wiki's `{{ObjectLocLine}}` pins. Null when the page publishes no pin (or the
+   * skill has no location at all), in which case no walk is charged.
+   */
+  bankTiles: z.number().nonnegative().nullable(),
+  /**
+   * Seconds per action once the bank trip is spread over a load. `gpPerHour` is
+   * computed from this, so it always reflects the same time model that is shown.
+   */
+  effectiveSecondsPerAction: z.number().positive().nullable(),
+  /**
+   * The priced distribution behind an `ev` row: every outcome, its published
+   * chance and what it is worth on average. Null for every other kind, because
+   * no other kind is an expectation.
+   */
+  distribution: z
+    .array(
+      z.object({
+        item: z.string(),
+        quantity: z.number().positive(),
+        chance: z.number().min(0).max(1),
+        expectedGp: z.number().int(),
+      }),
+    )
+    .nullable(),
 });
 export type SkillActivity = z.infer<typeof SkillActivitySchema>;
 
@@ -547,6 +574,8 @@ export const SkillCoverageSchema = z.object({
   recipes: z.number().int().nonnegative(),
   /** Curated gathering nodes available to this skill (0 for most). */
   nodes: z.number().int().nonnegative(),
+  /** Curated expected-value sources (loot tables) available to this skill. */
+  evSources: z.number().int().nonnegative(),
   activities: z.number().int().nonnegative(),
   /** Rows whose per-action profit is above zero. */
   profitable: z.number().int().nonnegative(),

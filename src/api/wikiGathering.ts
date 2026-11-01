@@ -50,6 +50,12 @@ export interface GatheringNode {
   respawnSeconds: number;
   /** Wiki page the numbers came from. */
   source: string;
+  /**
+   * The node's own page (`Runite rocks`, `Yew tree`), from the template's
+   * `|rock=` / `|tree=`. That page is where `{{ObjectLocLine}}` pins live, so it
+   * is what a bank join needs — the item page has no coordinates.
+   */
+  nodePage: string | null;
 }
 
 export interface GatheringResult {
@@ -180,9 +186,12 @@ export function extractGatheringNode(
     if (respawn === null || respawn <= 0) return null;
     const level = Number.parseInt(params.get('level') ?? '', 10);
     const xp = Number.parseFloat(params.get('xp') ?? '');
+    const nodeLink = params.get('rock') ?? params.get('tree') ?? '';
+    const nodePage = /\[\[([^\]|]*)/.exec(nodeLink)?.[1]?.trim() ?? null;
     return {
       item,
       skill: meta.skill,
+      nodePage: nodePage === '' ? null : nodePage,
       level: Number.isFinite(level) ? level : null,
       xp: Number.isFinite(xp) ? xp : null,
       respawnSeconds: respawn,

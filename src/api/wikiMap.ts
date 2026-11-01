@@ -265,6 +265,74 @@ export function extractMapTemplatePoint(wikitext: string): MapPoint | null {
 }
 
 /**
+ * Every pinned location on a page, from `{{ObjectLocLine}}` blocks.
+ *
+ * Scenery and resource pages publish their positions with
+ *
+ *   {{ObjectLocLine|name = Tea stall|location = [[Varrock]]|members = Yes
+ *    |mapID = 0|plane = 0|x:3269,y:3410|mtype = pin}}
+ *
+ * which is *not* the `|map = No` infobox field and *not* `{{Map}}`: the Tea stall
+ * carries two of these blocks (Varrock and the Kourend Castle courtyard) while its
+ * infobox says `|map = No`. One line may also hold several pins
+ * (`|x:2635,y:8853|x:2638,y:8844`), and `mapID = -1` marks a custom map.
+ *
+ * This is what makes a per-location bank distance possible for a stall, a rock or
+ * a furnace: the same join the shop catalogue uses.
+ */
+export interface PageLocation {
+  x: number;
+  y: number;
+  /** `0` is the overworld; `-1` is a custom map and never matched across. */
+  mapID: number;
+  plane: number;
+  /** The block's `|location =` label, for telling the pins apart. */
+  label: string | null;
+}
+
+export function parseObjectLocLines(wikitext: string): PageLocation[] {
+  const locations: PageLocation[] = [];
+
+  // The three parameters read from each block, as literals.
+  const LOC_PARAM = {
+    mapID: /\|\s*mapID\s*=\s*([^|\n}]*)/i,
+    plane: /\|\s*plane\s*=\s*([^|\n}]*)/i,
+    location: /\|\s*location\s*=\s*([^|\n}]*)/i,
+  } as const;
+
+  const BLOCK = /\{\{\s*ObjectLocLine([\s\S]*?)\n\}\}/gi;
+  for (const block of wikitext.matchAll(BLOCK)) {
+    const body = block[1] ?? '';
+    // Literal patterns, one per parameter read. A pattern built from a key is the
+    // one construct here that could be talked into matching something else.
+    const param = (key: keyof typeof LOC_PARAM): string | null => {
+      const found = LOC_PARAM[key].exec(body);
+      return found === null ? null : (found[1] ?? '').trim();
+    };
+
+    const mapID = Number.parseInt(param('mapID') ?? '0', 10);
+    const plane = Number.parseInt(param('plane') ?? '0', 10);
+    const label = param('location');
+
+    // `|x:3269,y:3410` and `|x:2635,y:8853|x:2638,y:8844` both appear.
+    for (const pin of body.matchAll(/x\s*:\s*(-?\d+(?:\.\d+)?)\s*,\s*y\s*:\s*(-?\d+(?:\.\d+)?)/gi)) {
+      const x = Number.parseFloat(pin[1] ?? '');
+      const y = Number.parseFloat(pin[2] ?? '');
+      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+      locations.push({
+        x,
+        y,
+        mapID: Number.isFinite(mapID) ? mapID : 0,
+        plane: Number.isFinite(plane) ? plane : 0,
+        label,
+      });
+    }
+  }
+
+  return locations;
+}
+
+/**
  * Fetch map points for a set of page titles (used for bank pages).
  * Pages without a `{{Map}}` template are simply absent from the result.
  */

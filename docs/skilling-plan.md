@@ -65,13 +65,14 @@ Treat the split as a shape, not a constant.
 | Woodcutting | 27 + 14 nodes | 17 | 16 / 1 | 17 |
 | Fishing | 18 | 0 | 0 / 0 | 0 |
 | Hunter | 5 | 4 | 0 / 4 | 4 |
-| Thieving | 0 | 0 | 0 / 0 | 0 |
+| Thieving | 0 + 14 tables | 12 | 12 / 0 | 12 |
 | Prayer | 32 | 3 | 2 / 1 | 3 |
 | Firemaking | 32 | 8 | 7 / 1 | 8 |
 | Agility | 1 | 0 | 0 / 0 | 0 |
 | Slayer | 13 | 0 | 0 / 0 | 0 |
 
-2,086 activities priced in total, from 4,307 bucket recipes and 27 gathering nodes. Cooking rows carry a
+2,098 activities priced in total, from 4,307 bucket recipes, 27 gathering nodes and
+14 loot tables. Cooking rows carry a
 `noBurnLevel` and are gated on a level the player enters (§8.10). See §8 for why
 the rest are unpriced, and for Construction's 736 `train` rows — activities whose
 output cannot be sold at all, priced as the cost of one action.
@@ -801,6 +802,117 @@ because the bucket tags that recipe with both Smithing and Prayer. It is an upgr
 a sigil fused into a blessed shield — so it joined the curated upgrade list under
 both tags (`scripts/skillUpgrades.ts`) and now reads `Upgrade` in either view.
 
+### 8.17 Expected value: Thieving stalls
+
+§3.1 said a chance-based yield may be priced at its expectation **when the wiki
+publishes the distribution**, and the row must say it is an expectation. This is
+that rule with code behind it.
+
+The source is the stall pages (`{{Thieving info}}` with `|time=` plus a
+`{{DropsLineSkill}}` loot table):
+
+```text
+{{Thieving info|name = Bakery stall|level = 5|type = Stall|time = 2.4 seconds}}
+{{DropsLineSkill|name=Bread|quantity=1|rarity=5/20|skill=Thieving}}
+{{DropsLineSkill|name=Cake|quantity=1|rarity=13/20|skill=Thieving}}
+{{DropsLineSkill|name=Chocolate slice|quantity=1|rarity=2/20|skill=Thieving}}
+```
+
+`src/domain/ev.ts` turns that into an expectation: `Σ chance × quantity × value`,
+where coins count at face value and every other item at its GE sell price less the
+tax. `kind: 'ev'` is the fifth row kind, and the row carries its `distribution` so
+the page can show what the mean is made of.
+
+**Thieving: 12 rows**, all stalls — tea 102 gp/action (153k/h), crafting stall 98,
+scimitar stall 241, gem stall 215 (82% sapphire, 13% emerald, 4% ruby, 1% diamond),
+fish stall 32, fur stall 10.
+
+#### The refusals, which are the point
+
+- **Ranged quantities are rejected, not averaged.** `Potato seed 1-4` says four
+  outcomes are possible and nothing about their weights; the midpoint would be an
+  invented distribution. This is why pickpockets contribute nothing yet — their
+  seed drops are all ranges.
+- **A table with one unpriced outcome is refused.** Dropping the expensive line
+  would understate the row, which is worse than no row.
+- **Chances summing above 1 are refused**: that is not one roll. `Silver stall (Port
+  Roberts)` fails this.
+- **A source with no published action time is refused.** All the Port Roberts stalls
+  publish no `time`, so there is no rate to divide by.
+
+#### What is still not EV
+
+**Pickpocket targets** (`Man`, `Guard`, `Master farmer`) keep their loot in a
+transcluded or plain `{{DropsLine}}` table rather than `{{DropsLineSkill}}`, so the
+parser reads zero drops from them — a layout difference, not a data gap in the
+game. **Fishing** catch rates and **Hunter** trap rates are not published as
+constants at all, and **Cooking**'s burn curve is a per-level table. Each is a
+separate source; none of them is blocked by the engine any more, which is the point
+of building the EV layer first.
+
+### 8.18 Banking, for the rows that have a location
+
+§8.17's tea stall read 153,000/h from the stall action alone, which ignored the
+fact that a cup of tea occupies a slot. This fixes that, and records what the wiki
+does and does not publish.
+
+**Where the coordinates live.** Not in `bucket=map` (that is shop pages only — 587
+of 596 shops, and the other 733 mapped pages are music tracks and quests), and not
+in the scenery infobox, which for the tea stall says `|map = No`. They are in
+`{{ObjectLocLine}}` blocks:
+
+```text
+{{ObjectLocLine
+|name = Tea stall
+|location = [[Varrock]]
+|mapID = 0
+|plane = 0
+|x:3269,y:3410
+|mtype = pin
+}}
+```
+
+One page can carry several (the tea stall has Varrock and the Kourend Castle
+courtyard), one block can carry several pins on one line
+(`|x:2635,y:8853|x:2638,y:8844`), and `mapID = -1` marks a custom map. So per-source
+bank distance **is** sourceable after all: `parseObjectLocLines` reads the pins and
+`nearestBankFor` does the same join the shop catalogue uses.
+
+**The time model.** One load is 27 non-stackable units with a slot kept for coins;
+a table whose every outcome stacks never banks; the trip is
+`2 × tiles × 0.6 + 3s handover`, spread over the load:
+
+```text
+effective seconds per action = action seconds + trip seconds / 27
+```
+
+Tea stall, 12.3 tiles to the Varrock bank: `2 × 12.3 × 0.6 + 3 = 17.8s` per trip,
+`/ 27 = 0.66s` per cup, so **3.06s effective instead of 2.4s — 120,090/h instead of
+153,000/h**. Crafting stall 73,500 → 65,876. Twelve of the fourteen stalls have a
+pin; the two without charge no walk and say so.
+
+**Gathering nodes, same join.** The item page (`Runite ore`) carries no
+coordinates, but its `|rock=` / `|tree=` page does — `Runite rocks` has 39 pins,
+`Yew tree` 20, `Iron rocks` 371 — so the join runs over the *node* page and takes the
+nearest of its published locations (a player picks the mine closest to a bank).
+**17 of 27 nodes** get a distance; the ten without charge none and show `—`.
+
+Mining, before and after: iron ore 32,659 → **26,840/h** (5.4s → 6.57s effective),
+copper 36,000 → **20,646/h**, runite 48,690 → **46,374/h** (a 720s respawn dwarfs a
+40-tile trip). Woodcutting: teak 25,282 → **21,821/h**, redwood 18,780 → **17,813/h**.
+
+`gp/hour` now uses whole 4h actions (`actions4h x profit / 4`) for both gather and
+EV rows, matching the processing engine, so a floored window cannot make the same
+row disagree with itself in two places.
+
+**Still charged nothing, and why.** A shop run already models its own distance
+(`src/domain/bankTrip.ts`); a GE → shop flip needs none (banknotes). Processing and
+the recipe-driven skilling rows name a *facility* — "Furnace", "Range" — and a
+recipe works at any of them, so there is no single location to join; `Range` and
+`Furnace` pages that do carry pins list many, and picking one would be a guess about
+where the player trains. Those rows therefore charge the action time only, which the
+page states.
+
 ### 8.11 The instant default, and why the page must own it
 
 Q10 settled that `#/skilling` opens in **instant** mode (buy at `high`, sell at
@@ -853,7 +965,8 @@ patient toggle is a UI-only change later. Nothing needs regenerating for it.
 | Magic | ✅ §8.9 | 146 |
 | Cooking | ✅ §8.10 — gated on the player's Cooking level | 47 |
 
-**2,086 activities priced from 4,307 bucket recipes and 27 gathering nodes**, with no hand-typed item,
+**2,098 activities priced from 4,307 bucket recipes, 27 gathering nodes and 14 loot
+tables**, with no hand-typed item,
 price or rate anywhere: every number is a GE quote joined to the wiki's own recipe
 table. The one curated input is the Cooking no-burn table, which is a game
 constant read off a wiki page that states it.

@@ -477,7 +477,9 @@ export function buildEarnings(
       where:
         opp.kind === 'gather'
           ? 'one node, one respawn'
-          : opp.inputs
+          : opp.kind === 'ev'
+            ? `loot table, ${opp.distribution?.length ?? 0} outcomes`
+            : opp.inputs
                 .map((item) => `${item.itemName} ×${item.quantity}`)
                 .join(', ') || 'nothing',
       detail: opp.facility ?? opp.method,

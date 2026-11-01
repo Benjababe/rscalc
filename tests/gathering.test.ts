@@ -64,6 +64,7 @@ describe('extractGatheringNode', () => {
       xp: 125,
       respawnSeconds: 720,
       source: 'https://oldschool.runescape.wiki/w/Runite_ore',
+      nodePage: 'Runite rocks',
     });
   });
 
@@ -114,6 +115,7 @@ describe('rankGatherActivities', () => {
     xp: 125,
     respawnSeconds: 720,
     source: 'https://oldschool.runescape.wiki/w/Runite_ore',
+    nodePage: 'Runite rocks',
   };
 
   it('prices one unit per respawn, with no inputs and no fee', () => {
@@ -158,6 +160,39 @@ describe('rankGatherActivities', () => {
 
     expect(result.activities).toHaveLength(0);
     expect(result.unpriced).toBe(1);
+  });
+
+  it('charges the bank trip per load, from the node page pins', () => {
+    const result = rankGatherActivities([NODE], market([quote()]), {
+      skill: 'Mining',
+      mode: 'pessimistic',
+      bankTilesByItem: new Map([['Runite ore', 40]]),
+      stackableByItem: new Map([['runite ore', false]]),
+      secondsPerTile: 0.6,
+      handoverSeconds: 3,
+    });
+
+    const row = result.activities[0];
+    if (row === undefined) throw new Error('expected a gather row');
+    // 2 x 40 x 0.6 + 3 = 51s per trip, spread over 27 ore.
+    expect(row.bankTiles).toBe(40);
+    expect(row.effectiveSecondsPerAction).toBeCloseTo(720 + 51 / 27);
+    // Whole 4h actions, the same convention as the processing engine.
+    expect(row.actions4h).toBe(Math.floor(14_400 / (720 + 51 / 27)));
+    expect(row.gpPerHour).toBe((11_564 * row.actions4h) / 4);
+  });
+
+  it('charges no walk when the node page has no pin', () => {
+    const result = rankGatherActivities([NODE], market([quote()]), {
+      skill: 'Mining',
+      mode: 'pessimistic',
+      bankTilesByItem: new Map([['Runite ore', null]]),
+    });
+
+    const row = result.activities[0];
+    if (row === undefined) throw new Error('expected a gather row');
+    expect(row.bankTiles).toBeNull();
+    expect(row.effectiveSecondsPerAction).toBe(720);
   });
 
   it('only prices the nodes of the requested skill', () => {

@@ -24,6 +24,13 @@ import { fileURLToPath } from 'url';
 
 import { fetch24h, fetchLatest, fetchMapping } from '../src/api/prices.js';
 import { fetchGatheringNodes } from '../src/api/wikiGathering.js';
+import { fetchThievingSources } from '../src/api/wikiThieving.js';
+import { fetchBankTitles, fetchPageMapPoints } from '../src/api/wikiMap.js';
+import { parseObjectLocLines } from '../src/api/wikiMap.js';
+import { fetchPageWikitext } from '../src/api/wikiPages.js';
+import { fetchItemStackability } from '../src/api/wikiItems.js';
+import { nearestBankFor } from '../src/domain/bankTrip.js';
+import type { ThievingSource } from '../src/api/wikiThieving.js';
 import type { GatheringNode } from '../src/api/wikiGathering.js';
 import { fetchRecipes } from '../src/api/wikiRecipes.js';
 import { toBurnIndex } from '../src/domain/cooking.js';
@@ -32,6 +39,7 @@ import {
   COOKING_NO_BURN_LEVELS,
 } from './cookingBurnLevels.js';
 import { GATHERING_NODE_SOURCES } from './gatheringNodes.js';
+import { THIEVING_STALL_PAGES } from './thievingSources.js';
 import { SKILL_UPGRADES, upgradeKeys } from './skillUpgrades.js';
 import { SKILLING_SKILLS, rankSkillActivities } from '../src/engine/skilling.js';
 import type { SkillingSkill } from '../src/engine/skilling.js';
@@ -142,8 +150,10 @@ function formatActivity(row: SkillActivity): string {
       ? '—'
       : `${Math.round(row.gpPerHour).toLocaleString()}/h`;
   const inputs =
-    row.inputs.map((item) => `${item.itemName} x${item.quantity}`).join(' + ') ||
-    'nothing';
+    row.kind === 'ev'
+      ? 'loot table'
+      : row.inputs.map((item) => `${item.itemName} x${item.quantity}`).join(' + ') ||
+        'nothing';
   const fee = row.feeGp > 0 ? ` + ${row.feeGp} gp fee` : '';
   // A train row has no priced output: name what is being built and say so.
   const output =
@@ -167,8 +177,10 @@ function printTable(
     `\n${catalog.skill} — ${coverage.activities} activities priced ` +
       `(${coverage.profitable} profitable, ${coverage.lossMaking} loss-making, ` +
       `${coverage.trainOnly} cost-only, ${coverage.upgrades} upgrades, ` +
-      `${coverage.unpriced} of ${coverage.recipes + coverage.nodes} candidates ` +
-      `unpriced${coverage.gathered > 0 ? `, ${coverage.gathered} gathered` : ''})`,
+      `${coverage.unpriced} of ` +
+      `${coverage.recipes + coverage.nodes + coverage.evSources} candidates ` +
+      `unpriced${coverage.gathered > 0 ? `, ${coverage.gathered} gathered` : ''}` +
+      `${coverage.activities > coverage.gathered && coverage.evSources > 0 ? `, ${coverage.activities} priced` : ''})`,
   );
 
   for (const row of ranking.opportunities.slice(0, limit)) log(`  ${formatActivity(row)}`);
@@ -205,6 +217,18 @@ async function main(): Promise<void> {
   );
   const metaById = new Map(mapping.items.map((item) => [item.id, item]));
 
+  // Expected-value rows: Thieving stalls publish both a time and a loot table.
+  let thievingSources: ThievingSource[] = [];
+  if (cli.skills.includes('Thieving')) {
+    log('fetching thieving loot tables...');
+    const fetched = await fetchThievingSources(THIEVING_STALL_PAGES);
+    thievingSources = fetched.sources;
+    log(
+      `  ${fetched.sources.length}/${fetched.requested} stall pages parsed ` +
+        `(${fetched.missing} missing, ${fetched.rejected} drop rows unreadable)`,
+    );
+  }
+
   const scanned = recipes.recipes.filter((recipe) =>
     cli.skills.some((skill) =>
       recipe.skills.some(
@@ -213,6 +237,16 @@ async function main(): Promise<void> {
     ),
   );
   const wanted = wantedItemIds(scanned, metaByName);
+  // Expected-value rows price their loot, and loot items are not recipe items, so
+  // they have to be pulled into the snapshot explicitly. Without this every EV
+  // row is rejected for an unpriced outcome.
+  for (const source of thievingSources) {
+    for (const drop of source.drops) {
+      if (drop.item.toLowerCase() === 'coins') continue;
+      const meta = metaByName.get(drop.item.toLowerCase());
+      if (meta !== undefined) wanted.add(meta.id);
+    }
+  }
 
   const quotes: Record<string, MarketQuote> = {};
   for (const id of wanted) {
@@ -267,6 +301,73 @@ async function main(): Promise<void> {
     );
   }
 
+  // Bank distances for the EV sources, from the wiki's ObjectLocLine pins. A page
+  // with no pin gets null and no walk is charged — never a global default.
+  const bankTilesByPage = new Map<string, number | null>();
+  const stackableByItem = new Map<string, boolean | null>();
+  if (thievingSources.length > 0) {
+    log('joining thieving locations to their nearest bank...');
+    const bankPages = await fetchBankTitles();
+    const banks = await fetchPageMapPoints(bankPages);
+    const pageText = await fetchPageWikitext(
+      thievingSources.map((source) => source.source_pages),
+    );
+    for (const source of thievingSources) {
+      const text = pageText.pages.get(source.source_pages) ?? null;
+      const pins = text === null ? [] : parseObjectLocLines(text);
+      let best: number | null = null;
+      for (const pin of pins) {
+        const bank = nearestBankFor(pin, banks.points);
+        if (bank === null) continue;
+        if (best === null || bank.tiles < best) best = bank.tiles;
+      }
+      bankTilesByPage.set(source.source_pages, best);
+    }
+    const lootItems = new Set<string>();
+    for (const source of thievingSources) {
+      for (const drop of source.drops) {
+        if (drop.item.toLowerCase() !== 'coins') lootItems.add(drop.item);
+      }
+    }
+    const stackability = await fetchItemStackability([...lootItems]);
+    for (const [item, value] of stackability.stackable) {
+      stackableByItem.set(item.toLowerCase(), value);
+    }
+    const known = [...bankTilesByPage.values()].filter((value) => value !== null).length;
+    log(`  ${known}/${bankTilesByPage.size} stalls have a bank distance`);
+  }
+
+  // Gather nodes: the item page carries no coordinates, but its `|rock=`/`|tree=`
+  // page does, so the join runs over the node pages. The nearest of a node's
+  // published locations is used — a player picks the mine closest to a bank.
+  const gatherBankTilesByItem = new Map<string, number | null>();
+  if (gatheringNodes.length > 0) {
+    log('joining gathering nodes to their nearest bank...');
+    const bankPages = await fetchBankTitles();
+    const banks = await fetchPageMapPoints(bankPages);
+    const nodePages = [
+      ...new Set(
+        gatheringNodes
+          .map((node) => node.nodePage)
+          .filter((page): page is string => page !== null),
+      ),
+    ];
+    const nodeText = await fetchPageWikitext(nodePages);
+    for (const node of gatheringNodes) {
+      const text = node.nodePage === null ? null : nodeText.pages.get(node.nodePage) ?? null;
+      const pins = text === null ? [] : parseObjectLocLines(text);
+      let best: number | null = null;
+      for (const pin of pins) {
+        const bank = nearestBankFor(pin, banks.points);
+        if (bank === null) continue;
+        if (best === null || bank.tiles < best) best = bank.tiles;
+      }
+      gatherBankTilesByItem.set(node.item, best);
+    }
+    const known = [...gatherBankTilesByItem.values()].filter((v) => v !== null).length;
+    log(`  ${known}/${gatherBankTilesByItem.size} nodes have a bank distance`);
+  }
+
   const upgradeKeySet = upgradeKeys(SKILL_UPGRADES);
   log(
     `  ${upgradeKeySet.size} curated upgrade recipes move out of the transform ` +
@@ -293,6 +394,10 @@ async function main(): Promise<void> {
       burnLevels: burnLevels,
       upgradeKeys: upgradeKeySet,
       gatheringNodes: gatheringNodes.filter((node) => node.skill === skill),
+      thievingSources: skill === 'Thieving' ? thievingSources : [],
+      bankTilesByPage,
+      gatherBankTilesByItem,
+      stackableByItem,
       cookingLevel: cli.cookingLevel > 0 ? cli.cookingLevel : undefined,
     });
     const patient = rankSkillActivities(recipes.recipes, market, {
@@ -302,6 +407,10 @@ async function main(): Promise<void> {
       burnLevels: burnLevels,
       upgradeKeys: upgradeKeySet,
       gatheringNodes: gatheringNodes.filter((node) => node.skill === skill),
+      thievingSources: skill === 'Thieving' ? thievingSources : [],
+      bankTilesByPage,
+      gatherBankTilesByItem,
+      stackableByItem,
       cookingLevel: cli.cookingLevel > 0 ? cli.cookingLevel : undefined,
     });
     // Both modes price the same action set; take the pessimistic coverage so the

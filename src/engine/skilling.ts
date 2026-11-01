@@ -47,6 +47,10 @@ import {
   capActionsPerHour,
   secondsPerAction,
 } from '../domain/processTime.js';
+import { analyseDistribution, priceDistribution } from '../domain/ev.js';
+import type { ThievingSource } from '../api/wikiThieving.js';
+import { DEFAULT_BANK_HANDOVER_SECONDS, DEFAULT_UNITS_PER_LOAD } from '../domain/budget.js';
+import { bankTripSeconds } from '../domain/bankTrip.js';
 import { geTax } from '../domain/tax.js';
 import {
   fourHourSlice,
@@ -141,6 +145,17 @@ export interface SkillActivityOptions {
    * gathering rows at all.
    */
   gatheringNodes?: readonly GatheringNode[];
+  /**
+   * Curated Thieving sources (stalls with a published action time and loot table).
+   * When present, `ev` rows are appended for that skill.
+   */
+  thievingSources?: readonly ThievingSource[];
+  /** Tiles from each EV source page to its nearest bank, keyed by page title. */
+  bankTilesByPage?: ReadonlyMap<string, number | null>;
+  /** Tiles from a gathering node to its nearest bank, keyed by item name. */
+  gatherBankTilesByItem?: ReadonlyMap<string, number | null>;
+  /** Stackability per item; unknown counts as non-stackable. */
+  stackableByItem?: ReadonlyMap<string, boolean | null>;
   /**
    * Curated upgrade recipes, keyed `skill|output` (lower-cased). A match moves the
    * row from `transform` to `upgrade` so a one-off item conversion is not ranked
@@ -275,6 +290,9 @@ function trainActivity(
       profit: -spend,
       marginPct: -100,
       noBurnLevel: null,
+      distribution: null,
+      bankTiles: null,
+      effectiveSecondsPerAction: seconds,
       ticks: recipe.ticks,
       secondsPerAction: seconds,
       marketActions4h: inputActions,
@@ -304,7 +322,16 @@ function wikiUrl(page: string): string {
 export function rankGatherActivities(
   nodes: readonly GatheringNode[],
   market: MarketSnapshot,
-  options: { skill: SkillingSkill; mode: SellMode },
+  options: {
+    skill: SkillingSkill;
+    mode: SellMode;
+    /** Tiles from the node's page to its nearest bank, keyed by item name. */
+    bankTilesByItem?: ReadonlyMap<string, number | null>;
+    /** Stackability per item; unknown counts as non-stackable (a trip is charged). */
+    stackableByItem?: ReadonlyMap<string, boolean | null>;
+    secondsPerTile?: number;
+    handoverSeconds?: number;
+  },
 ): { activities: SkillActivity[]; unpriced: number } {
   const quotes = quoteIndex(market);
   const activities: SkillActivity[] = [];
@@ -332,7 +359,27 @@ export function rankGatherActivities(
     const tax = geTax(price);
     const profit = price - tax;
     const seconds = node.respawnSeconds;
-    const timeActions4h = Math.floor((GE_WINDOW_HOURS * 3600) / seconds);
+
+    // Banking: a full load of 27 mined/felled units, then a trip. Ore and logs do
+    // not stack, so the trip is charged per unit; a stackable node would not need
+    // one. The distance is the nearest of the node's published locations.
+    const tiles = options.bankTilesByItem?.get(node.item) ?? null;
+    const stackable = options.stackableByItem?.get(node.item.toLowerCase()) === true;
+    const loadSize = stackable ? null : DEFAULT_UNITS_PER_LOAD;
+    const tripSeconds =
+      loadSize === null || tiles === null
+        ? null
+        : bankTripSeconds(
+            tiles,
+            options.secondsPerTile ?? 0.6,
+            options.handoverSeconds ?? DEFAULT_BANK_HANDOVER_SECONDS,
+          );
+    const effectiveSeconds =
+      tripSeconds === null || loadSize === null
+        ? seconds
+        : seconds + tripSeconds / loadSize;
+
+    const timeActions4h = Math.floor((GE_WINDOW_HOURS * 3600) / effectiveSeconds);
     if (timeActions4h < 1) {
       unpriced += 1;
       continue;
@@ -353,6 +400,7 @@ export function rankGatherActivities(
       },
       outputName: node.item,
       noBurnLevel: null,
+      distribution: null,
       inputs: [],
       method: null,
       facility: null,
@@ -372,6 +420,8 @@ export function rankGatherActivities(
       // Derived from the respawn, not a published action tick: 0.6s per tick.
       ticks: Math.round((seconds / 0.6) * 10) / 10,
       secondsPerAction: seconds,
+      bankTiles: tiles,
+      effectiveSecondsPerAction: effectiveSeconds,
       marketActions4h: volume4h,
       timeActions4h,
       actions4h,
@@ -381,6 +431,151 @@ export function rankGatherActivities(
   }
 
   return { activities, unpriced };
+}
+
+/**
+ * Price a loot table at its expectation.
+ *
+ * This is the §3.1 rule in code: a chance-based yield is priced only when the wiki
+ * publishes the distribution, and the row says `EV` rather than pretending the
+ * mean is a guarantee. Coins are face value (they are already money); every other
+ * item is sold on the GE, so its line is the sell price minus the tax.
+ *
+ * A table is rejected, not averaged, when it has a ranged quantity (`1-4`), an
+ * unreadable rarity, or probabilities summing above one. A table with one
+ * unpriced item is rejected too: quietly dropping the expensive outcome would be
+ * worse than no row.
+ */
+export function rankEvActivities(
+  sources: readonly ThievingSource[],
+  market: MarketSnapshot,
+  options: {
+    skill: SkillingSkill;
+    mode: SellMode;
+    /** Tiles from each source page to its nearest bank, keyed by page title. */
+    bankTilesByPage?: ReadonlyMap<string, number | null>;
+    /** Stackability per loot item, from the item infobox. Unknown is treated as
+     * non-stackable, which charges the trip rather than assuming it away. */
+    stackableByItem?: ReadonlyMap<string, boolean | null>;
+    secondsPerTile?: number;
+    handoverSeconds?: number;
+  },
+): { activities: SkillActivity[]; unpriced: number; rejected: number } {
+  const quotes = quoteIndex(market);
+  const activities: SkillActivity[] = [];
+  let unpriced = 0;
+  let rejected = 0;
+
+  const priceOf = (item: string): number | null => {
+    if (item.toLowerCase() === 'coins') return 1;
+    const quote = quotes.get(item.toLowerCase());
+    if (quote === undefined) return null;
+    const price = targetOutputPrice(quote, options.mode);
+    return price === null ? null : price - geTax(price);
+  };
+
+  for (const source of sources) {
+    if (source.secondsPerAction === null || source.secondsPerAction <= 0) {
+      rejected += 1;
+      continue;
+    }
+    const analysis = analyseDistribution(source.drops);
+    if (analysis.distribution === null) {
+      rejected += 1;
+      continue;
+    }
+    const priced = priceDistribution(analysis.distribution, priceOf);
+    if (priced === null) {
+      unpriced += 1;
+      continue;
+    }
+
+    // The headline item is the biggest share of the expectation, so the row reads
+    // as what you actually get, not as an arbitrary first entry.
+    const headline = [...priced.lines].sort((a, b) => b.expectedGp - a.expectedGp)[0];
+    if (headline === undefined) {
+      unpriced += 1;
+      continue;
+    }
+    const quote = quotes.get(headline.item.toLowerCase());
+    const seconds = source.secondsPerAction;
+
+    // Banking. One load is 27 non-stackable units with a slot kept for coins; a
+    // table whose every outcome stacks never needs a trip. The trip itself is
+    // 2 x tiles x secondsPerTile plus the handover, spread over the load.
+    const stackableByItem = options.stackableByItem;
+    const allStackable = analysis.distribution.drops.every(
+      (drop) =>
+        drop.item.toLowerCase() === 'coins' ||
+        stackableByItem?.get(drop.item.toLowerCase()) === true,
+    );
+    const loadSize = allStackable ? null : DEFAULT_UNITS_PER_LOAD;
+    const tiles = options.bankTilesByPage?.get(source.source_pages) ?? null;
+    const tripSeconds =
+      loadSize === null || tiles === null
+        ? null
+        : bankTripSeconds(
+            tiles,
+            options.secondsPerTile ?? 0.6,
+            options.handoverSeconds ?? DEFAULT_BANK_HANDOVER_SECONDS,
+          );
+    const effectiveSeconds =
+      tripSeconds === null || loadSize === null
+        ? seconds
+        : seconds + tripSeconds / loadSize;
+
+    const timeActions4h = Math.floor((GE_WINDOW_HOURS * 3600) / effectiveSeconds);
+    if (timeActions4h < 1) {
+      unpriced += 1;
+      continue;
+    }
+
+    const profit = priced.perAction;
+    activities.push({
+      kind: 'ev',
+      recipeId: `ev:${source.source_pages}`,
+      output: {
+        itemId: quote?.id ?? 0,
+        itemName: headline.item,
+        quantity: 1,
+        price: quote === undefined ? 1 : Math.max(1, targetOutputPrice(quote, options.mode) ?? 1),
+        volume4h: 0,
+        geBuyLimit: quote?.limit ?? null,
+      },
+      outputName: `${source.name} (${source.kind.toLowerCase()})`,
+      noBurnLevel: null,
+      distribution: priced.lines,
+      inputs: [],
+      method: source.kind,
+      facility: null,
+      tools: null,
+      members: true,
+      skills: [{ name: options.skill, level: source.level }],
+      source: source.url,
+      itemCost: 0,
+      feeGp: 0,
+      spend: 0,
+      grossRevenue: profit,
+      tax: 0,
+      netRevenue: profit,
+      profit,
+      marginPct: 100,
+      // Derived from the published action time, not a tick count.
+      ticks: Math.round((seconds / 0.6) * 10) / 10,
+      secondsPerAction: seconds,
+      bankTiles: tiles,
+      effectiveSecondsPerAction: effectiveSeconds,
+      // Each loot outcome has its own market; the action rate is the only cap
+      // modelled here, and the page says so.
+      marketActions4h: timeActions4h,
+      timeActions4h,
+      actions4h: timeActions4h,
+      gpPer4h: profit * timeActions4h,
+      gpPerHour: (profit * timeActions4h) / GE_WINDOW_HOURS,
+    });
+  }
+
+  return { activities, unpriced, rejected };
 }
 
 /** Total ordering shared by transform and train rows. */
@@ -432,6 +627,9 @@ export function rankSkillActivities(
       : 'transform',
     outputName: row.output.itemName,
     noBurnLevel: null,
+    distribution: null,
+    bankTiles: null,
+    effectiveSecondsPerAction: row.secondsPerAction,
   }));
 
   // Cooking: keep only the foods that are deterministic at the stated level.
@@ -482,8 +680,21 @@ export function rankSkillActivities(
     const gathered = rankGatherActivities(options.gatheringNodes, market, {
       skill: options.skill,
       mode: options.mode,
+      bankTilesByItem: options.gatherBankTilesByItem,
+      stackableByItem: options.stackableByItem,
     });
     activities.push(...gathered.activities);
+  }
+
+  // Expected-value rows: a loot table the wiki publishes, priced at its mean.
+  if (options.thievingSources !== undefined && options.thievingSources.length > 0) {
+    const expect = rankEvActivities(options.thievingSources, market, {
+      skill: options.skill,
+      mode: options.mode,
+      bankTilesByPage: options.bankTilesByPage,
+      stackableByItem: options.stackableByItem,
+    });
+    activities.push(...expect.activities);
   }
 
   activities.sort(compareActivities);
@@ -499,6 +710,7 @@ export function rankSkillActivities(
     if (activity.kind === 'gather') gatherCount += 1;
   }
   const nodeCount = options.gatheringNodes?.length ?? 0;
+  const evSourceCount = options.thievingSources?.length ?? 0;
 
   return {
     skill: options.skill,
@@ -511,6 +723,7 @@ export function rankSkillActivities(
       skill: options.skill,
       recipes: mine.length,
       nodes: nodeCount,
+      evSources: evSourceCount,
       activities: activities.length,
       profitable,
       lossMaking: activities.length - profitable,
@@ -520,7 +733,8 @@ export function rankSkillActivities(
       upgrades: upgradeCount,
       // Candidates that produced no row: bucket recipes and curated nodes both
       // count, so `unpriced === recipes + nodes - activities` always holds.
-      unpriced: mine.length + nodeCount - activities.length,
+      unpriced:
+        mine.length + nodeCount + evSourceCount - activities.length,
     },
   };
 }

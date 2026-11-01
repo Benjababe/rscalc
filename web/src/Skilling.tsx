@@ -73,6 +73,7 @@ const KIND_LABEL: Record<SkillActivityKind, string> = {
   upgrade: "Upgrade",
   train: "Cost",
   gather: "Gather",
+  ev: "EV",
 };
 
 const KIND_TITLE: Record<SkillActivityKind, string> = {
@@ -84,9 +85,11 @@ const KIND_TITLE: Record<SkillActivityKind, string> = {
     "Build something that cannot be sold — house furniture. The row is the cost of one action, not a flip.",
   gather:
     "One unit from one node per respawn, with no inputs. The rate is the wiki's respawn timer, so it assumes nobody else is competing for that node.",
+  ev:
+    "Priced at its expected value: the wiki publishes the drop table, so this is the average of every outcome, not a guarantee. The distribution is listed under the row.",
 };
 
-const KINDS = ["all", "transform", "upgrade", "gather", "train"] as const;
+const KINDS = ["all", "transform", "upgrade", "gather", "ev", "train"] as const;
 type KindFilter = (typeof KINDS)[number];
 
 const KIND_FILTER_LABEL: Record<KindFilter, string> = {
@@ -94,6 +97,7 @@ const KIND_FILTER_LABEL: Record<KindFilter, string> = {
   transform: "Make & sell",
   upgrade: "Upgrades",
   gather: "Gathering",
+  ev: "Expected value",
   train: "Cost to train",
 };
 
@@ -580,6 +584,19 @@ function ActivityRow(props: { row: Row; rank: number }): JSX.Element {
           {output}
         </a>
         {activity.members && <span className="badge">P2P</span>}
+        {activity.distribution !== null && (
+          <span
+            className="cell-note"
+            title={activity.distribution
+              .map(
+                (line) =>
+                  `${line.item} ×${line.quantity} — ${(line.chance * 100).toFixed(1)}% (${formatGp(line.expectedGp)} gp)`,
+              )
+              .join("\n")}
+          >
+            {activity.distribution.length} outcomes, mean
+          </span>
+        )}
         {activity.feeGp > 0 && (
           <span className="cell-note">+{formatGp(activity.feeGp)} gp fee</span>
         )}

@@ -127,6 +127,7 @@ describe('rankSkillActivities', () => {
       skill: 'Crafting',
       recipes: 2,
       nodes: 0,
+      evSources: 0,
       activities: 2,
       profitable: 1,
       lossMaking: 1,
@@ -481,7 +482,10 @@ describe('committed skilling artifact', () => {
       );
       // Candidates (recipes + gathering nodes) that produced no row.
       expect(coverage.unpriced).toBe(
-        coverage.recipes + coverage.nodes - coverage.activities,
+        coverage.recipes +
+          coverage.nodes +
+          coverage.evSources -
+          coverage.activities,
       );
       expect(coverage.unpriced).toBeGreaterThanOrEqual(0);
     }
@@ -510,7 +514,10 @@ describe('committed skilling artifact', () => {
         coverage.activities,
       );
       expect(coverage.unpriced).toBe(
-        coverage.recipes + coverage.nodes - coverage.activities,
+        coverage.recipes +
+          coverage.nodes +
+          coverage.evSources -
+          coverage.activities,
       );
       priced += coverage.activities;
     }
