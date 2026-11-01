@@ -59,8 +59,15 @@ Treat the split as a shape, not a constant.
 | Runecraft | 195 | 51 | 18 / 33 | 52 |
 | Construction | 959 | 756 | 2 / 754 | 745 |
 | Cooking | 541 | 47 | 16 / 31 | 46 |
+| Farming | 138 | 12 | 5 / 7 | 8 |
+| Sailing | 153 | 124 | 0 / 124 | 119 |
+| Mining | 2 | 0 | 0 / 0 | 0 |
+| Woodcutting | 27 | 3 | 2 / 1 | 3 |
+| Fishing | 18 | 0 | 0 / 0 | 0 |
+| Hunter | 5 | 4 | 0 / 4 | 4 |
+| Thieving | 0 | 0 | 0 / 0 | 0 |
 
-1,907 activities priced in total, from 3,886 bucket recipes. Cooking rows carry a
+2,050 activities priced in total, from 4,229 bucket recipes. Cooking rows carry a
 `noBurnLevel` and are gated on a level the player enters (§8.10). See §8 for why
 the rest are unpriced, and for Construction's 736 `train` rows — activities whose
 output cannot be sold at all, priced as the cost of one action.
@@ -169,13 +176,13 @@ estimates are for sanity-checking the output, not targets.
 
 | # | Skill | Time source | Risk |
 |---|---|---|---|
-| 9 | Farming | growth timer | harvest is a range → expected value (§3.1) |
-| 10 | Sailing | salvage / port-task action time | mostly chance-based yields and rate-bound activities; expect a thin list |
-| 11 | Mining | rock respawn / mining time | level- and pickaxe-dependent |
-| 12 | Woodcutting | tree respawn | level-dependent log count |
-| 13 | Fishing | fishing spot rate | level- and spot-dependent |
-| 14 | Hunter | trap timer | catch chance → expected value (§3.1) |
-| 15 | Thieving | pickpocket ticks | success chance + loot table → expected value (§3.1) |
+| 9 | Farming | **✅ scanned — see §8.12** | compost prices; crops have no bucket recipe, and the nursery is an untradeable chain |
+| 10 | Sailing | **✅ scanned — see §8.13** | 124 cost rows; every output is untradeable, and salvage has no recipe at all |
+| 11 | Mining | **✅ scanned — see §8.14** | 2 recipes, 0 priced: no gathering recipe exists |
+| 12 | Woodcutting | **✅ scanned — see §8.14** | 3 rows, all secondary Forestry/ritual actions |
+| 13 | Fishing | **✅ scanned — see §8.14** | 0 priced: every bucket output is untradeable |
+| 14 | Hunter | **✅ scanned — see §8.14** | 4 rows, all losses; catch rates are not a recipe |
+| 15 | Thieving | **✅ scanned — see §8.14** | 0 recipes in the bucket at all |
 
 Under §4 this is the thinnest phase: only rows with a published yield per action
 **and** a published action time survive, and the rest are skipped and counted.
@@ -542,6 +549,151 @@ you assembled earlier. Biggest losses: Mushroom pie −6,615 per action.
 level. The ticks are the wiki's cooking ticks, so `gp/hour` still ignores the walk
 to a range, like every other row.
 
+### 8.12 Farming ✅ (the first Phase 2 skill, and why it is thin)
+
+138 bucket recipes name Farming; **12 priced** (5 profitable, 7 loss-making), 8 in
+patient mode. All twelve are the **compost economy**: Ultracompost from
+supercompost + volcanic ash (176 gp/action), and the bin recipes (Watermelon x30 +
+50 ash + 30 buckets -> 30 ultracompost, 6,300 gp per bin action).
+
+The other 126 are unpriced for two structural reasons, both checked rather than
+assumed. Neither is a data problem in the usual sense, which is why this is the
+first skill where Phase 1's method runs out.
+
+**1. Crop harvesting is not in the recipe bucket.** There is no
+`Ranarr seed -> Grimy ranarr` row at all. The bucket's Farming recipes are the
+nursery and the compost bin, not the patch. So the thing a player means by
+"Farming money" — plant a herb, harvest five to nine of them after 80 minutes — has
+no source row. Modelling it needs three things this project does not yet have:
+growth timers per crop (a game constant, easy), the **expected harvest yield** per
+crop (level- and compost-dependent: an EV, §3.1), and an answer to Q9 — per patch,
+or a whole multi-patch run. Without all three the row would be an invented number.
+
+**2. The nursery is a chain through untradeable items.** This is the interesting
+one. Every sapling recipe looks like this:
+
+```text
+Acorn + Filled plant pot  ->  Oak seedling        (untradeable)
+Oak seedling              ->  Oak seedling (w)    (untradeable)
+Oak seedling (w)          ->  Oak sapling         (tradeable, GE #5370)
+```
+
+The bucket has each step as its own recipe, and the engine prices one recipe at a
+time, so both ends fail: the seedling recipes have no sellable output, and the
+sapling recipe has no buyable input. Correctly — a row that ignored the acorn would
+be a fantasy — but it means the tradeable sapling market is invisible to the site.
+
+Unlocking it is a **chained-recipe** feature: walk back through untradeable
+intermediates, sum the leaf costs (Acorn + filled plant pot), keep the final
+tradeable output, and expose the chain in the row (`Acorn -> Oak sapling, via two
+untradeable steps`). That is a real engine addition, not a curation entry, and it
+would also cover the Crafting cases where an intermediate happens to be tradeable
+today but might not always be.
+
+Everything else here is already right: the compost rows price cleanly because every
+leg is tradeable, and the construction plants (hedges, topiary) stay unpriced
+because house plants have no market at all.
+
+### 8.13 Sailing ✅ — the second Construction
+
+153 bucket recipes name Sailing; **124 priced, and every one is a cost** (124
+`train` rows, 0 profitable), 119 in patient mode.
+
+The first pass priced **nothing at all** — 0 of 153 — and the mapping says why:
+every Sailing recipe output is absent from the GE run (`Bronze cannon`, `Iron keel`,
+`Camphor hull`, `Blue sail`, `Bronze salvaging hook`, `Oak cargo hold`, the
+trawling nets). Boat parts are installed on your own boat and cannot be sold. What
+*is* tradeable is the intermediate stock — `Bronze keel parts`, `Camphor hull
+parts`, `camphor plank`, `ironwood plank` — which the recipes consume.
+
+So Sailing is the same shape as Construction, and adding it to `TRAIN_SKILLS`
+turned 124 silent refusals into the cost table the skill actually needs:
+
+| Build | Cost / action | Cost / hour |
+|---|---|---|
+| Wooden hull (hull parts ×10 + 300 bronze nails + tar) | −1,660 gp | −830 |
+| Shark trim (2 shark paint) | −6,990 gp | −3,495 |
+| Oak hull (16 large hull parts + 600 iron nails) | −26,499 gp | −13,249 |
+| Dragon keel (16 large dragon keel parts + cupronickel) | −6,009,876 gp | −7.5M |
+| Rosewood hull (… + dragon nails + cupronickel) | −5,166,095 gp | −7.7M |
+
+The 29 unpriced rows are the ones whose inputs are themselves untradeable
+(paint, facilities built from quest items).
+
+**What Sailing does not model, and cannot from this source:** sailing's actual
+income is salvage (chance-based loot rolls), port tasks and chum — none of which is
+a recipe, and all of which need a sourced distribution before they can be priced
+under §3.1. Until then Sailing is honestly a cost skill, like Construction.
+
+**Multi-skill recipes now appear twice in the artifact** — 164 recipe ids are
+reachable from two skills (`String Jewellery` is Magic *and* Crafting; the hull
+parts are Sailing *and* Construction). That is correct for a per-skill listing and
+wrong for a leaderboard, so `buildEarnings` now deduplicates within the skilling
+family as well as against processing: one action, one margin, counted once.
+
+### 8.14 Phase 2 complete: Mining, Woodcutting, Fishing, Hunter, Thieving
+
+All five are scanned. Together they priced **7 rows**, which is the point of this
+section: Phase 2 is not a data gap to be closed with more effort, it is a **source**
+gap. The recipe bucket answers "what does item A become?", and a gathering skill
+never asks that question — a rock is not a recipe.
+
+| Skill | Bucket recipes | Priced | Why the rest are not |
+|---|---|---|---|
+| Mining | 2 | 0 | both untradeable at one end |
+| Woodcutting | 27 | 3 | the bucket holds Forestry/ritual side-actions, not tree chopping |
+| Fishing | 18 | 0 | all 18 outputs untradeable (mounted trophies, infernal harpoon) |
+| Hunter | 5 | 4 | only the Varlamore fur-crafting line is a recipe |
+| Thieving | 0 | 0 | the bucket has nothing at all for the skill |
+
+**Mining — 2 recipes, 0 priced.** `Infernal pickaxe` (output untradeable) and
+`Pure essence ×5` from tainted essence (input untradeable). There is no
+`Runite ore ← runite rock` row anywhere in the bucket, so "ore per hour" cannot be
+built from it by any amount of curation.
+
+**Woodcutting — 27 recipes, 3 priced.** `Split log` (56 gp), `Neitiznot shield`
+(135 gp) and `Secateurs attachment` (−770 gp). The other 24 are the Forestry and
+Varlamore ritual side-actions — `Forester's ration` (cooked chicken + leaves),
+`Nature offerings` (ritual mulch + herb), `Clothes pouch` — plus untradeable
+`Infernal axe`. Useful rows, all of them secondary: chopping a yew has no recipe.
+
+**Fishing — 18 recipes, 0 priced.** Every output is untradeable: eleven mounted
+fishing trophies and the infernal harpoon. Zero rows about catching fish.
+
+**Hunter — 5 recipes, 4 priced, all losses.** `Mixed hide boots/legs/top/cape` from
+Varlamore furs plus a 17.5k–20k coin fee, between −1,957 and −8,624 gp per action.
+The net trap is untradeable. **Note:** these four rows are the same recipes Crafting
+already carries (`Mixed hide boots` was a profitable Crafting row at 2,218 gp
+earlier in the scan), which is exactly the multi-skill duplication §8.13 now
+deduplicates on the leaderboard.
+
+**Thieving — 0 recipes.** Not one. Pickpocketing and stalls are loot tables, not
+transformations.
+
+#### What Phase 2 actually needs
+
+Under §4 an activity whose profit only exists as a rate is skipped, and all five of
+these are exactly that: ore/logs/fish/catches per hour. Even after building the
+rate, there would be no row to put it on, because the bucket has no gathering
+recipe at all.
+
+So Phase 2 needs a second data source and a second row shape:
+
+1. **A gathering model per activity** — node respawn time or click interval, yield
+   per action, and how both scale with level. Some of that is a game constant
+   (respawn timers), some is level-scaled (`§3.1` EV territory).
+2. **A row kind for it.** `transform` means "buy inputs, sell output"; a gather has
+   no inputs, so it needs something like `gather` with `inputs: []` and a
+   time-based yield. The current engine prices an action; a gather row prices an
+   hour.
+3. **A decision on §4.** If the answer is still "skip rate-only activities", then
+   Mining, Fishing and Thieving stay at zero rows permanently, and the plan should
+   say so instead of listing them as pending work.
+
+None of that is impossible — it is simply not the recipe bucket's job, and no
+amount of scanning will change that. Phase 2's honest status is: **scanned,
+nothing to price, needs a new source and a new row kind.**
+
 ### 8.11 The instant default, and why the page must own it
 
 Q10 settled that `#/skilling` opens in **instant** mode (buy at `high`, sell at
@@ -594,7 +746,7 @@ patient toggle is a UI-only change later. Nothing needs regenerating for it.
 | Magic | ✅ §8.9 | 146 |
 | Cooking | ✅ §8.10 — gated on the player's Cooking level | 47 |
 
-**1,907 activities priced from 3,886 bucket recipes**, with no hand-typed item,
+**2,050 activities priced from 4,229 bucket recipes**, with no hand-typed item,
 price or rate anywhere: every number is a GE quote joined to the wiki's own recipe
 table. The one curated input is the Cooking no-burn table, which is a game
 constant read off a wiki page that states it.

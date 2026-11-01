@@ -77,6 +77,13 @@ export const SKILLING_SKILLS = [
   'Herblore',
   'Magic',
   'Cooking',
+  'Farming',
+  'Sailing',
+  'Mining',
+  'Woodcutting',
+  'Fishing',
+  'Hunter',
+  'Thieving',
 ] as const;
 export type SkillingSkill = (typeof SKILLING_SKILLS)[number];
 
@@ -89,7 +96,10 @@ export type SkillingSkill = (typeof SKILLING_SKILLS)[number];
  * only tradeable Construction outputs are the Sailing hull parts, and those
  * already price as normal transforms.
  */
-export const TRAIN_SKILLS: ReadonlySet<string> = new Set(['Construction']);
+export const TRAIN_SKILLS: ReadonlySet<string> = new Set([
+  'Construction',
+  'Sailing',
+]);
 
 /**
  * A floor low enough that no real recipe can pass it: `rankProcess` compares

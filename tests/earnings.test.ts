@@ -475,6 +475,19 @@ describe('buildEarnings: skilling rows', () => {
     expect(result.duplicated).toBe(1);
   });
 
+  it('ranks a multi-skill recipe once, however many skills claim it', () => {
+    // `String Jewellery` trains Magic and Crafting, but it is one action.
+    const result = earnings({
+      skilling: [
+        skillRow({}, 'Magic'),
+        skillRow({}, 'Crafting'),
+      ],
+    });
+
+    expect(result.methods).toHaveLength(1);
+    expect(result.duplicated).toBe(1);
+  });
+
   it('counts a row with no published rate as unranked', () => {
     const result = earnings({
       skilling: [skillRow({ gpPerHour: null, secondsPerAction: null, ticks: null })],

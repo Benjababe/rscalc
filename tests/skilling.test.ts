@@ -482,7 +482,7 @@ describe('committed skilling artifact', () => {
     }
   });
 
-  it('lists every scanned skill with both modes', async () => {
+  it('lists every scanned skill, priced or not', async () => {
     const payload = SkillingPayloadSchema.parse(
       JSON.parse(await readFile('data/skilling.json', 'utf8')),
     );
@@ -490,11 +490,23 @@ describe('committed skilling artifact', () => {
     const names = payload.skills.map((entry) => entry.skill);
     expect(names).toEqual([...SKILLING_SKILLS]);
     expect(new Set(names).size).toBe(names.length);
+
+    // A scanned skill may legitimately price nothing: Mining, Fishing and
+    // Thieving have no gathering recipe in the bucket, so their coverage line is
+    // all `unpriced`. That is a finding, not a failure, so the assertion is that
+    // the line reconciles — not that every skill earns.
+    let priced = 0;
     for (const catalog of payload.skills) {
-      expect(catalog.pessimistic.opportunities.length).toBeGreaterThan(0);
-      expect(catalog.patient.opportunities.length).toBeGreaterThan(0);
-      expect(catalog.coverage.profitable).toBeGreaterThan(0);
-      expect(catalog.coverage.lossMaking).toBeGreaterThan(0);
+      const { coverage } = catalog;
+      expect(coverage.activities).toBe(
+        catalog.pessimistic.opportunities.length,
+      );
+      expect(coverage.profitable + coverage.lossMaking).toBe(
+        coverage.activities,
+      );
+      expect(coverage.unpriced).toBe(coverage.recipes - coverage.activities);
+      priced += coverage.activities;
     }
+    expect(priced).toBeGreaterThan(1000);
   });
 });

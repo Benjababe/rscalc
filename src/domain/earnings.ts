@@ -420,18 +420,25 @@ export function buildEarnings(
   // rate is unchanged by a smaller plan. Two exclusions are specific to this
   // family and are counted rather than silent:
   //
-  //  - `train` rows sell nothing (house furniture), so they cannot earn;
-  //  - a row whose recipe is already in `input.recipes` is the *same action* the
-  //    processing page ranks, so it is dropped as a duplicate.
+  //  - `train` rows sell nothing (boat parts, house furniture), so they cannot
+  //    earn;
+  //  - the same *action* is ranked once. That covers a recipe the processing
+  //    family already prices, and a multi-skill recipe that appears under two
+  //    skills in the artifact (`String Jewellery` trains Magic and Crafting, but
+  //    it is one action with one margin).
   const processingIds = new Set(
     input.recipes.map((recipe) => recipe.recipeId),
   );
+  const rankedSkillRecipes = new Set<string>();
   let duplicated = 0;
 
   for (const entry of input.skilling ?? []) {
     const opp = entry.activity;
     if (opp.kind === 'train') continue;
-    if (processingIds.has(opp.recipeId)) {
+    if (
+      processingIds.has(opp.recipeId) ||
+      rankedSkillRecipes.has(opp.recipeId)
+    ) {
       duplicated += 1;
       continue;
     }
@@ -462,6 +469,7 @@ export function buildEarnings(
       requirements.push(`Cooking ${opp.noBurnLevel} to not burn`);
     }
 
+    rankedSkillRecipes.add(opp.recipeId);
     methods.push({
       id: `skilling:${entry.skill}:${opp.recipeId}`,
       kind: 'skilling',

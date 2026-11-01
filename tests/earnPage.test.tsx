@@ -75,14 +75,16 @@ describe('Earn page', () => {
     }
   });
 
-  it('shows all three method families in one list by default', async () => {
+  it('shows every method family in one list by default', async () => {
     render(<EarnPage />);
     await waitFor(() => expect(rows().length).toBe(100));
 
     const kinds = new Set(kindBadges());
     expect(kinds.size).toBeGreaterThan(1);
     for (const kind of kinds) {
-      expect(['Shop run', 'Sell to shop', 'Processing']).toContain(kind);
+      expect(['Shop run', 'Sell to shop', 'Processing', 'Skilling']).toContain(
+        kind,
+      );
     }
   });
 
