@@ -231,9 +231,17 @@ body {
 }
 
 /* search field */
-.search {
+.search-field {
+  position: relative;
+  display: flex;
   flex: 1 1 300px;
   min-width: 180px;
+}
+
+.search {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
   background-color: var(--panel-2);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='7' cy='7' r='4.5' fill='none' stroke='%2398a0ae' stroke-width='1.6'/%3E%3Cpath d='M10.6 10.6L14 14' stroke='%2398a0ae' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
@@ -242,7 +250,7 @@ body {
   border: 1px solid var(--line);
   border-radius: 10px;
   color: var(--text);
-  padding: 9px 12px 9px 34px;
+  padding: 9px 40px 9px 34px;
   font-size: 13px;
   transition: border-color 140ms ease, box-shadow 140ms ease,
     background-color 140ms ease;
@@ -261,6 +269,34 @@ body {
   border-color: var(--accent);
   background-color: #23272f;
   box-shadow: 0 0 0 3px rgba(255, 210, 74, 0.13);
+}
+
+/* the "/" affordance: the shortcut is useless if nobody knows it */
+.search-hint {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  background: #1a1d23;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--dim);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1;
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+
+/* Once the field has focus the hint has done its job. */
+.search-field:focus-within .search-hint {
+  opacity: 0;
 }
 
 .toggle {
@@ -1075,7 +1111,7 @@ thead th[title] {
     padding: 8px 10px;
   }
 
-  .search {
+  .search-field {
     flex-basis: 100%;
     order: 2;
   }
@@ -1309,6 +1345,7 @@ thead th[title] {
 @media (prefers-reduced-motion: reduce) {
   .mode,
   .search,
+  .search-hint,
   .toggle input[type="checkbox"],
   .num,
   .toolbar-row > .toggle,

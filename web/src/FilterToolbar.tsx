@@ -10,6 +10,7 @@
 import type { ReactNode } from "react";
 
 import { formatSourceDateTime, formatTime } from "./format";
+import { useSearchShortcut } from "./searchShortcut";
 import { StaleWarning } from "./ui";
 
 export interface ModeOption<T extends string> {
@@ -38,6 +39,8 @@ export function FilterToolbar<T extends string>(props: {
   /** Filter chips. */
   children: ReactNode;
 }): JSX.Element {
+  const searchRef = useSearchShortcut();
+
   return (
     <section className="toolbar" aria-label="Filters">
       <div className="toolbar-row">
@@ -56,14 +59,22 @@ export function FilterToolbar<T extends string>(props: {
           ))}
         </div>
 
-        <input
-          className="search"
-          type="search"
-          placeholder={props.placeholder}
-          value={props.query}
-          onChange={(event) => props.onQuery(event.target.value)}
-          aria-label={props.searchLabel}
-        />
+        <div className="search-field">
+          <input
+            ref={searchRef}
+            className="search"
+            type="search"
+            placeholder={props.placeholder}
+            value={props.query}
+            onChange={(event) => props.onQuery(event.target.value)}
+            aria-label={props.searchLabel}
+            aria-keyshortcuts="/ Control+K Meta+K"
+          />
+          {/* Discoverability: the shortcut is useless if nobody knows it. */}
+          <kbd className="search-hint" aria-hidden="true">
+            /
+          </kbd>
+        </div>
 
         <div className="asof">
           <span className="label">GE prices as of</span>

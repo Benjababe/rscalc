@@ -31,7 +31,13 @@ change (S ≈ under an hour, M ≈ half a day, L ≈ a day or more).
 |1.8 `prefers-reduced-motion`|**done** — `web/src/styles.css`|
 |2.1 Remove duplicated page orchestration|**done** — `FilterToolbar`, `BudgetPanel`, `settings`, `sorting`, `matching`|
 |2.2 Throttle re-planning|**done** — deferred query + memoised stats|
-|2.3 UI tests · §3|open|
+|2.3 UI-level tests|open — no test exercises rendering|
+|3.1 Light theme|open — optional|
+|3.2 Keyboard shortcut to focus search|**done** — `/` and Ctrl/Cmd+K|
+|3.3 Sticky toolbar|open — optional|
+
+**Open:** 1.2 (high impact), 2.3 (medium), 3.1 and 3.3 (optional).
+Everything in §1 except 1.2, and all of §2 except 2.3, has landed.
 
 ---
 
@@ -225,6 +231,22 @@ tractable; the hardcoded greys introduced in the toolbar work (`#1e222a`,
 
 `/` (or `Ctrl`/`Cmd`+`K`) focuses the search field from anywhere on the page.
 Small, but the search is now the primary control.
+
+- **Done.** `web/src/searchShortcut.ts` decides this from the key, the modifiers
+  and whether the focused element already accepts typing, so it never steals a
+  `/` from a number field, a `select` or the search box itself. `Shift`+`/` still
+  fires, because that is how `/` is typed on most layouts; anything with `Alt`
+  is left to the window manager, and a key another handler already claimed
+  (`defaultPrevented`) is left alone. Bundled into the shared `FilterToolbar`, so
+  all three pages get it.
+- **Discoverability:** a small `kbd` showing `/` sits at the right edge of the
+  field and fades out once the field has focus. The input also carries
+  `aria-keyshortcuts="/ Control+K Meta+K"`.
+- **Tested:** `tests/searchShortcut.test.ts` (13 cases) covers the key/modifier
+  matrix, the typing-target guard and the `defaultPrevented` case without a DOM.
+  Verified in the browser that a real `/` keypress moves focus and does *not*
+  insert the character, and that `/` typed inside a number input, a `select` or
+  the search box itself is untouched.
 
 ### 3.3 Sticky toolbar
 
