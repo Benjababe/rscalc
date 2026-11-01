@@ -1,0 +1,230 @@
+import { readFile } from 'fs/promises';
+import { describe, expect, it } from 'vitest';
+import type { RawRecipe } from '../src/api/wikiRecipes.js';
+import {
+  NO_PROFIT_FLOOR,
+  SKILLING_SKILLS,
+  rankSkillActivities,
+} from '../src/engine/skilling.js';
+import {
+  SkillingPayloadSchema,
+  type MarketQuote,
+  type MarketSnapshot,
+} from '../src/types.js';
+
+function recipe(overrides: Partial<RawRecipe> = {}): RawRecipe {
+  return {
+    id: 'bow-string',
+    page: 'Bow string',
+    method: 'Spinning wheel',
+    ticks: 3,
+    materials: [{ name: 'Flax', quantity: 1, note: null }],
+    output: { name: 'Bow string', quantity: 1, note: null },
+    facilities: 'Spinning wheel',
+    tools: null,
+    members: true,
+    skills: [{ name: 'Crafting', level: 10 }],
+    ...overrides,
+  };
+}
+
+function quote(overrides: Partial<MarketQuote> = {}): MarketQuote {
+  return {
+    id: 1,
+    name: 'Flax',
+    members: true,
+    value: 5,
+    stackable: null,
+    limit: 100,
+    high: 10,
+    low: 8,
+    avgHighPrice24h: 10,
+    avgLowPrice24h: 8,
+    highVolume24h: 6000,
+    lowVolume24h: 3000,
+    highTime: null,
+    lowTime: null,
+    ...overrides,
+  };
+}
+
+function market(quotes: MarketQuote[]): MarketSnapshot {
+  return {
+    generatedAt: '2026-01-01T00:00:00.000Z',
+    pricesAsOf: '2026-01-01T00:00:00.000Z',
+    itemCount: quotes.length,
+    quotes: Object.fromEntries(quotes.map((entry) => [String(entry.id), entry])),
+  };
+}
+
+const FLAX = quote({ id: 1, name: 'Flax', high: 10, low: 8 });
+/** A profitable spin: 30 gp out, 10 gp in. */
+const BOW_STRING = quote({ id: 2, name: 'Bow string', high: 30, low: 30 });
+/** A loss-making action: the input costs more than the output is worth. */
+const WORTHLESS_INPUT = quote({ id: 3, name: 'Ruby', high: 900, low: 900 });
+const WORTHLESS_OUTPUT = quote({
+  id: 4,
+  name: 'Ruby ring',
+  high: 700,
+  low: 700,
+});
+const UNPRICED = quote({ id: 5, name: 'Unpriced thing' });
+
+const PROFITABLE = recipe();
+const LOSS = recipe({
+  id: 'ruby-ring',
+  page: 'Ruby ring',
+  materials: [{ name: 'Ruby', quantity: 1, note: null }],
+  output: { name: 'Ruby ring', quantity: 1, note: null },
+  skills: [{ name: 'Crafting', level: 34 }],
+});
+const NO_TICKS = recipe({
+  id: 'no-ticks',
+  page: 'No ticks',
+  ticks: null,
+  skills: [{ name: 'Crafting', level: 20 }],
+});
+const SMITHING = recipe({
+  id: 'bronze-bar',
+  page: 'Bronze bar',
+  materials: [{ name: 'Flax', quantity: 1, note: null }],
+  output: { name: 'Bow string', quantity: 1, note: null },
+  skills: [{ name: 'Smithing', level: 1 }],
+});
+/** Output has no quote, so the action cannot be priced at all. */
+const UNPRICED_RECIPE = recipe({
+  id: 'unpriced',
+  page: 'Unpriced thing',
+  output: { name: 'Unpriced thing', quantity: 1, note: null },
+});
+
+const MARKET = market([
+  FLAX,
+  BOW_STRING,
+  WORTHLESS_INPUT,
+  WORTHLESS_OUTPUT,
+  UNPRICED,
+]);
+
+describe('rankSkillActivities', () => {
+  it('keeps the loss-making side, which the processing artifact drops', () => {
+    const result = rankSkillActivities([PROFITABLE, LOSS], MARKET, {
+      skill: 'Crafting',
+      mode: 'pessimistic',
+    });
+
+    const ring = result.ranking.opportunities.find(
+      (row) => row.output.itemName === 'Ruby ring',
+    );
+    if (ring === undefined) throw new Error('expected the ruby ring row');
+    // 900 gp in, 700 gp out minus the 14 gp GE tax = -214 gp per action.
+    expect(ring.tax).toBe(14);
+    expect(ring.profit).toBe(-214);
+    expect(ring.gpPer4h).toBe(-214 * ring.actions4h);
+    expect(ring.gpPerHour).toBeLessThan(0);
+    expect(result.coverage).toEqual({
+      skill: 'Crafting',
+      recipes: 2,
+      activities: 2,
+      profitable: 1,
+      lossMaking: 1,
+      unknownRate: 0,
+      unpriced: 0,
+    });
+    expect(NO_PROFIT_FLOOR).toBeLessThan(0);
+  });
+
+  it('prices only the requested skill', () => {
+    const result = rankSkillActivities([PROFITABLE, SMITHING], MARKET, {
+      skill: 'Crafting',
+      mode: 'pessimistic',
+    });
+
+    expect(result.ranking.filters.skills).toEqual(['crafting']);
+    expect(result.ranking.opportunities).toHaveLength(1);
+    // The smithing recipe names the skill, so it is not part of this coverage.
+    expect(result.coverage.recipes).toBe(1);
+  });
+
+  it('counts an unpriced recipe instead of inventing a price', () => {
+    const result = rankSkillActivities([PROFITABLE, UNPRICED_RECIPE], market([FLAX, BOW_STRING]), {
+      skill: 'Crafting',
+      mode: 'pessimistic',
+    });
+
+    expect(result.coverage.activities).toBe(1);
+    expect(result.coverage.unpriced).toBe(1);
+  });
+
+  it('keeps a row with no published ticks and reports a null rate', () => {
+    const result = rankSkillActivities([NO_TICKS], MARKET, {
+      skill: 'Crafting',
+      mode: 'pessimistic',
+    });
+
+    const row = result.ranking.opportunities[0];
+    expect(row?.gpPerHour).toBeNull();
+    expect(row?.ticks).toBeNull();
+    expect(row?.profit).toBe(20);
+    expect(result.coverage.unknownRate).toBe(1);
+  });
+
+  it('orders by gp/hour with unknown-rate rows last', () => {
+    const result = rankSkillActivities([NO_TICKS, PROFITABLE], MARKET, {
+      skill: 'Crafting',
+      mode: 'pessimistic',
+    });
+
+    expect(result.ranking.opportunities.map((row) => row.output.itemName)).toEqual(
+      ['Bow string', 'Bow string'],
+    );
+    expect(result.ranking.opportunities[0]?.gpPerHour).not.toBeNull();
+    expect(result.ranking.opportunities[1]?.gpPerHour).toBeNull();
+  });
+});
+
+describe('committed skilling artifact', () => {
+  it('validates, cites every row and reconciles its coverage line', async () => {
+    const payload = SkillingPayloadSchema.parse(
+      JSON.parse(await readFile('data/skilling.json', 'utf8')),
+    );
+
+    expect(payload.skills.length).toBeGreaterThan(0);
+    for (const catalog of payload.skills) {
+      for (const mode of [catalog.pessimistic, catalog.patient]) {
+        for (const row of mode.opportunities) {
+          expect(row.source).toMatch(
+            /^https:\/\/oldschool\.runescape\.wiki\/w\//,
+          );
+          expect(row.secondsPerAction === null).toBe(row.gpPerHour === null);
+        }
+      }
+
+      const { coverage } = catalog;
+      const rows = catalog.pessimistic.opportunities;
+      expect(coverage.activities).toBe(rows.length);
+      expect(coverage.profitable + coverage.lossMaking).toBe(rows.length);
+      expect(coverage.unknownRate).toBe(
+        rows.filter((row) => row.gpPerHour === null).length,
+      );
+      expect(coverage.unpriced).toBe(coverage.recipes - coverage.activities);
+      expect(coverage.unpriced).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('lists every scanned skill with both modes', async () => {
+    const payload = SkillingPayloadSchema.parse(
+      JSON.parse(await readFile('data/skilling.json', 'utf8')),
+    );
+
+    const names = payload.skills.map((entry) => entry.skill);
+    expect(names).toEqual([...SKILLING_SKILLS]);
+    expect(new Set(names).size).toBe(names.length);
+    for (const catalog of payload.skills) {
+      expect(catalog.pessimistic.opportunities.length).toBeGreaterThan(0);
+      expect(catalog.patient.opportunities.length).toBeGreaterThan(0);
+      expect(catalog.coverage.profitable).toBeGreaterThan(0);
+      expect(catalog.coverage.lossMaking).toBeGreaterThan(0);
+    }
+  });
+});

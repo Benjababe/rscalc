@@ -60,6 +60,11 @@ outcome for this project.
   excluded. An unpriced or untradeable item removes the recipe; it is never
   estimated. The bucket exposes only the primary output — do not invent a
   secondary one. See `docs/processing.md`.
+  The `#/skilling` page is the documented exception for **expected value**: it
+  may price a chance, average or level-scaled quantity at its expectation when
+  the wiki publishes the distribution (a drop rate, a yield-by-level table), and
+  it must label the row `EV` and cite that distribution. Never invent the
+  probabilities. See `docs/skilling-plan.md` §3.1.
 - All money is integer gp. Truncate (floor) at the same points the game does —
   see `docs/shop-mechanics.md`. Never round differently than the source formula.
 
@@ -101,6 +106,8 @@ src/engine/sinkRank.ts joins for GE -> shop; buy limit as a purchase cap,
                        general-store exclusion, published buy prices only
 src/engine/processRank.ts joins deterministic recipes x GE quotes; per-action
                        profit, input buy caps, output volume caps, ticks
+src/engine/skilling.ts same join, profit floor off: every priced activity of a
+                       scanned skill, losses included, plus its coverage line
 src/domain/earnings.ts one gp/hour leaderboard: re-plans every shop run, shop
                        dump and recipe at the player's gold, drops rows whose
                        time model cannot answer, ranks deterministically
@@ -111,6 +118,8 @@ scripts/report.ts          CLI report; --write emits opportunities.json;
                            --shop prints one shop's multi-item basket
 scripts/refresh-sinks.ts   GE -> shop ranking; --write emits shop-sinks.json
 scripts/refresh-process.ts recipe bucket + prices -> data/process.json (both modes)
+scripts/refresh-skilling.ts recipe bucket + prices -> data/skilling.json;
+                           per scanned skill, losses included
 scripts/refresh-access.ts  apply scripts/shopAccessRules.ts; emits shop-access.json
 scripts/shopAccessRules.ts curated, cited shop access rules and exceptions
 scripts/smoke.ts           connectivity + schema check
@@ -135,6 +144,10 @@ data/shop-sinks.json     GE -> shop flips for both buy modes, consumed by the UI
 data/shop-access.json    per-shop known access requirements (265 pages), cited;
 data/process.json        deterministic processing recipes for both price modes,
                          with inputs, output, fees, caps and tick time
+data/skilling.json       per scanned skill, every priced activity in both modes
+                         (Crafting, Fletching, Smithing today), with a coverage
+                         line: priced rows, profitable, loss-making, unknown
+                         rate, unpriced
 ```
 
 Coverage at the last refresh: 526/593 shops have a bank distance (5 have no map
@@ -159,6 +172,8 @@ pnpm report --shop="Lundail's Arena-side Rune Shop" --gold=100000
                     # one shop's multi-item basket
 pnpm sinks --write  # data/shop-sinks.json (both buy modes)
 pnpm process        # data/process.json (recipe bucket + prices; both modes)
+pnpm skilling       # data/skilling.json (scanned skills; losses included)
+pnpm skilling --skill=crafting --limit=30 --actions-per-hour=1200
 pnpm build          # UI bundle
 ```
 
@@ -369,6 +384,33 @@ the hop-bound and market-bound branches, null-time exclusion, the unexecutable
 vs unaffordable split, access requirements, the total order, the empty result,
 and the Earn page's rendering, filters, deep links and coverage line.
 
+### M14 — Skilling activities (in progress)
+A fourth family: **for this skill, what can I do, and does it earn or cost me
+gp?** Scanned one skill at a time; see `docs/skilling-plan.md` for the queue,
+the method and the recorded decisions.
+- `src/engine/skilling.ts` wraps `rankProcess` with the profit floor off
+(`NO_PROFIT_FLOOR`), so the artifact carries the **loss-making** side — training
+cost is a result, not a filter. The maths, tax, caps and tick conversion stay in
+one place, so `#/skilling` and `#/processing` can never disagree about a recipe.
+- `data/skilling.json` (`pnpm skilling`) carries, per scanned skill, both price
+modes plus a **coverage line**: bucket recipes naming the skill, activities
+priced, profitable, loss-making, unknown rate, and unpriced. The unpriced count
+is stated, never closed with an estimate.
+- Time follows the plan's rule: a sourced action time gives gp/hour, a
+deterministic per-action profit with no clock keeps `gpPerHour = null` (`—`),
+and an activity whose profit only exists as a rate is skipped and counted.
+- Chance, range and level-scaled quantities are priced at a **sourced expected
+value** and labelled `EV`; without a published distribution the row stays out.
+- Crafting ✅, Fletching ✅, Smithing ✅ — 767 priced activities between them
+  (pessimistic mode), from 1,563 bucket recipes. Everything else those recipes
+  needed was already in the bucket; the unpriced remainder is market-side
+  (no GE price, no 4h liquidity, unmapped combined-item names), counted and
+  never estimated. Tanning hides is out (no xp, no recipe); alch and shop sale
+  as output channels are still open (Q6 in the plan).
+**Accept:** tests pin the loss-side inclusion, skill filtering, the unpriced
+count, null-rate rows kept with `gpPerHour = null`, and the artifact's coverage
+line reconciling against its own rows.
+
 ## Engineering conventions
 
 - Validate every external JSON shape with zod. Never `as`. Never `any`.
@@ -384,7 +426,10 @@ and the Earn page's rendering, filters, deep links and coverage line.
   deterministic transformations. Never turn a `quantitynote` saying chance,
   average or level scaling into a single expected value; exclude the recipe or
   model the distribution explicitly with a sourced formula. Never use the
-  output's GE buy limit as a sell cap.
+  output's GE buy limit as a sell cap. (The planned `#/skilling` page is the one
+  documented exception: it prices a **sourced** distribution at its expected
+  value and labels the row `EV`. See `docs/skilling-plan.md` §3.1; that page is
+  not built yet, and `refresh-process.ts` keeps the strict rule.)
 - Every game-mechanic claim carries a URL citation, in code or in `docs/`.
 - Every price value is tagged with the timestamp it came from.
 - Prices are `number` (gp). Max is well under `Number.MAX_SAFE_INTEGER`.

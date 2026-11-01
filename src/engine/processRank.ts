@@ -82,7 +82,12 @@ export interface ProcessRankOptions {
   membersOnly?: boolean;
   /** Override the skill allowlist. Omitted means `PROCESSING_SKILLS`. */
   skills?: readonly string[];
-  /** Minimum profit per action, in gp. Zero is floored to 1 gp. */
+  /**
+   * Minimum profit per action, in gp. Default 1, so the processing page lists
+   * only profitable recipes. A caller that wants the loss-making side — the
+   * skilling page's cost-to-train rows — passes a negative floor, which turns
+   * the filter off instead of silently keeping it at 1 gp.
+   */
   minProfit?: number;
   /**
    * Player-entered ceiling on actions per hour, used to model inefficient play.
@@ -210,7 +215,7 @@ export function rankProcess(
   const allowed = new Set(
     (options.skills ?? PROCESSING_SKILLS).map((skill) => skill.toLowerCase()),
   );
-  const minProfit = Math.max(1, Math.floor(options.minProfit ?? 1));
+  const minProfit = Math.floor(options.minProfit ?? 1);
   const maxActionsPerHour = Math.max(0, options.maxActionsPerHour ?? 0);
   const quotes = quoteIndex(market);
 

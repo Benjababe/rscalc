@@ -429,7 +429,13 @@ export const ProcessOpportunitySchema = z.object({
   /** GE tax on the outputs, per action. */
   tax: z.number().int().nonnegative(),
   netRevenue: z.number().int().nonnegative(),
-  profit: z.number().int().positive(),
+  /**
+   * Net revenue minus spend, per action. Negative is meaningful: the skilling
+   * page lists the loss-making side of a skill (cost to train), and
+   * `refresh-process.ts` keeps its own 1-gp floor so `data/process.json` stays
+   * profitable-only.
+   */
+  profit: z.number().int(),
   marginPct: z.number(),
 
   /** Raw ticks per action, and the derived seconds (0 ticks = 1/8 tick). */
@@ -441,9 +447,9 @@ export const ProcessOpportunitySchema = z.object({
   timeActions4h: z.number().int().nonnegative().nullable(),
   /** min(marketActions4h, timeActions4h), or the market cap when time is unknown. */
   actions4h: z.number().int().positive(),
-  gpPer4h: z.number().nonnegative(),
+  gpPer4h: z.number(),
   /** gpPer4h / 4; null when the processing time is unknown. */
-  gpPerHour: z.number().nonnegative().nullable(),
+  gpPerHour: z.number().nullable(),
 });
 export type ProcessOpportunity = z.infer<typeof ProcessOpportunitySchema>;
 
@@ -471,3 +477,46 @@ export const ProcessPayloadSchema = z.object({
   patient: ProcessRankingSchema,
 });
 export type ProcessPayload = z.infer<typeof ProcessPayloadSchema>;
+
+// ---------------------------------------------------------------------------
+// Skilling activities
+// ---------------------------------------------------------------------------
+
+/**
+ * How much of one scanned skill actually reached the artifact.
+ *
+ * `recipes` counts the bucket rows that name the skill; `unpriced` is the rest
+ * (a leg with no GE price or no 4h liquidity, a chance/quantity note, a
+ * cooking-tainted recipe). Nothing is filled in to close the gap — the page
+ * reports it.
+ */
+export const SkillCoverageSchema = z.object({
+  skill: z.string(),
+  recipes: z.number().int().nonnegative(),
+  activities: z.number().int().nonnegative(),
+  /** Rows whose per-action profit is above zero. */
+  profitable: z.number().int().nonnegative(),
+  /** Rows whose per-action profit is below zero: the cost of training. */
+  lossMaking: z.number().int().nonnegative(),
+  /** Rows with no published tick count, so gp/hour is null. */
+  unknownRate: z.number().int().nonnegative(),
+  unpriced: z.number().int().nonnegative(),
+});
+export type SkillCoverage = z.infer<typeof SkillCoverageSchema>;
+
+/** One skill's activities in both price modes, with its coverage line. */
+export const SkillActivityCatalogSchema = z.object({
+  skill: z.string(),
+  coverage: SkillCoverageSchema,
+  pessimistic: ProcessRankingSchema,
+  patient: ProcessRankingSchema,
+});
+export type SkillActivityCatalog = z.infer<typeof SkillActivityCatalogSchema>;
+
+/** `data/skilling.json`: every scanned skill, one entry each. */
+export const SkillingPayloadSchema = z.object({
+  generatedAt: z.string(),
+  pricesAsOf: z.string(),
+  skills: z.array(SkillActivityCatalogSchema),
+});
+export type SkillingPayload = z.infer<typeof SkillingPayloadSchema>;
