@@ -69,6 +69,8 @@ export const SKILLING_SKILLS = [
   'Smithing',
   'Runecraft',
   'Construction',
+  'Herblore',
+  'Magic',
 ] as const;
 export type SkillingSkill = (typeof SKILLING_SKILLS)[number];
 

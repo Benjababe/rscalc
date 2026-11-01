@@ -145,8 +145,9 @@ data/shop-access.json    per-shop known access requirements (265 pages), cited;
 data/process.json        deterministic processing recipes for both price modes,
                          with inputs, output, fees, caps and tick time
 data/skilling.json       per scanned skill, every priced activity in both modes
-                         (Crafting, Fletching, Smithing, Runecraft,
-                         Construction today), with a coverage line: priced rows,
+                         (Crafting, Fletching, Smithing, Herblore, Magic,
+                         Runecraft, Construction today), with a coverage line:
+                         priced rows,
                          profitable, loss-making, cost-only, unknown rate,
                          unpriced
 ```
@@ -406,12 +407,15 @@ deterministic per-action profit with no clock keeps `gpPerHour = null` (`—`),
 and an activity whose profit only exists as a rate is skipped and counted.
 - Chance, range and level-scaled quantities are priced at a **sourced expected
 value** and labelled `EV`; without a published distribution the row stays out.
-- Crafting ✅, Fletching ✅, Smithing ✅, Runecraft ✅, Construction ✅ — 1,574
-  priced activities between them (pessimistic mode), from 2,717 bucket recipes.
-  Everything else those recipes needed was already in the bucket; the unpriced
-  remainder is market-side (no GE price, no 4h liquidity, unmapped combined-item
-  names), counted and never estimated. Tanning hides is out (no xp, no recipe);
-  alch and shop sale as output channels are still open (Q6 in the plan).
+- Phase 1 done: Smithing, Crafting, Fletching, Herblore, Runecraft, Construction
+  and Magic ✅ — 1,860 priced activities from 3,345 bucket recipes, all re-framed
+  by the same engine. The unpriced remainder is untradeable legs, no 4h
+  liquidity, unmapped combined-item names or a chance note: counted, never
+  estimated. Tanning hides is out (no xp, no recipe); alch and shop sale as output
+  channels are still open (Q6 in the plan).
+- Cooking is ❌ and stays out: the bucket publishes no burn chance and no no-burn
+  level, so there is nothing to price. It needs one curated table (no-burn levels
+  per food) plus the §3.1 EV rule, not an engine change.
 - Runecraft's published tick is the altar action, so its gp/hour is an altar-rate
   upper bound (banking excluded, as on the processing page) — labelled, not fixed.
 **Accept:** tests pin the loss-side inclusion, skill filtering, the unpriced
