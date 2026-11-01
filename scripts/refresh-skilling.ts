@@ -23,7 +23,9 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 import { fetch24h, fetchLatest, fetchMapping } from '../src/api/prices.js';
+import { fetchFishingSources } from '../src/api/wikiFishing.js';
 import { fetchGatheringNodes } from '../src/api/wikiGathering.js';
+import { fetchHunterSources } from '../src/api/wikiHunter.js';
 import { fetchThievingSources } from '../src/api/wikiThieving.js';
 import { fetchBankTitles, fetchPageMapPoints } from '../src/api/wikiMap.js';
 import { parseObjectLocLines } from '../src/api/wikiMap.js';
@@ -31,6 +33,8 @@ import { fetchPageWikitext } from '../src/api/wikiPages.js';
 import { fetchItemStackability } from '../src/api/wikiItems.js';
 import { nearestBankFor } from '../src/domain/bankTrip.js';
 import type { ThievingSource } from '../src/api/wikiThieving.js';
+import type { FishingSource } from '../src/api/wikiFishing.js';
+import type { HunterSource } from '../src/api/wikiHunter.js';
 import type { GatheringNode } from '../src/api/wikiGathering.js';
 import { fetchRecipes } from '../src/api/wikiRecipes.js';
 import { toBurnIndex } from '../src/domain/cooking.js';
@@ -40,6 +44,9 @@ import {
 } from './cookingBurnLevels.js';
 import { GATHERING_NODE_SOURCES } from './gatheringNodes.js';
 import { THIEVING_STALL_PAGES } from './thievingSources.js';
+import { PICKPOCKET_PAGES } from './pickpocketSources.js';
+import { fishingSourcePages } from './fishingSources.js';
+import { hunterSourcePages } from './hunterSources.js';
 import { SKILL_UPGRADES, upgradeKeys } from './skillUpgrades.js';
 import { SKILLING_SKILLS, rankSkillActivities } from '../src/engine/skilling.js';
 import type { SkillingSkill } from '../src/engine/skilling.js';
@@ -217,17 +224,48 @@ async function main(): Promise<void> {
   );
   const metaById = new Map(mapping.items.map((item) => [item.id, item]));
 
-  // Expected-value rows: Thieving stalls publish both a time and a loot table.
+  // Expected-value sources. Three families, one pricing path: Thieving (stalls and
+  // pickpockets), Fishing (success charts, no attempt interval) and Hunter (a
+  // catch chance; a box trap is the only trap with a published attempt time).
   let thievingSources: ThievingSource[] = [];
   if (cli.skills.includes('Thieving')) {
     log('fetching thieving loot tables...');
-    const fetched = await fetchThievingSources(THIEVING_STALL_PAGES);
+    const fetched = await fetchThievingSources([
+      ...THIEVING_STALL_PAGES,
+      ...PICKPOCKET_PAGES,
+    ]);
     thievingSources = fetched.sources;
     log(
-      `  ${fetched.sources.length}/${fetched.requested} stall pages parsed ` +
+      `  ${fetched.sources.length}/${fetched.requested} Thieving pages parsed ` +
         `(${fetched.missing} missing, ${fetched.rejected} drop rows unreadable)`,
     );
   }
+
+  let fishingSources: FishingSource[] = [];
+  if (cli.skills.includes('Fishing')) {
+    log('fetching fishing success charts...');
+    const fetched = await fetchFishingSources(fishingSourcePages());
+    fishingSources = fetched.sources;
+    log(
+      `  ${fetched.sources.length}/${fetched.requested} fishing methods priced ` +
+        `(${fetched.missing} missing, ${fetched.rejected} rejected: no chart, or a ` +
+        'chart label that is not one of the page\'s own drops)',
+    );
+  }
+
+  let hunterSources: HunterSource[] = [];
+  if (cli.skills.includes('Hunter')) {
+    log('fetching hunter catch chances...');
+    const fetched = await fetchHunterSources(hunterSourcePages());
+    hunterSources = fetched.sources;
+    log(
+      `  ${fetched.sources.length}/${fetched.requested} creatures priced ` +
+        `(${fetched.missing} missing, ${fetched.rejected} with no chart or no ` +
+        `guaranteed drop, ${fetched.ignored} table line(s) left out as not part of a catch)`,
+    );
+  }
+
+  const evSources = [...thievingSources, ...fishingSources, ...hunterSources];
 
   const scanned = recipes.recipes.filter((recipe) =>
     cli.skills.some((skill) =>
@@ -240,7 +278,7 @@ async function main(): Promise<void> {
   // Expected-value rows price their loot, and loot items are not recipe items, so
   // they have to be pulled into the snapshot explicitly. Without this every EV
   // row is rejected for an unpriced outcome.
-  for (const source of thievingSources) {
+  for (const source of evSources) {
     for (const drop of source.drops) {
       if (drop.item.toLowerCase() === 'coins') continue;
       const meta = metaByName.get(drop.item.toLowerCase());
@@ -305,17 +343,20 @@ async function main(): Promise<void> {
   }
 
   // Bank distances for the EV sources, from the wiki's ObjectLocLine pins. A page
-  // with no pin gets null and no walk is charged — never a global default.
+  // with no pin gets null and no walk is charged — never a global default. Fishing
+  // and Hunter pages often carry no pin at all (a creature page lists locations as
+  // a map, not as ObjectLocLine pins), and their rows charge no walk; a rate-less
+  // row cannot charge one in any case, because there is no hour to divide it into.
   const bankTilesByPage = new Map<string, number | null>();
   const stackableByItem = new Map<string, boolean | null>();
-  if (thievingSources.length > 0) {
-    log('joining thieving locations to their nearest bank...');
+  if (evSources.length > 0) {
+    log('joining expected-value sources to their nearest bank...');
     const bankPages = await fetchBankTitles();
     const banks = await fetchPageMapPoints(bankPages);
     const pageText = await fetchPageWikitext(
-      thievingSources.map((source) => source.source_pages),
+      evSources.map((source) => source.source_pages),
     );
-    for (const source of thievingSources) {
+    for (const source of evSources) {
       const text = pageText.pages.get(source.source_pages) ?? null;
       const pins = text === null ? [] : parseObjectLocLines(text);
       let best: number | null = null;
@@ -327,7 +368,7 @@ async function main(): Promise<void> {
       bankTilesByPage.set(source.source_pages, best);
     }
     const lootItems = new Set<string>();
-    for (const source of thievingSources) {
+    for (const source of evSources) {
       for (const drop of source.drops) {
         if (drop.item.toLowerCase() !== 'coins') lootItems.add(drop.item);
       }
@@ -337,7 +378,7 @@ async function main(): Promise<void> {
       stackableByItem.set(item.toLowerCase(), value);
     }
     const known = [...bankTilesByPage.values()].filter((value) => value !== null).length;
-    log(`  ${known}/${bankTilesByPage.size} stalls have a bank distance`);
+    log(`  ${known}/${bankTilesByPage.size} expected-value sources have a bank distance`);
   }
 
   // Gather nodes: the item page carries no coordinates, but its `|rock=`/`|tree=`
@@ -398,6 +439,8 @@ async function main(): Promise<void> {
       upgradeKeys: upgradeKeySet,
       gatheringNodes: gatheringNodes.filter((node) => node.skill === skill),
       thievingSources: skill === 'Thieving' ? thievingSources : [],
+      fishingSources: skill === 'Fishing' ? fishingSources : [],
+      hunterSources: skill === 'Hunter' ? hunterSources : [],
       bankTilesByPage,
       gatherBankTilesByItem,
       stackableByItem,
@@ -411,6 +454,8 @@ async function main(): Promise<void> {
       upgradeKeys: upgradeKeySet,
       gatheringNodes: gatheringNodes.filter((node) => node.skill === skill),
       thievingSources: skill === 'Thieving' ? thievingSources : [],
+      fishingSources: skill === 'Fishing' ? fishingSources : [],
+      hunterSources: skill === 'Hunter' ? hunterSources : [],
       bankTilesByPage,
       gatherBankTilesByItem,
       stackableByItem,

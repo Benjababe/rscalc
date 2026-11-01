@@ -30,6 +30,11 @@ export interface ViewState {
   kind?: string;
   /** The player's Cooking level on the skilling page; 0/absent means "not set". */
   cookingLevel?: number;
+  /**
+   * A player-entered actions/hour on the skilling page, used only for rows the wiki
+   * publishes no rate for. 0/absent means "no rate given".
+   */
+  rate?: number;
 }
 
 /**
@@ -100,6 +105,9 @@ export function parseViewState(hash: string): ViewState {
     state.cookingLevel = cookingLevel;
   }
 
+  const rate = readNumber(params.get("rate"));
+  if (rate !== undefined && rate > 0) state.rate = rate;
+
   return state;
 }
 
@@ -146,6 +154,9 @@ export function buildViewHash(page: Page, state: ViewState): string {
     state.cookingLevel <= 99
   ) {
     params.set("cooking", String(state.cookingLevel));
+  }
+  if (state.rate !== undefined && state.rate > 0) {
+    params.set("rate", String(state.rate));
   }
 
   const query = params.toString();

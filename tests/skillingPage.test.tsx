@@ -52,6 +52,17 @@ function cookingLevelInput(): HTMLInputElement {
   });
 }
 
+function actionsPerHourInput(): HTMLInputElement {
+  return screen.getByRole<HTMLInputElement>('spinbutton', {
+    name: 'Actions per hour',
+  });
+}
+
+/** The gp/hour cell of every rendered row, as text. */
+function hourlyCells(): string[] {
+  return rows().map((row) => row.querySelectorAll('td')[7]?.textContent?.trim() ?? '');
+}
+
 beforeEach(() => {
   window.localStorage.clear();
   window.history.replaceState(null, '', '/#/skilling');
@@ -178,6 +189,41 @@ describe('skilling page', () => {
       expect(viaOutput.length + viaInput.length).toBeGreaterThan(0);
       expect(viaOutput.length).toBeGreaterThan(0);
     });
+  });
+
+  it('prices a rate-less row at the actions per hour the player enters', () => {
+    render(<SkillingPage />);
+
+    // Fishing publishes no attempt interval, so before the input its row has no rate.
+    const skillSelect = screen.getByRole<HTMLSelectElement>('combobox', {
+      name: 'Skill filter',
+    });
+    fireEvent.change(skillSelect, { target: { value: 'Fishing' } });
+
+    expect(hourlyCells().every((cell) => cell.startsWith('—'))).toBe(true);
+
+    fireEvent.change(actionsPerHourInput(), { target: { value: '400' } });
+
+    const priced = hourlyCells().filter((cell) => cell !== '—');
+    expect(priced.length).toBeGreaterThan(0);
+    // Marked as the player's own figure, never as a sourced one.
+    expect(rows().some((row) => row.textContent?.includes('your rate'))).toBe(true);
+    expect(screen.getByText(/priced at your/i)).toBeTruthy();
+  });
+
+  it('leaves rows with a published rate on the wiki figure', () => {
+    render(<SkillingPage />);
+
+    const skillSelect = screen.getByRole<HTMLSelectElement>('combobox', {
+      name: 'Skill filter',
+    });
+    fireEvent.change(skillSelect, { target: { value: 'Smithing' } });
+
+    const before = hourlyCells();
+    fireEvent.change(actionsPerHourInput(), { target: { value: '600' } });
+
+    expect(hourlyCells()).toEqual(before);
+    expect(rows().some((row) => row.textContent?.includes('your rate'))).toBe(false);
   });
 
   it('states what could not be priced', () => {

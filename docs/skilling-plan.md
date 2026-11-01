@@ -1,7 +1,8 @@
-# Skilling activities — scan plan (provisional)
+# Skilling activities — scan plan
 
-Status: **Crafting scanned (§8).** Nothing else scanned yet; the rest of this
-file is the queue and the method.
+Status: **phases 1–3 scanned, plus the expected-value families (§8.17–§8.19).**
+2,114 priced activities across the 19 skills in `SKILLING_SKILLS`; the remainder
+and the reason for every gap are in §8. Phase 4 (minigames) is queued — see §5.
 
 The page answers: **for this skill, what can I do, what does one action earn or
 cost at today's GE prices, and — only where the wiki publishes a time — what is
@@ -63,16 +64,18 @@ Treat the split as a shape, not a constant.
 | Sailing | 153 | 124 | 0 / 124 | 119 |
 | Mining | 2 + 13 nodes | 11 | 11 / 0 | 11 |
 | Woodcutting | 27 + 14 nodes | 17 | 16 / 1 | 17 |
-| Fishing | 18 | 0 | 0 / 0 | 0 |
-| Hunter | 5 | 4 | 0 / 4 | 4 |
-| Thieving | 0 + 14 tables | 12 | 12 / 0 | 12 |
+| Fishing | 18 + 5 charts | 5 | 5 / 0 | 5 |
+| Hunter | 5 + 8 charts | 12 | 8 / 4 | 12 |
+| Thieving | 0 + 17 tables | 15 | 15 / 0 | 15 |
 | Prayer | 32 | 3 | 2 / 1 | 3 |
 | Firemaking | 32 | 8 | 7 / 1 | 8 |
 | Agility | 1 | 0 | 0 / 0 | 0 |
 | Slayer | 13 | 0 | 0 / 0 | 0 |
 
-2,098 activities priced in total, from 4,307 bucket recipes, 27 gathering nodes and
-14 loot tables. Cooking rows carry a
+2,114 activities priced in total, from 4,307 bucket recipes, 27 gathering nodes and
+30 expected-value sources (14 stall and pickpocket loot tables, 5 fishing success
+charts, 8 hunter creatures and 3 pickpocket charts already counted). Cooking rows
+carry a
 `noBurnLevel` and are gated on a level the player enters (§8.10). See §8 for why
 the rest are unpriced, and for Construction's 736 `train` rows — activities whose
 output cannot be sold at all, priced as the cost of one action.
@@ -139,20 +142,28 @@ formula"). Skilling rows now use the expectation. `#/processing` keeps the stric
 deterministic rule untouched until the same decision is applied there — see
 Q11 in §7.
 
-## 4. Time model — sourced, or the row is skipped
+## 4. Time model — sourced, or filled by the player
 
-Operator decision (recorded in §7): **no player-entered actions/hour.** If a
-figure cannot be stated without inventing a rate, it is not published.
+Operator decision (revised; see Q1): the **artifact** never invents a rate — a
+figure that cannot be stated without inventing one is not published. The **page**
+may fill a missing rate with the player's own, because a player knows their own
+rate and the alternative is showing them nothing.
 
 1. **Sourced action time** — recipe ticks, patch growth timer, published node
-   respawn or click interval. `profitPerHour` is computed from it and shown.
+   respawn or click interval. `profitPerHour` is computed from it and shown. A
+   published rate always wins: the page will not let a typed number displace it,
+   so a sourced figure can never be mistaken for an estimate.
 2. **Deterministic per-action profit, no sourced time** — a transform or a loss
-   (buy the bones, offer the bones). The row is listed with
-   `profitPerHour = null` and the UI shows `—`; the per-action figure stands on
-   its own without a clock.
+   (buy the bones, offer the bones). The artifact stores `profitPerHour = null` and
+   the page shows `—`; the per-action figure stands on its own without a clock.
+   If the player enters **Actions / hour**, those rows are shown at
+   `profit x rate`, marked *your rate*, and still capped by what the market absorbs
+   in 4h. This is presentation arithmetic only — `data/skilling.json` is not
+   regenerated and `#/earn` keeps ranking on sourced rates.
 3. **Profit *is* a rate** — gathering, where the income only exists as
    "ore per hour". There is no per-action figure to publish, so the row is
-   **skipped and counted**, never estimated and never filled in by the player.
+   **skipped and counted**, never estimated. A player rate cannot rescue it:
+   there is no per-action profit to multiply.
 
 Consequence to accept up front: Mining, Woodcutting, Fishing, Hunter and
 Thieving keep only those rows where the wiki publishes both a yield per action
@@ -163,6 +174,12 @@ the transform skills are unaffected.
 
 Ordered so each phase reuses the previous phase's data plumbing. Rough row
 estimates are for sanity-checking the output, not targets.
+
+The list is the skills that produce something for sale (or cost something to
+train), across four phases. **Combat is not on it and will not be added**: a kill
+is monster drops × kill rate, a different engine (§7 Q4). Phase 4 is the
+**minigames and skilling bosses**, which are in scope but gated on sourced data
+rather than on a decision — they are queued, not parked.
 
 ### Phase 1 — `transform` (recipe-backed; extend what exists)
 
@@ -202,12 +219,54 @@ Do not pad it with a player-entered rate.
 | 18 | Agility | **✅ scanned — see §8.16** | 1 recipe, unpriced at both ends |
 | 19 | Slayer | **✅ scanned — see §8.16** | 13 recipes, all house trophies |
 
-### Phase 4 — needs an explicit decision before any scanning
+### Phase 4 — minigames and skilling bosses (queued; `kind: ev`)
 
-| # | Skill | Why it is parked |
+Nothing here is scanned yet. They are listed as work rather than as a parked
+question because the row shape already exists: Thieving stalls added
+`kind: 'ev'` and the `distribution` field (§8.17), so a minigame is
+the same arithmetic — a round's loot priced at
+`Σ chance × quantity × value` — pointed at a different table. What each one
+lacks is **sourced data**: under §4 a row needs an action time, and under §3.1 an
+expectation needs a published distribution. A minigame publishes neither as a
+recipe tick, so both halves have to be read from its own pages.
+
+Two shapes, and the second is the honest one for most of them:
+
+| Shape | How it prices | What must be sourced first |
 | --- | --- | --- |
-| 20–24 | Attack, Strength, Defence, Ranged, Hitpoints | profit is monster drops × kill rate — a different engine, not a recipe |
-| — | Minigames / skilling bosses | Wintertodt, Tempoross, Guardians of the Rift, Zalcano, Blast Furnace, Mahogany Homes: all loot-roll based, so they need a sourced table for the EV (§3.1) before they can be priced |
+| **Fixed fee − fixed materials** | Same maths as `train`/`transform`; deterministic | The minigame's fee and its round duration |
+| **Points → loot table** | `kind: 'ev'` over the reward table | Points (or rounds) per hour **and** the published reward distribution |
+
+| # | Minigame | Skill | Shape | Blocker |
+| --- | --- | --- | --- | --- |
+| 20 | Blast Furnace | Smithing | fee − materials | coffer fee and bars-per-hour; its two Keldagrim shops are already exempted from the city's quest requirement (`scripts/shopAccessRules.ts`), so shop access is not the blocker here |
+| 21 | Mahogany Homes | Construction | fee − planks | contract fee per house and contract duration |
+| 22 | Giants' Foundry | Smithing | fee − materials | commission and round duration |
+| 23 | Wintertodt | Firemaking | points → loot | points per round and the supply-crate table |
+| 24 | Tempoross | Fishing / Cooking | points → loot | points per round and the reward pool table |
+| 25 | Guardians of the Rift | Runecraft | points → loot | points per round and the rune reward table |
+| 26 | Zalcano | Mining / Smithing | damage → loot | damage-share loot table and kills or rounds per hour |
+| 27 | Volcanic Mine | Mining | points → loot | point rewards and a round duration |
+| 28 | Tithe Farm | Farming | points → loot | seed rewards and points per hour |
+
+Rules that apply the moment one is scanned, none of them new:
+
+- **A round is the action, not a tick.** `secondsPerAction` is the published
+  round or fee-hour; if nothing publishes one, the row keeps
+  `gpPerHour = null` and shows `—` (§4), exactly like a recipe with no ticks.
+- **The loot table is the source, and the row says so.** A table whose chances do
+  not sum to one roll, that carries a ranged quantity with no published weights,
+  or that has any unpriced outcome is refused rather than approximated (§8.17).
+- **Minigame rewards are not the same question as the skill.** A Wintertodt row
+  is "what does a Wintertodt round pay", not "what does Firemaking pay"; it must
+  not be ranked as though it were a repeatable burn, which is the same
+  distinction the `upgrade` kind drew (§9).
+- **Q12 decides how thin Phase 4 gets.** If only a flat drop rate qualifies as a
+  distribution, the level- and points-scaled reward tables stay unpriced.
+
+Included here, and still unpriced until a source exists: Sailing's salvage and
+port tasks (§8.13) and the minigame reward tables (§5 Phase 4). Fishing catch
+rates, Hunter trap rates and pickpockets are **done** — see §8.19.
 
 ## 6. Per-skill scan contract (what "done" means for one skill)
 
@@ -229,20 +288,32 @@ Do not pad it with a player-entered rate.
 
 ### Answered
 
-- **Q1 — time model.** No player-entered rate. A figure is sourced or the row is
-  skipped; gathering activities whose profit only exists as a rate are dropped
-  and counted. (§4)
+- **Q1 — time model. ANSWERED, then revised by the operator.** The artifact never
+  invents a rate: a figure is sourced or the row stays `null`, and gathering
+  activities whose profit only exists as a rate are dropped and counted. The page
+  now accepts a player-entered **Actions / hour** that fills only the rows with no
+  published rate — labelled *your rate*, never displacing a sourced figure, still
+  capped by 4h market volume (`web/src/skillingRate.ts`). (§4)
 - **Q2 — chance-based yields.** Use the expected value of the sourced
   distribution rather than excluding the row: drop rates, harvest ranges, burn
   chances and loot rolls are all allowed, and the row is labelled `EV`. (§3.1)
 - **Q3 — Sailing.** Released 19 November 2025 and already in the shop-access
   table (`scripts/shopAccessRules.ts`, docking levels 45–67). It is scanned like
   any other skill, in Phase 2.
+- **Q4 — combat. ANSWERED: out of scope, permanently.** Attack, Strength,
+  Defence, Ranged and Hitpoints are not scanned and are not a parked phase: a
+  kill is monster drops × kill rate, so it needs a drop-table × kill-rate engine
+  with its own sourced rates, not the recipe/EV join on this page. Slayer's own
+  recipes are already priced (§8.16); Slayer *monsters* are combat and are out
+  with the rest.
+- **Q4b — minigames. ANSWERED: in scope, Phase 4.** Skilling bosses and
+  minigames are queued rather than excluded (§5). Their row is a round of put-in
+  and a loot table out, which the existing `kind: 'ev'` and `distribution`
+  fields already express; the work is sourcing a round time and a reward table
+  per minigame, not building an engine.
 
 ### Still open
 
-- **Q4 — combat and Slayer monsters:** in or out of this page? Monster drops are
-  a drop-table × kill-rate model, so they would need both halves of the EV rule.
 - **Q5 — overlap with `#/processing`.** ~300 of the Phase 1 rows are the same
   actions. Duplicate them under Skilling, or make Skilling the superset and
   leave Processing as the GE-flip view?
@@ -276,10 +347,14 @@ Do not pad it with a player-entered rate.
   mentions a chance or an average. Do we re-admit those here only, or relax
   `#/processing` the same way? Two answers are defensible; leaving the pages
   disagreeing is not.
-- **Q12 — EV sourcing floor.** Is a published drop rate enough on its own, or do
-  you also want level-scaled tables (harvest yield by level and compost, burn
-  chance by level and gauntlets) accepted as the distribution? A level-scaled
-  row without the table has no expectation, so it stays skipped.
+- **Q12 — EV sourcing floor. ANSWERED: any published distribution, including a
+  level-scaled one, as long as the page publishes both the parameters and the
+  formula.** A flat drop rate qualifies, and so does a `{{Skilling success chart}}`
+  entry: its `low`/`high`/`req` numbers plus the published success function
+  (<https://oldschool.runescape.wiki/w/Skilling_success_chart>) give a probability
+  at any level, which is exactly a sourced distribution. What stays refused is a
+  rate that exists only as prose — "around 93% at level 1" with no parameters —
+  because there is nothing to compute from it (§8.19).
 
 ## 8. Scanned: Crafting, Fletching, Smithing ✅
 
@@ -840,15 +915,22 @@ fish stall 32, fur stall 10.
 - **A source with no published action time is refused.** All the Port Roberts stalls
   publish no `time`, so there is no rate to divide by.
 
-#### What is still not EV
+#### What was still not EV here (and is now, in §8.19)
 
-**Pickpocket targets** (`Man`, `Guard`, `Master farmer`) keep their loot in a
-transcluded or plain `{{DropsLine}}` table rather than `{{DropsLineSkill}}`, so the
-parser reads zero drops from them — a layout difference, not a data gap in the
-game. **Fishing** catch rates and **Hunter** trap rates are not published as
-constants at all, and **Cooking**'s burn curve is a per-level table. Each is a
-separate source; none of them is blocked by the engine any more, which is the point
-of building the EV layer first.
+This section first said pickpockets "keep their loot in a transcluded or plain
+`{{DropsLine}}` table rather than `{{DropsLineSkill}}`". **That was wrong**, and
+the correction is worth keeping because it was a parser bug wearing a data
+explanation: pickpocket pages do use `{{DropsLineSkill}}`, in a `== Loot ==`
+section that sits *after* the `=== Tertiary ===` pet roll, and the parser cut the
+page at the first `Tertiary` heading — so it read zero drops and reported a layout
+difference instead of its own slice. Three separate problems, all handled in
+§8.19: the section address, the `time` field being a **stun timer** rather than an
+action time, and ranged quantities.
+
+**Cooking**'s burn curve stays a curated per-level table (the no-burn gate, §8.10).
+**Sailing**'s salvage is still unpriced: the `Salvaging` page publishes an average
+duration per shipwreck, but what a shipwreck yields is *salvage*, which is sorted
+into loot by a second set of tables — a two-stage model, not a drop table.
 
 ### 8.18 Banking, for the rows that have a location
 
@@ -913,6 +995,99 @@ recipe works at any of them, so there is no single location to join; `Range` and
 where the player trains. Those rows therefore charge the action time only, which the
 page states.
 
+### 8.19 Fishing, Hunter and pickpockets: the success chart as the distribution
+
+The §3.1 rule needed a sourced distribution, and the answer turned out to be one
+template used across three skills: `{{Skilling success chart}}`. It carries `low`
+(the roll's value at level 1), `high` (at 99) and `req` per option, and the wiki
+publishes the function that turns those into a probability:
+
+```text
+P(level) = (1 + floor(low*(99-level)/98 + high*(level-1)/98 + 0.5)) / 256,  clamped
+```
+
+<https://oldschool.runescape.wiki/w/Skilling_success_chart>. So a chart **is** a
+sourced, level-scaled distribution — Q12's open question — and `low` may be
+negative (`Carnivorous chinchompa`'s `Red` is −78 at level 1), which the formula
+clamps rather than rejecting.
+
+- `src/domain/successChance.ts` — the formula, the cascade
+  (`P_i x PRODUCT(1 - P_j)` for `cascade=yes`, best reward first), and
+  `chartOptionAtLevel`.
+- `src/api/wikiSuccessChart.ts` — the parser. Parameters are addressed **by key**.
+- `src/api/wikiParams.ts` — shared top-level-pipe splitting, extracted because of
+  the bug below.
+
+| Skill | Rows | With a rate | What makes the row |
+| --- | --- | --- | --- |
+| Thieving (pickpockets) | 3 | 3 | `Loot` table x success chance, time from `2 + stun x (1 - p)` |
+| Hunter | 8 | 0 | guaranteed `Always` drops x success chance; no attempt interval is usable (§ below) |
+| Fishing | 5 | 0 | the chart alone; no attempt interval is published |
+
+**Pickpockets.** A pickpocket's loot table describes a *successful* attempt, and the
+only `time` on the page is the **stun timer** (`|timename = Stun Timer`), so neither
+could be used as-is. The timing model is published on the skill page instead:
+"NPCs may be pickpocketed every two ticks (1.2 seconds)", a failure stuns for eight
+ticks, so an attempt averages `10 - 8p` ticks
+(<https://oldschool.runescape.wiki/w/Thieving#Pickpocketing>). Rows: `Paladin` 118
+gp/action at 3.68s (115k/h), `Man` and `Woman` 2 gp/action (2.8k/h) — which is the
+useful finding, and it is a real row rather than a missing one.
+
+**Fishing prices the attempt, not the hour, and says so.** Every fishing page that
+quantifies anything has a chart, and a cascading chart (`cascade=yes`) is the full
+distribution (trout+salmon, barbarian fishing). **No fishing page publishes an
+interval between attempts** — `Fishing`, `Fishing spot`, `Barbarian Fishing` and the
+spot pages were all checked — so the five rows carry `gpPerHour = null` and the page
+shows `—`. `Raw karambwan` 72 gp per attempt, `Raw monkfish` 21, `Raw lobster` 19,
+`Raw trout` 14, `Raw shrimps` 9.
+
+**Hunter has no rate, and that is a decision rather than a gap.** `Box trap` states
+"an attempt every 3 ticks (1.8 seconds)", which was briefly turned into gp/hour —
+`Carnivorous chinchompa` read 506 gp/action and **1.01M/h**. That number is a
+single trap's ceiling with an animal already in range: it ignores spawn density,
+competition, the walk between traps and how many traps a player runs. Real hunting
+yields roughly 600 catches an hour *across five traps*, which is below one trap's
+theoretical 914, so the published interval is not the binding constraint. Publishing
+1.01M/h would have put an unattainable number at the top of `#/earn`, so the interval
+is recorded (`trapAttemptSeconds`) and the row keeps `gpPerHour = null`. Every Hunter
+row is therefore "what one catch is worth at this creature's level" — 3,245 gp for a
+`Pyre fox`, 506 for a `Carnivorous chinchompa`, 31–40 for the bird snares. Only the
+creature's guaranteed drops are priced: a pet roll or a Hunter's-Rumour drop is not
+part of a catch and is counted in `coverage.ignoredDrops` (10 today).
+
+#### Four bugs this scan found, all in the parsers rather than the data
+
+1. **Inline templates lost their parameters.** `{{Skilling success chart|...}}` is
+   written on one line on some pages and across several on others. Splitting the body
+   on newlines read only the first parameter, so every inline chart parsed as "no
+   chart" — which reads exactly like "the wiki publishes no chart". The fix is
+   `src/api/wikiParams.ts`: split on **top-level** pipes, so a `{{plink|Box trap}}`
+   inside `trap=` stays one value.
+2. **A chart may hold one option per variant.** The chinchompa chart lists `Grey`
+   (req 53), `Red` (63) and `Black` (73); taking the first option priced *grey*
+   chinchompa odds for a carnivorous one — 0.676 instead of 0.457. The option is now
+   chosen by the page's own level (`chartOptionAtLevel`), falling back to the first.
+3. **A chart label is not an item name.** Labels are written for a chart: the shark
+   chart says `Harpoon`, the anglerfish chart `Sandworms`, the dark-crab chart
+   `Normal`. Fishing therefore refuses a chart unless every label matches an item on
+   the page's own `{{DropsLineSkill}}` table (`matchChartToTable`), following
+   `|spot =` to the page that publishes that table. That is what rejects five
+   otherwise-plausible methods rather than pricing a harpoon.
+4. **Several `Always` lines are not one roll.** `ev.ts` refused any table summing
+   above one, which rejected `Paladin` (80 coins *and* 2 chaos runes per pickpocket)
+   and every creature that drops bones + fur + meat. Guaranteed lines are now counted
+   individually and only the probability lines must fit inside one roll. A *ranged*
+   quantity still refuses the row, and a dropped line refuses it too: pricing the
+   readable remainder of `Vyre` (coins 230-315, the biggest outcome) would be worse
+   than no row.
+
+`SkillCoverage.ignoredDrops` was added for (4)'s counterpart, so the page can state
+how many table lines an expectation leaves out.
+
+Sandbox note for the next reader: `data/skilling.json` is now 7.9 MB raw and the
+`#/skilling` + `#/earn` chunk is 3.67 MB (390 kB gzip). The slimmer `earn` projection
+described in §9 is now the largest single win available on the site.
+
 ### 8.11 The instant default, and why the page must own it
 
 Q10 settled that `#/skilling` opens in **instant** mode (buy at `high`, sell at
@@ -921,7 +1096,7 @@ channel**. Both are deliberate and both cost coverage. Here is what the page wil
 actually show at the moment of writing, from the artifact as generated:
 
 | Skill | Instant rows | Profitable | Loss-making | Best instant row |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | Smithing | 230 | 60 | 170 | Rune plateskirt 1,218 gp (923k/h) |
 | Crafting | 299 | 109 | 190 | Diamond necklace 270 gp (540k/h) |
 | Fletching | 238 | 41 | 197 | Diamond bolt tips 522 gp (626k/h) |

@@ -15,34 +15,14 @@ import { BudgetPanel } from "./BudgetPanel";
 import { FilterCheck, FilterNumber, FilterToolbar } from "./FilterToolbar";
 import { formatGp } from "./format";
 import { matchesQuery, normaliseQuery } from "./matching";
+import { DataTable, type DataColumn } from "./DataTable";
 import { useBudgetSettings } from "./settings";
 import { currentViewState, pickOne, useShareableView } from "./viewState";
 import { sortByMeasure, useSort } from "./sorting";
-import { Stat, Th, Results } from "./ui";
+import { Stat } from "./ui";
 import { usePagedRows } from "./paging";
-import {
-  ColumnPicker,
-  useColumnVisibility,
-  type ColumnDef,
-} from "./columns";
 
 import payload from "../../data/process.json";
-
-/** Column definitions: labels, default widths and the keys used by the picker. */
-const PROCESSING_COLUMNS: readonly ColumnDef[] = [
-  { key: "rank", label: "#", width: 44 },
-  { key: "output", label: "Output", width: 230, required: true },
-  { key: "inputs", label: "Inputs", width: 230 },
-  { key: "skill", label: "Skill", width: 110 },
-  { key: "cost", label: "Cost / action", width: 100 },
-  { key: "netSell", label: "Net sell", width: 100 },
-  { key: "profitAction", label: "Profit / action", width: 100 },
-  { key: "actions4h", label: "Actions / 4h", width: 92 },
-  { key: "actionsHour", label: "Actions / hour", width: 110 },
-  { key: "spend", label: "Spend", width: 110 },
-  { key: "profit4h", label: "Profit / 4h", width: 110 },
-  { key: "gpPerHour", label: "gp / hour", width: 120 },
-];
 
 /** Every sortable column. Also the allowlist for a shared link. */
 const SORT_KEYS = [
@@ -78,6 +58,320 @@ interface RowData {
   /** Effective plan rate after GE/gold caps, or null when time is unknown. */
   planActionsPerHour: number | null;
 }
+
+/**
+ * One column list for the whole table: label, width, the sort key it drives and how
+ * to render a cell. `DataTable` owns visibility, the Columns picker, the widths and
+ * the sortable headers, so adding a column is one entry here instead of four places
+ * (a `<col>`, a guarded header, a guarded cell and a picker entry).
+ *
+ * Cells are `ReactNode` rather than strings because several carry a note under the
+ * number (the binding, the tax, the fee) and the tooltip lives on that element.
+ */
+const PROCESSING_COLUMN_LIST: readonly DataColumn<RowData>[] = [
+  {
+    key: "output",
+    label: "Output",
+    width: 230,
+    required: true,
+    sortKey: "outputName",
+    title: "The item produced; click to sort",
+    cellClassName: "item",
+    cell: ({ opp }) => {
+      const detail = [...new Set([opp.method, opp.facility])]
+        .filter((value): value is string => value !== null && value !== "")
+        .join(" · ");
+      return (
+        <>
+          <a
+            className="name wiki-link"
+            href={wikiUrl(opp.output.itemName)}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {opp.output.itemName}
+          </a>
+          {opp.output.quantity !== 1 && (
+            <span className="qty">× {opp.output.quantity}</span>
+          )}
+          {opp.members && <span className="badge">P2P</span>}
+          <span className="cell-note">
+            {detail !== "" ? `${detail} · ` : ""}
+            <a
+              className="wiki-link recipe-link"
+              href={opp.source}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              recipe
+            </a>
+          </span>
+        </>
+      );
+    },
+  },
+  {
+    key: "inputs",
+    label: "Inputs",
+    width: 230,
+    cellClassName: "inputs",
+    cell: ({ opp }) => (
+      <>
+        {opp.inputs.map((input) => (
+          <span
+            key={input.itemId}
+            className="input-line"
+            title={`Buy ${formatGp(input.price)} gp each · 4h volume ${formatGp(
+              input.volume4h,
+            )}${input.geBuyLimit === null ? "" : ` · buy limit ${formatGp(input.geBuyLimit)}`}`}
+          >
+            <span className="input-name">
+              <span className="mono">{input.quantity}×</span>{" "}
+              <a
+                className="wiki-link"
+                href={wikiUrl(input.itemName)}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {input.itemName}
+              </a>
+            </span>
+            <span className="input-cost">
+              @ {formatGp(input.price)} each ·{" "}
+              {formatGp(input.quantity * input.price)} gp
+            </span>
+          </span>
+        ))}
+        {opp.feeGp > 0 && (
+          <span className="input-line dim">+ {formatGp(opp.feeGp)} gp fee</span>
+        )}
+      </>
+    ),
+  },
+  {
+    key: "skill",
+    label: "Skill",
+    width: 110,
+    sortKey: "skill",
+    title: "Primary skill requirement; all requirements are in the tooltip",
+    cellClassName: "skill",
+    cell: ({ opp }) => {
+      const firstSkill = opp.skills[0];
+      const skillText =
+        firstSkill === undefined
+          ? "—"
+          : `${firstSkill.name}${
+              firstSkill.level === null ? "" : ` ${firstSkill.level}`
+            }`;
+      return (
+        <span
+          title={
+            opp.skills.length === 0
+              ? "No skill requirement (facility work)"
+              : opp.skills
+                  .map(
+                    (entry) =>
+                      `${entry.name}${entry.level === null ? "" : ` ${entry.level}`}`,
+                  )
+                  .join(", ")
+          }
+        >
+          {skillText}
+          {opp.skills.length > 1 && (
+            <span className="cell-note">+{opp.skills.length - 1} more</span>
+          )}
+        </span>
+      );
+    },
+  },
+  {
+    key: "cost",
+    label: "Cost / action",
+    width: 100,
+    sortKey: "spendPerAction",
+    align: "right",
+    title: "Item inputs plus any Coin fee for one action",
+    cellClassName: "right mono",
+    cell: ({ opp }) => {
+      const costBreakdown = [
+        ...opp.inputs.map(
+          (input) =>
+            `${input.quantity}× ${input.itemName} @ ${formatGp(input.price)} = ${formatGp(
+              input.quantity * input.price,
+            )} gp`,
+        ),
+        ...(opp.feeGp > 0 ? [`Coin fee: ${formatGp(opp.feeGp)} gp`] : []),
+        `Total: ${formatGp(opp.spend)} gp`,
+      ].join("\n");
+      return (
+        <>
+          <span className="breakdown-total" title={costBreakdown}>
+            {formatGp(opp.spend)}
+          </span>
+          {opp.feeGp > 0 && (
+            <span className="cell-note">incl. {formatGp(opp.feeGp)} fee</span>
+          )}
+        </>
+      );
+    },
+  },
+  {
+    key: "netSell",
+    label: "Net sell",
+    width: 100,
+    sortKey: "netRevenue",
+    align: "right",
+    title: "Output value after the 2% GE tax",
+    cellClassName: "right mono",
+    cell: ({ opp }) => (
+      <span title={`Gross ${formatGp(opp.grossRevenue)} − tax ${formatGp(opp.tax)}`}>
+        {formatGp(opp.netRevenue)}
+        {opp.tax > 0 && (
+          <span className="cell-note">tax {formatGp(opp.tax)}</span>
+        )}
+      </span>
+    ),
+  },
+  {
+    key: "profitAction",
+    label: "Profit / action",
+    width: 100,
+    sortKey: "profitPerAction",
+    align: "right",
+    title: "Net output minus the input cost and fee",
+    cellClassName: "right mono pos",
+    cell: ({ opp }) => (
+      <>
+        {formatGp(opp.profit)}
+        <span className="cell-note">{opp.marginPct.toFixed(1)}%</span>
+      </>
+    ),
+  },
+  {
+    key: "actions4h",
+    label: "Actions / 4h",
+    width: 92,
+    sortKey: "actions",
+    align: "right",
+    title:
+      "The smallest of the GE supply/demand cap, the recipe's action time and your gold",
+    cellClassName: "right mono",
+    cell: ({ actions, binding }) => (
+      <span title={bindingTitleFor(binding)}>
+        {actions.toLocaleString()}
+        <span className="cell-note">{BINDING_LABEL[binding]}</span>
+      </span>
+    ),
+  },
+  {
+    key: "actionsHour",
+    label: "Actions / hour",
+    width: 110,
+    sortKey: "actionsPerHour",
+    align: "right",
+    title:
+      "Rate used: the recipe's published action rate, capped by your Actions / hour input. The cell note shows the effective plan rate when GE or gold caps reduce it; — when ticks are unknown.",
+    cellClassName: "right mono",
+    cell: ({ recipeActionsPerHour, rateUsed, planActionsPerHour, binding }) => {
+      const rateText = (value: number): string =>
+        `${formatGp(Math.round(value))}/hour`;
+      const title =
+        rateUsed === null
+          ? "No published tick time, so the recipe's action rate is unknown"
+          : [
+              `Recipe ${
+                recipeActionsPerHour === null
+                  ? "unknown"
+                  : rateText(recipeActionsPerHour)
+              }`,
+              recipeActionsPerHour !== null && rateUsed < recipeActionsPerHour
+                ? `capped at ${rateText(rateUsed)}`
+                : null,
+              planActionsPerHour === null
+                ? null
+                : `plan ${rateText(planActionsPerHour)}`,
+              bindingTitleFor(binding),
+            ]
+              .filter((part): part is string => part !== null)
+              .join(" · ");
+      return (
+        <span title={title}>
+          {rateUsed === null ? "—" : formatGp(Math.round(rateUsed))}
+          {rateUsed !== null &&
+            planActionsPerHour !== null &&
+            Math.round(planActionsPerHour) !== Math.round(rateUsed) && (
+              <span className="cell-note">
+                plan {formatGp(Math.round(planActionsPerHour))}
+              </span>
+            )}
+        </span>
+      );
+    },
+  },
+  {
+    key: "spend",
+    label: "Spend",
+    width: 110,
+    sortKey: "spend",
+    align: "right",
+    title: "Coins spent across the 4h plan, including fees",
+    cellClassName: "right mono",
+    cell: ({ spend, binding }) => (
+      <span
+        title={
+          binding === "unknown-time"
+            ? "Market-cap spend; the wiki does not publish a tick time"
+            : "Coins spent across the effective 4h plan"
+        }
+      >
+        {formatGp(spend)}
+        {binding === "budget" && <span className="cell-note">your gold</span>}
+      </span>
+    ),
+  },
+  {
+    key: "profit4h",
+    label: "Profit / 4h",
+    width: 110,
+    sortKey: "profitPer4h",
+    align: "right",
+    title: "Profit across the effective 4h plan",
+    cellClassName: "right mono pos",
+    cell: ({ profit, binding }) => (
+      <span
+        title={
+          binding === "unknown-time"
+            ? "Market-cap profit; the wiki does not publish a tick time"
+            : undefined
+        }
+      >
+        {formatGp(profit)}
+      </span>
+    ),
+  },
+  {
+    key: "gpPerHour",
+    label: "gp / hour",
+    width: 120,
+    sortKey: "gpPerHour",
+    align: "right",
+    title:
+      "Profit over a 4h window, after action time and GE caps; excludes banking and travel to the facility",
+    cellClassName: "right mono strong",
+    cell: ({ gpPerHour }) => (
+      <span
+        title={
+          gpPerHour === null
+            ? "The wiki does not publish a tick time for this recipe, so gp / hour is not computed"
+            : "Profit over a 4h window after the recipe rate (or your Actions / hour cap), GE caps and gold; excludes banking and travel to the facility"
+        }
+      >
+        {gpPerHour === null ? "—" : formatGp(Math.round(gpPerHour))}
+      </span>
+    ),
+  },
+];
+
 
 const MODE_LABEL: Record<SellMode, string> = {
   pessimistic: "Instant",
@@ -131,11 +425,6 @@ export function ProcessingPage(): JSX.Element {
   // interruptible render so typing never waits for every recipe to be re-priced.
   const deferredQuery = useDeferredValue(query);
   const filtering = query !== deferredQuery;
-  const {
-    visible,
-    toggle: toggleColumn,
-    reset: resetColumns,
-  } = useColumnVisibility("processing", PROCESSING_COLUMNS);
 
   useShareableView("processing", {
     mode,
@@ -365,14 +654,6 @@ export function ProcessingPage(): JSX.Element {
         generatedAt={DATA.generatedAt}
         filtersActive={filtersActive}
         onClearFilters={clearFilters}
-        actions={
-          <ColumnPicker
-            columns={PROCESSING_COLUMNS}
-            visible={visible}
-            onToggle={toggleColumn}
-            onReset={resetColumns}
-          />
-        }
       >
         <FilterCheck
           label="Members only"
@@ -514,149 +795,20 @@ export function ProcessingPage(): JSX.Element {
         />
       </section>
 
-      <Results
+      <DataTable<RowData>
+        tableId="processing"
         label="Deterministic processing recipes"
-        paged={paged}
+        caption={`Deterministic processing recipes, ranked by ${sortKey}`}
         noun="recipes"
+        columns={PROCESSING_COLUMN_LIST}
+        paged={paged}
+        sort={{ key: sortKey, descending, toggle: (key) => toggleSort(key as SortKey) }}
+        rowKey={(row) => row.opp.recipeId}
+        rank
         busy={filtering}
         emptyText="No recipes match these filters. Try clearing the minimum profit or raising your gold."
         onClearFilters={clearFilters}
-      >
-        <table className="results-table">
-          <caption className="visually-hidden">
-            Deterministic processing recipes, ranked by profit
-          </caption>
-          <colgroup>
-            {PROCESSING_COLUMNS.filter((column) => visible.has(column.key)).map(
-              (column) => (
-                <col
-                  key={column.key}
-                  className={column.key === "rank" ? "num-col" : undefined}
-                  style={{ width: column.width }}
-                />
-              ),
-            )}
-          </colgroup>
-          <thead>
-            <tr>
-              {visible.has("rank") && (
-                <th scope="col" className="num-col">
-                  #
-                </th>
-              )}
-              {visible.has("output") && (
-                <Th
-                  label="Output"
-                  onClick={() => toggleSort("outputName")}
-                  active={sortKey === "outputName"}
-                  desc={descending}
-                  title="The item produced; click to sort"
-                />
-              )}
-              {visible.has("inputs") && <th scope="col">Inputs</th>}
-              {visible.has("skill") && (
-                <Th
-                  label="Skill"
-                  onClick={() => toggleSort("skill")}
-                  active={sortKey === "skill"}
-                  desc={descending}
-                  title="Primary skill requirement; all requirements are in the tooltip"
-                />
-              )}
-              {visible.has("cost") && (
-                <Th
-                  label="Cost / action"
-                  onClick={() => toggleSort("spendPerAction")}
-                  active={sortKey === "spendPerAction"}
-                  desc={descending}
-                  title="Item inputs plus any Coin fee for one action"
-                  right
-                />
-              )}
-              {visible.has("netSell") && (
-                <Th
-                  label="Net sell"
-                  onClick={() => toggleSort("netRevenue")}
-                  active={sortKey === "netRevenue"}
-                  desc={descending}
-                  title="Output value after the 2% GE tax"
-                  right
-                />
-              )}
-              {visible.has("profitAction") && (
-                <Th
-                  label="Profit / action"
-                  onClick={() => toggleSort("profitPerAction")}
-                  active={sortKey === "profitPerAction"}
-                  desc={descending}
-                  title="Net output minus the input cost and fee"
-                  right
-                />
-              )}
-              {visible.has("actions4h") && (
-                <Th
-                  label="Actions / 4h"
-                  onClick={() => toggleSort("actions")}
-                  active={sortKey === "actions"}
-                  desc={descending}
-                  title="The smallest of the GE supply/demand cap, the recipe's action time and your gold"
-                  right
-                />
-              )}
-              {visible.has("actionsHour") && (
-                <Th
-                  label="Actions / hour"
-                  onClick={() => toggleSort("actionsPerHour")}
-                  active={sortKey === "actionsPerHour"}
-                  desc={descending}
-                  title="Rate used: the recipe's published action rate, capped by your Actions / hour input. The cell note shows the effective plan rate when GE or gold caps reduce it; — when ticks are unknown."
-                  right
-                />
-              )}
-              {visible.has("spend") && (
-                <Th
-                  label="Spend"
-                  onClick={() => toggleSort("spend")}
-                  active={sortKey === "spend"}
-                  desc={descending}
-                  title="Coins spent across the 4h plan, including fees"
-                  right
-                />
-              )}
-              {visible.has("profit4h") && (
-                <Th
-                  label="Profit / 4h"
-                  onClick={() => toggleSort("profitPer4h")}
-                  active={sortKey === "profitPer4h"}
-                  desc={descending}
-                  title="Profit across the effective 4h plan"
-                  right
-                />
-              )}
-              {visible.has("gpPerHour") && (
-                <Th
-                  label="gp / hour"
-                  onClick={() => toggleSort("gpPerHour")}
-                  active={sortKey === "gpPerHour"}
-                  desc={descending}
-                  title="Profit over a 4h window, after action time and GE caps; excludes banking and travel to the facility"
-                  right
-                />
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {paged.pageRows.map((row, index) => (
-              <Row
-                key={row.opp.recipeId}
-                data={row}
-                rank={paged.start + index}
-                visible={visible}
-              />
-            ))}
-          </tbody>
-        </table>
-      </Results>
+      />
 
       <footer className="footer">
         <details className="caveats">
@@ -746,235 +898,6 @@ export function ProcessingPage(): JSX.Element {
         </details>
       </footer>
     </div>
-  );
-}
-
-function Row({
-  data,
-  rank,
-  visible,
-}: {
-  data: RowData;
-  rank: number;
-  visible: ReadonlySet<string>;
-}): JSX.Element {
-  const {
-    opp,
-    actions,
-    spend,
-    profit,
-    gpPerHour,
-    binding,
-    recipeActionsPerHour,
-    rateUsed,
-    planActionsPerHour,
-  } = data;
-  const firstSkill = opp.skills[0];
-  const skillText =
-    firstSkill === undefined
-      ? "—"
-      : `${firstSkill.name}${
-          firstSkill.level === null ? "" : ` ${firstSkill.level}`
-        }`;
-  const skillTitle =
-    opp.skills.length === 0
-      ? "No skill requirement (facility work)"
-      : opp.skills
-          .map(
-            (entry) =>
-              `${entry.name}${entry.level === null ? "" : ` ${entry.level}`}`,
-          )
-          .join(", ");
-  const detail = [...new Set([opp.method, opp.facility])]
-    .filter((value): value is string => value !== null && value !== "")
-    .join(" · ");
-  const outputTitle =
-    opp.tools === null ? undefined : `Tools required: ${opp.tools}`;
-  const bindingTitle = bindingTitleFor(binding);
-  const rateText = (value: number): string =>
-    `${formatGp(Math.round(value))}/hour`;
-  const actionsPerHourTitle =
-    rateUsed === null
-      ? "No published tick time, so the recipe's action rate is unknown"
-      : [
-          `Recipe ${
-            recipeActionsPerHour === null
-              ? "unknown"
-              : rateText(recipeActionsPerHour)
-          }`,
-          recipeActionsPerHour !== null && rateUsed < recipeActionsPerHour
-            ? `capped at ${rateText(rateUsed)}`
-            : null,
-          planActionsPerHour === null
-            ? null
-            : `plan ${rateText(planActionsPerHour)}`,
-          bindingTitle,
-        ]
-          .filter((part): part is string => part !== null)
-          .join(" · ");
-  const gpTitle =
-    gpPerHour === null
-      ? "The wiki does not publish a tick time for this recipe, so gp / hour is not computed"
-      : "Profit over a 4h window after the recipe rate (or your Actions / hour cap), GE caps and gold; excludes banking and travel to the facility";
-  const costBreakdown = [
-    ...opp.inputs.map(
-      (input) =>
-        `${input.quantity}× ${input.itemName} @ ${formatGp(input.price)} = ${formatGp(
-          input.quantity * input.price,
-        )} gp`,
-    ),
-    ...(opp.feeGp > 0 ? [`Coin fee: ${formatGp(opp.feeGp)} gp`] : []),
-    `Total: ${formatGp(opp.spend)} gp`,
-  ].join("\n");
-
-  return (
-    <tr>
-      {visible.has("rank") && <td className="num-col">{rank}</td>}
-      {visible.has("output") && (
-        <td className="item" title={outputTitle}>
-          <a
-            className="name wiki-link"
-            href={wikiUrl(opp.output.itemName)}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {opp.output.itemName}
-          </a>
-          {opp.output.quantity !== 1 && (
-            <span className="qty">× {opp.output.quantity}</span>
-          )}
-          {opp.members && <span className="badge">P2P</span>}
-          <span className="cell-note">
-            {detail !== "" ? `${detail} · ` : ""}
-            <a
-              className="wiki-link recipe-link"
-              href={opp.source}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              recipe
-            </a>
-          </span>
-        </td>
-      )}
-      {visible.has("inputs") && (
-        <td className="inputs">
-          <span className="input-list">
-            {opp.inputs.map((input) => (
-              <span
-                key={input.itemId}
-                className="input-line"
-                title={`Buy ${formatGp(input.price)} gp each · 4h volume ${formatGp(
-                  input.volume4h,
-                )}${input.geBuyLimit === null ? "" : ` · buy limit ${formatGp(input.geBuyLimit)}`}`}
-              >
-                <span className="input-name">
-                  <span className="mono">{input.quantity}×</span>{" "}
-                  <a
-                    className="wiki-link"
-                    href={wikiUrl(input.itemName)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {input.itemName}
-                  </a>
-                </span>
-                <span className="input-cost">
-                  @ {formatGp(input.price)} each ·{" "}
-                  {formatGp(input.quantity * input.price)} gp
-                </span>
-              </span>
-            ))}
-            {opp.feeGp > 0 && (
-              <span className="input-line dim">
-                + {formatGp(opp.feeGp)} gp fee
-              </span>
-            )}
-          </span>
-        </td>
-      )}
-      {visible.has("skill") && (
-        <td className="skill" title={skillTitle}>
-          {skillText}
-          {opp.skills.length > 1 && (
-            <span className="cell-note">+{opp.skills.length - 1} more</span>
-          )}
-        </td>
-      )}
-      {visible.has("cost") && (
-        <td className="right mono" title={costBreakdown}>
-          <span className="breakdown-total">{formatGp(opp.spend)}</span>
-          {opp.feeGp > 0 && (
-            <span className="cell-note">incl. {formatGp(opp.feeGp)} fee</span>
-          )}
-        </td>
-      )}
-      {visible.has("netSell") && (
-        <td
-          className="right mono"
-          title={`Gross ${formatGp(opp.grossRevenue)} − tax ${formatGp(opp.tax)}`}
-        >
-          {formatGp(opp.netRevenue)}
-          {opp.tax > 0 && (
-            <span className="cell-note">tax {formatGp(opp.tax)}</span>
-          )}
-        </td>
-      )}
-      {visible.has("profitAction") && (
-        <td className="right mono pos">
-          {formatGp(opp.profit)}
-          <span className="cell-note">{opp.marginPct.toFixed(1)}%</span>
-        </td>
-      )}
-      {visible.has("actions4h") && (
-        <td className="right mono" title={bindingTitle}>
-          {actions.toLocaleString()}
-          <span className="cell-note">{BINDING_LABEL[binding]}</span>
-        </td>
-      )}
-      {visible.has("actionsHour") && (
-        <td className="right mono" title={actionsPerHourTitle}>
-          {rateUsed === null ? "—" : formatGp(Math.round(rateUsed))}
-          {rateUsed !== null &&
-            planActionsPerHour !== null &&
-            Math.round(planActionsPerHour) !== Math.round(rateUsed) && (
-              <span className="cell-note">
-                plan {formatGp(Math.round(planActionsPerHour))}
-              </span>
-            )}
-        </td>
-      )}
-      {visible.has("spend") && (
-        <td
-          className="right mono"
-          title={
-            binding === "unknown-time"
-              ? "Market-cap spend; the wiki does not publish a tick time"
-              : "Coins spent across the effective 4h plan"
-          }
-        >
-          {formatGp(spend)}
-          {binding === "budget" && <span className="cell-note">your gold</span>}
-        </td>
-      )}
-      {visible.has("profit4h") && (
-        <td
-          className="right mono pos"
-          title={
-            binding === "unknown-time"
-              ? "Market-cap profit; the wiki does not publish a tick time"
-              : undefined
-          }
-        >
-          {formatGp(profit)}
-        </td>
-      )}
-      {visible.has("gpPerHour") && (
-        <td className="right mono strong" title={gpTitle}>
-          {gpPerHour === null ? "—" : formatGp(Math.round(gpPerHour))}
-        </td>
-      )}
-    </tr>
   );
 }
 

@@ -746,6 +746,9 @@ body {
 }
 
 .column-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
@@ -760,16 +763,29 @@ body {
   box-shadow: 0 16px 40px var(--shadow-strong);
 }
 
+/*
+ * Each option is a flex item of the panel: full width, so the hover highlight spans
+ * the panel instead of ending at the label, and left-aligned with the checkbox in a
+ * fixed column so the labels line up even when one wraps.
+ */
 .column-option {
-  padding: 3px 6px;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 4px 6px;
   border-radius: 5px;
 }
 
 .column-option:hover {
-  background: var(--panel-2);
+  /* A distinct token from `.column-panel`'s own background, or the full-width
+   * highlight would be invisible. */
+  background: var(--row-hover);
 }
 
+/* Keeps the reset button at the bottom of the column, never squashed by a
+ * scrollable list of options. */
 .column-reset {
+  flex: none;
   margin-top: 6px;
   width: 100%;
 }
@@ -893,6 +909,17 @@ body {
 .result-count strong {
   color: var(--text);
   font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Table-owned controls (the column picker). Pushed to the right edge of the bar so
+ * they read as belonging to the table rather than to the filter toolbar above it.
+ */
+.result-tools {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* pager below the table */

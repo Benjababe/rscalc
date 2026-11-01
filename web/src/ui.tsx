@@ -91,6 +91,12 @@ export function Results(props: {
   onClearFilters: () => void;
   /** The table is showing a previous filter while the new one computes. */
   busy?: boolean;
+  /**
+   * Controls that belong to the table rather than to the filters — the column
+   * picker today. Rendered in the result bar next to the count, which is above the
+   * scrolling region, so they stay reachable while the table is scrolled.
+   */
+  tools?: ReactNode;
   children: ReactNode;
 }): JSX.Element {
   const total = props.paged.total;
@@ -112,6 +118,9 @@ export function Results(props: {
             </>
           )}
         </span>
+        {props.tools !== undefined && (
+          <div className="result-tools">{props.tools}</div>
+        )}
       </div>
 
       {total === 0 ? (

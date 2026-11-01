@@ -589,6 +589,12 @@ export const SkillCoverageSchema = z.object({
   trainOnly: z.number().int().nonnegative(),
   /** Rows that re-work a finished item instead of building one. */
   upgrades: z.number().int().nonnegative(),
+  /**
+   * Drop-table lines left out of the EV rows because they are not part of the
+   * action's payout: a pet roll, a drop that only exists during a Hunter rumour.
+   * Counted so the page can state what the expectation excludes.
+   */
+  ignoredDrops: z.number().int().nonnegative(),
   unpriced: z.number().int().nonnegative(),
 });
 export type SkillCoverage = z.infer<typeof SkillCoverageSchema>;

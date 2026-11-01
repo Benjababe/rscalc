@@ -135,6 +135,7 @@ describe('rankSkillActivities', () => {
       gathered: 0,
       trainOnly: 0,
       upgrades: 0,
+      ignoredDrops: 0,
       unpriced: 0,
     });
     expect(NO_PROFIT_FLOOR).toBeLessThan(0);

@@ -13,7 +13,15 @@
  *    says nothing about their weights, so the midpoint would be an invented
  *    distribution. A drop with a ranged quantity invalidates the row.
  *  - **"average" / "varies" quantities** — same reason.
- *  - a table whose probabilities sum to **more than 1** (it is not one roll).
+ *  - a table whose *rolled* probabilities sum to **more than 1** (it is not one
+ *    roll).
+ *
+ * A line published as `Always` is **guaranteed**, not one outcome of a roll: a
+ * polar kebbit always drops bones *and* fur *and* meat, so three `Always` lines
+ * coexist and their sum says nothing about exclusivity. Guaranteed lines are
+ * therefore counted once each, and only the remaining (probability) lines have to
+ * fit inside a single roll. Before this, a table with two guaranteed drops was
+ * refused as "not one roll", which is the wrong reading of the same source.
  *
  * Coins are face value; every other item is valued at the GE price for the mode,
  * minus the GE tax, because that is the only exit this site models (Q6).
@@ -24,7 +32,11 @@ export interface EvDrop {
   item: string;
   /** Exact units per drop. A range is not an expectation, so it is not accepted. */
   quantity: number;
-  /** Probability of this outcome in 0..1, from the published rarity. */
+  /**
+   * Probability of this outcome in 0..1, from the published rarity. Exactly `1`
+   * (the wiki's `Always`) marks a guaranteed drop, which may co-occur with other
+   * guaranteed drops rather than competing with them.
+   */
   chance: number;
 }
 
@@ -33,6 +45,8 @@ export interface EvDistribution {
   drops: EvDrop[];
   /** Sum of the chances. Below 1 means "sometimes nothing drops", which is fine. */
   totalChance: number;
+  /** How many of the lines are guaranteed (`Always`) rather than one of a roll. */
+  guaranteed: number;
 }
 
 export interface EvAnalysis {
@@ -74,6 +88,8 @@ export function parseRarity(raw: string): number | null {
 export function analyseDistribution(drops: readonly EvDrop[]): EvAnalysis {
   if (drops.length === 0) return { distribution: null, rejected: 'no-drops' };
   let total = 0;
+  let rolled = 0;
+  let guaranteed = 0;
   for (const drop of drops) {
     if (!Number.isFinite(drop.quantity) || drop.quantity <= 0) {
       return { distribution: null, rejected: 'non-positive-quantity' };
@@ -85,10 +101,16 @@ export function analyseDistribution(drops: readonly EvDrop[]): EvAnalysis {
       return { distribution: null, rejected: 'unreadable-rarity' };
     }
     total += drop.chance;
+    if (drop.chance === 1) guaranteed += 1;
+    else rolled += drop.chance;
   }
-  // One roll cannot succeed more than once.
-  if (total > 1.001) return { distribution: null, rejected: 'over-one' };
-  return { distribution: { drops: [...drops], totalChance: total }, rejected: null };
+  // The probability lines are one roll and cannot succeed more than once. The
+  // guaranteed lines are not part of that roll, so they are not added to it.
+  if (rolled > 1.001) return { distribution: null, rejected: 'over-one' };
+  return {
+    distribution: { drops: [...drops], totalChance: total, guaranteed },
+    rejected: null,
+  };
 }
 
 /** One priced outcome. */

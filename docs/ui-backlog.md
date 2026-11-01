@@ -36,8 +36,33 @@ change (S ≈ under an hour, M ≈ half a day, L ≈ a day or more).
 |3.2 Keyboard shortcut to focus search|**done** — `/` and Ctrl/Cmd+K|
 |3.3 Sticky toolbar|**dropped** — built, reviewed, removed|
 
-**Open:** nothing. Every item has landed except 3.3, which was built and
-dropped by request.
+**Open:** 4.1 (see below). Every other item has landed except 3.3, which was
+built and dropped by request.
+
+### 4.1 One table component with a native column toggle
+
+- **Where:** `web/src/DataTable.tsx` (new), `web/src/ui.tsx` (`Results.tools`).
+- **Observed:** each page repeated the same four pieces — a `colgroup` filtered by
+  visibility, a `<thead>` with a `visible.has(...)` guard around every header, a
+  `<tbody>` with the matching guard around every cell, and a `ColumnPicker` wired
+  into its own toolbar. Three pages had the picker, two had a static `COLUMNS`
+  array with no toggle at all, and adding one column meant editing four places.
+- **Change:** a page declares `DataColumn<Row>[]` (key, label, width, sort key,
+  tooltip, cell renderer) and renders `<DataTable columns={...} paged={...}
+  sort={...} />`. The table owns the caption, widths, sortable headers with
+  `aria-sort`, the rank column, the row count, the pager, the empty state **and the
+  Columns picker**, which now sits in the result bar as part of the table rather
+  than in each page's toolbar. Visibility is persisted per `tableId`; a
+  mode-switching table passes `allColumns` so hiding a column in one mode keeps it
+  hidden in the other; a `required` column can never be hidden.
+- **Landed:** `#/skilling` (gained the toggle, which it never had), `#/processing`
+  and `#/ge-to-shop` (their own picker buttons removed). `tests/dataTable.test.tsx`
+  pins the rank numbering, the sortable headers, the native picker, per-`tableId`
+  persistence, the required column and the empty state.
+- **Open:** `#/shop-to-ge` and `#/earn` still use the old pattern. Their column sets
+  are mode-dependent, so the migration is a `makeColumns()` builder plus
+  `columnsForMode()` / `allColumns()` helpers (the shape `#/ge-to-shop` now uses);
+  nothing in `DataTable` blocks them.
 
 ---
 

@@ -35,6 +35,8 @@
  */
 
 import type { GatheringNode } from '../api/wikiGathering.js';
+import type { FishingSource } from '../api/wikiFishing.js';
+import type { HunterSource } from '../api/wikiHunter.js';
 import type { RawRecipe } from '../api/wikiRecipes.js';
 import {
   cooksWithoutBurning,
@@ -48,6 +50,7 @@ import {
   secondsPerAction,
 } from '../domain/processTime.js';
 import { analyseDistribution, priceDistribution } from '../domain/ev.js';
+import type { EvDrop } from '../domain/ev.js';
 import type { ThievingSource } from '../api/wikiThieving.js';
 import { DEFAULT_BANK_HANDOVER_SECONDS, DEFAULT_UNITS_PER_LOAD } from '../domain/budget.js';
 import { bankTripSeconds } from '../domain/bankTrip.js';
@@ -146,10 +149,22 @@ export interface SkillActivityOptions {
    */
   gatheringNodes?: readonly GatheringNode[];
   /**
-   * Curated Thieving sources (stalls with a published action time and loot table).
-   * When present, `ev` rows are appended for that skill.
+   * Curated Thieving sources (stalls with a published action time and loot table,
+   * and pickpockets with a success chart). When present, `ev` rows are appended
+   * for that skill.
    */
   thievingSources?: readonly ThievingSource[];
+  /**
+   * Curated Fishing methods, each a page whose success chart is the distribution.
+   * Their rows carry `gpPerHour = null`: no fishing page publishes an attempt
+   * interval.
+   */
+  fishingSources?: readonly FishingSource[];
+  /**
+   * Curated Hunter creatures. A box-trap creature gets a rate (the trap's own
+   * published 1.8s attempt); every other trap type keeps `gpPerHour = null`.
+   */
+  hunterSources?: readonly HunterSource[];
   /** Tiles from each EV source page to its nearest bank, keyed by page title. */
   bankTilesByPage?: ReadonlyMap<string, number | null>;
   /** Tiles from a gathering node to its nearest bank, keyed by item name. */
@@ -442,12 +457,53 @@ export function rankGatherActivities(
  * item is sold on the GE, so its line is the sell price minus the tax.
  *
  * A table is rejected, not averaged, when it has a ranged quantity (`1-4`), an
- * unreadable rarity, or probabilities summing above one. A table with one
+ * unreadable rarity, or rolled probabilities summing above one. A table with one
  * unpriced item is rejected too: quietly dropping the expensive outcome would be
  * worse than no row.
+ *
+ * Two source-side facts are applied here rather than in the parser, so every
+ * expected-value family is priced by the same arithmetic:
+ *
+ *  - `successChance` — a pickpocket's loot table, and a hunter creature's drops,
+ *    are what a *successful* attempt yields. The expectation is therefore the
+ *    table times the published chance (`src/domain/successChance.ts`). A stall has
+ *    no roll and passes `1`.
+ *  - `secondsPerAction` may be `null` — fishing publishes no attempt interval at
+ *    all. The row is still published (its per-attempt profit is sourced), and
+ *    `gpPerHour` stays null, exactly like a recipe with no published ticks.
  */
+
+/**
+ * The parts of an expected-value source this engine needs.
+ *
+ * `ThievingSource`, `FishingSource` and `HunterSource` all satisfy it, so the
+ * three families cannot drift into three slightly different pricings.
+ */
+export interface EvSource {
+  /** Page name, used for the bank join and the row id. */
+  source_pages: string;
+  name: string;
+  /** What the row calls the method, e.g. `Pickpocket`, `Stall`, `Fishing`. */
+  kind: string;
+  level: number | null;
+  /** Seconds per attempt; null when the wiki publishes no attempt interval. */
+  secondsPerAction: number | null;
+  /** Chance one attempt succeeds and pays out the table. Absent means 1. */
+  successChance?: number | null;
+  drops: readonly EvDrop[];
+  /** A trap or tool name, shown in the row when the source has one. */
+  trap?: string | null;
+  /**
+   * Table lines dropped as unreadable. Non-zero invalidates the row: pricing the
+   * readable remainder would understate or overstate the very thing the row is
+   * meant to answer.
+   */
+  droppedLines?: number;
+  url: string;
+}
+
 export function rankEvActivities(
-  sources: readonly ThievingSource[],
+  sources: readonly EvSource[],
   market: MarketSnapshot,
   options: {
     skill: SkillingSkill;
@@ -475,8 +531,10 @@ export function rankEvActivities(
   };
 
   for (const source of sources) {
-    if (source.secondsPerAction === null || source.secondsPerAction <= 0) {
-      rejected += 1;
+    // A table with a line missing is not a table: refuse it and count it rather
+    // than pricing the remainder.
+    if ((source.droppedLines ?? 0) > 0) {
+      unpriced += 1;
       continue;
     }
     const analysis = analyseDistribution(source.drops);
@@ -490,15 +548,34 @@ export function rankEvActivities(
       continue;
     }
 
+    // A pickpocket's table and a creature's drops describe a *successful*
+    // attempt. The published success chance scales the whole expectation, so the
+    // row is the mean of one attempt rather than of one success.
+    const successChance = source.successChance ?? 1;
+    if (!Number.isFinite(successChance) || successChance <= 0 || successChance > 1) {
+      rejected += 1;
+      continue;
+    }
+    const perAction = Math.round(priced.perAction * successChance);
+    const lines = priced.lines.map((line) => ({
+      ...line,
+      chance: line.chance * successChance,
+      expectedGp: Math.round(line.expectedGp * successChance),
+    }));
+
     // The headline item is the biggest share of the expectation, so the row reads
     // as what you actually get, not as an arbitrary first entry.
-    const headline = [...priced.lines].sort((a, b) => b.expectedGp - a.expectedGp)[0];
-    if (headline === undefined) {
+    const headline = [...lines].sort((a, b) => b.expectedGp - a.expectedGp)[0];
+    if (headline === undefined || perAction === 0) {
       unpriced += 1;
       continue;
     }
     const quote = quotes.get(headline.item.toLowerCase());
-    const seconds = source.secondsPerAction;
+    // `null` when the source publishes no attempt interval (every fishing method).
+    const seconds =
+      source.secondsPerAction !== null && source.secondsPerAction > 0
+        ? source.secondsPerAction
+        : null;
 
     // Banking. One load is 27 non-stackable units with a slot kept for coins; a
     // table whose every outcome stacks never needs a trip. The trip itself is
@@ -520,17 +597,32 @@ export function rankEvActivities(
             options.handoverSeconds ?? DEFAULT_BANK_HANDOVER_SECONDS,
           );
     const effectiveSeconds =
-      tripSeconds === null || loadSize === null
-        ? seconds
-        : seconds + tripSeconds / loadSize;
+      seconds === null
+        ? null
+        : tripSeconds === null || loadSize === null
+          ? seconds
+          : seconds + tripSeconds / loadSize;
 
-    const timeActions4h = Math.floor((GE_WINDOW_HOURS * 3600) / effectiveSeconds);
-    if (timeActions4h < 1) {
+    const timeActions4h =
+      effectiveSeconds === null
+        ? null
+        : Math.floor((GE_WINDOW_HOURS * 3600) / effectiveSeconds);
+    if (timeActions4h !== null && timeActions4h < 1) {
       unpriced += 1;
       continue;
     }
 
-    const profit = priced.perAction;
+    const profit = perAction;
+    // With no published attempt interval there is no rate, so the only cap left is
+    // what the market can absorb in the window — the same fallback a recipe with
+    // no ticks gets. `gpPerHour` stays null either way. A coin outcome has no
+    // market of its own, so it keeps the floor rather than pretending to be capped.
+    const marketActions4h =
+      timeActions4h ??
+      (quote === undefined
+        ? 1
+        : Math.max(1, fourHourSlice(outputVolume24h(quote, options.mode))));
+    const actions4h = timeActions4h ?? marketActions4h;
     activities.push({
       kind: 'ev',
       recipeId: `ev:${source.source_pages}`,
@@ -539,16 +631,16 @@ export function rankEvActivities(
         itemName: headline.item,
         quantity: 1,
         price: quote === undefined ? 1 : Math.max(1, targetOutputPrice(quote, options.mode) ?? 1),
-        volume4h: 0,
+        volume4h: marketActions4h,
         geBuyLimit: quote?.limit ?? null,
       },
       outputName: `${source.name} (${source.kind.toLowerCase()})`,
       noBurnLevel: null,
-      distribution: priced.lines,
+      distribution: lines,
       inputs: [],
       method: source.kind,
       facility: null,
-      tools: null,
+      tools: source.trap ?? null,
       members: true,
       skills: [{ name: options.skill, level: source.level }],
       source: source.url,
@@ -561,17 +653,18 @@ export function rankEvActivities(
       profit,
       marginPct: 100,
       // Derived from the published action time, not a tick count.
-      ticks: Math.round((seconds / 0.6) * 10) / 10,
+      ticks:
+        effectiveSeconds === null ? null : Math.round((effectiveSeconds / 0.6) * 10) / 10,
       secondsPerAction: seconds,
       bankTiles: tiles,
       effectiveSecondsPerAction: effectiveSeconds,
       // Each loot outcome has its own market; the action rate is the only cap
       // modelled here, and the page says so.
-      marketActions4h: timeActions4h,
+      marketActions4h,
       timeActions4h,
-      actions4h: timeActions4h,
-      gpPer4h: profit * timeActions4h,
-      gpPerHour: (profit * timeActions4h) / GE_WINDOW_HOURS,
+      actions4h,
+      gpPer4h: profit * actions4h,
+      gpPerHour: timeActions4h === null ? null : (profit * actions4h) / GE_WINDOW_HOURS,
     });
   }
 
@@ -687,8 +780,17 @@ export function rankSkillActivities(
   }
 
   // Expected-value rows: a loot table the wiki publishes, priced at its mean.
-  if (options.thievingSources !== undefined && options.thievingSources.length > 0) {
-    const expect = rankEvActivities(options.thievingSources, market, {
+  // Thieving, Fishing and Hunter all satisfy the same `EvSource` shape, so they
+  // are priced by one function rather than three near-copies.
+  const evSources: EvSource[] = [
+    ...(options.thievingSources ?? []),
+    ...(options.fishingSources ?? []),
+    ...(options.hunterSources ?? []),
+  ];
+  let ignoredDrops = 0;
+  for (const source of options.hunterSources ?? []) ignoredDrops += source.ignoredDrops;
+  if (evSources.length > 0) {
+    const expect = rankEvActivities(evSources, market, {
       skill: options.skill,
       mode: options.mode,
       bankTilesByPage: options.bankTilesByPage,
@@ -710,7 +812,7 @@ export function rankSkillActivities(
     if (activity.kind === 'gather') gatherCount += 1;
   }
   const nodeCount = options.gatheringNodes?.length ?? 0;
-  const evSourceCount = options.thievingSources?.length ?? 0;
+  const evSourceCount = evSources.length;
 
   return {
     skill: options.skill,
@@ -731,8 +833,12 @@ export function rankSkillActivities(
       gathered: gatherCount,
       trainOnly,
       upgrades: upgradeCount,
-      // Candidates that produced no row: bucket recipes and curated nodes both
-      // count, so `unpriced === recipes + nodes - activities` always holds.
+      // Table lines a Hunter creature published that are not part of a catch (a pet
+      // roll, a rumour-only drop). Counted so the page can say what was left out.
+      ignoredDrops,
+      // Candidates that produced no row: bucket recipes, curated nodes and curated
+      // EV sources all count, so `unpriced === recipes + nodes + evSources -
+      // activities` always holds.
       unpriced:
         mine.length + nodeCount + evSourceCount - activities.length,
     },

@@ -53,12 +53,32 @@ describe('analyseDistribution', () => {
     expect(analysis.distribution).toBeNull();
   });
 
-  it('refuses a table whose chances exceed one roll', () => {
+  it('refuses a table whose rolled chances exceed one roll', () => {
     const analysis = analyseDistribution([
       { item: 'Silk', quantity: 1, chance: 0.8 },
       { item: 'Coins', quantity: 5, chance: 0.8 },
     ]);
     expect(analysis.rejected).toBe('over-one');
+  });
+
+  it('does not treat several guaranteed lines as one roll', () => {
+    // A polar kebbit always drops bones, fur and meat together: three `Always`
+    // lines are a set, not competing outcomes.
+    const analysis = analyseDistribution([
+      { item: 'Bones', quantity: 1, chance: 1 },
+      { item: 'Polar kebbit fur', quantity: 1, chance: 1 },
+      { item: 'Raw beast meat', quantity: 1, chance: 1 },
+    ]);
+    expect(analysis.rejected).toBeNull();
+    expect(analysis.distribution?.guaranteed).toBe(3);
+  });
+
+  it('allows a guaranteed line beside one probability roll', () => {
+    const analysis = analyseDistribution([
+      { item: 'Bones', quantity: 1, chance: 1 },
+      { item: 'Red chinchompa tuft', quantity: 1, chance: 0.02 },
+    ]);
+    expect(analysis.rejected).toBeNull();
   });
 
   it('refuses an empty table and a non-positive quantity', () => {
@@ -76,6 +96,7 @@ describe('priceDistribution', () => {
       { item: 'Cake', quantity: 1, chance: 0.5 },
     ],
     totalChance: 1.5,
+    guaranteed: 1,
   };
 
   it('values coins at face value and items at their price', () => {
@@ -134,7 +155,10 @@ function source(overrides: Partial<ThievingSource> = {}): ThievingSource {
     level: 20,
     xp: 24,
     secondsPerAction: 4.8,
+    successChance: 1,
+    dropsConditionalOnSuccess: false,
     drops: [{ item: 'Silk', quantity: 1, chance: 1 }],
+    droppedLines: 0,
     url: 'https://oldschool.runescape.wiki/w/Silk_stall',
     ...overrides,
   };
@@ -157,13 +181,52 @@ describe('rankEvActivities', () => {
     expect(row.distribution).toHaveLength(1);
   });
 
-  it('refuses a stall whose action time is not published', () => {
+  it('publishes a row with no rate when the action time is not published', () => {
+    // Fishing publishes no attempt interval. The per-attempt profit is sourced, the
+    // hour is not, so the row carries numbers and a null rate (§4).
     const result = rankEvActivities(
       [source({ secondsPerAction: null })],
       market([quote()]),
       { skill: 'Thieving', mode: 'pessimistic' },
     );
 
+    const row = result.activities[0];
+    if (row === undefined) throw new Error('expected a rate-less EV row');
+    expect(row.profit).toBe(49);
+    expect(row.gpPerHour).toBeNull();
+    expect(row.timeActions4h).toBeNull();
+    expect(row.effectiveSecondsPerAction).toBeNull();
+  });
+
+  it('scales the expectation by the published success chance', () => {
+    // A `Man` pickpocket always gives 3 coins *when it succeeds*; a failed attempt
+    // yields nothing and stuns you, so the row is 3 x p rather than 3.
+    const result = rankEvActivities(
+      [
+        source({
+          secondsPerAction: 2.61,
+          successChance: 0.5,
+          dropsConditionalOnSuccess: true,
+          drops: [{ item: 'Coins', quantity: 6, chance: 1 }],
+        }),
+      ],
+      market([]),
+      { skill: 'Thieving', mode: 'pessimistic' },
+    );
+
+    const row = result.activities[0];
+    if (row === undefined) throw new Error('expected a pickpocket row');
+    expect(row.profit).toBe(3);
+    // The distribution shows the chance *per attempt*, not per success.
+    expect(row.distribution?.[0]?.chance).toBeCloseTo(0.5);
+  });
+
+  it('refuses a success chance outside zero to one', () => {
+    const result = rankEvActivities(
+      [source({ successChance: 1.2 })],
+      market([quote()]),
+      { skill: 'Thieving', mode: 'pessimistic' },
+    );
     expect(result.activities).toHaveLength(0);
     expect(result.rejected).toBe(1);
   });

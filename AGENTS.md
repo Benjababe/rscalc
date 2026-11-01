@@ -92,6 +92,12 @@ src/api/wikiPages.ts   batched page wikitext (redirects + normalisation)
 src/api/wikiItems.ts   item stackability from the infobox
 src/api/wikiMap.ts     shop/bank coordinates (map bucket + Category:Banks pages)
 src/api/wikiRecipes.ts recipe bucket parser (Special:Bucket?bucket=recipe)
+src/api/wikiGathering.ts node respawn times (Mining/Woodcutting info)
+src/api/wikiThieving.ts  stall + pickpocket loot, and the pickpocket time model
+src/api/wikiFishing.ts   fishing success charts, labels cross-checked to items
+src/api/wikiHunter.ts    hunter catch chances; box-trap attempt interval
+src/api/wikiSuccessChart.ts  parser for {{Skilling success chart}}
+src/api/wikiParams.ts    template params, split on top-level pipes
 src/domain/tax.ts      GE tax rules
 src/domain/shopPrice.ts dynamic shop price formula (the game's exact math)
 src/domain/shopSink.ts  GE -> shop planner: decreasing sale curve, world hops, GE trip, gp/hour
@@ -108,6 +114,8 @@ src/engine/processRank.ts joins deterministic recipes x GE quotes; per-action
                        profit, input buy caps, output volume caps, ticks
 src/engine/skilling.ts same join, profit floor off: every priced activity of a
                        scanned skill, losses included, plus its coverage line
+src/domain/successChance.ts the skilling success function + cascaded distribution
+src/domain/ev.ts       expected value over a sourced drop table
 src/domain/earnings.ts one gp/hour leaderboard: re-plans every shop run, shop
                        dump and recipe at the player's gold, drops rows whose
                        time model cannot answer, ranks deterministically
@@ -124,6 +132,8 @@ scripts/refresh-access.ts  apply scripts/shopAccessRules.ts; emits shop-access.j
 scripts/shopAccessRules.ts curated, cited shop access rules and exceptions
 scripts/smoke.ts           connectivity + schema check
 web/                       Vite + React UI (reads static data only)
+web/src/DataTable.tsx      the one results table: columns in, table + native
+                           Columns picker + pager + empty state out
 web/src/Earn.tsx           the front page: every family in one ranked table,
                            with the method filter and the coverage line
 web/src/Skilling.tsx       #/skilling: every priced activity of a skill in both
@@ -422,7 +432,32 @@ problem is not a cost. Tests pin both branches.
   loot table priced at `Σ chance × quantity × value` — coins at face value, items at
   the GE sell price less tax — and it carries its `distribution` so the mean is
   auditable. It refuses a ranged quantity (`1-4` has no published weights), a table
-  that sums above one roll, and any table with an unpriced outcome.
+  whose *rolled* lines sum above one roll, a table with a dropped or unpriced line,
+  and a success chance outside 0..1. Lines published `Always` are guaranteed and may
+  co-occur (`Paladin` gives coins *and* runes; a creature gives bones + fur + meat),
+  so they are counted individually rather than as one roll.
+- **The success chart is a distribution, and it is what made Fishing, Hunter and
+  pickpockets priceable** (`src/domain/successChance.ts`,
+  `src/api/wikiSuccessChart.ts`, `docs/skilling-plan.md` §8.19). A chart's
+  `low`/`high`/`req` plus the wiki's published success function give a probability at
+  any level; `cascade=yes` means the options are rolled best-first, which
+  `chartDistribution` reproduces. Three rules keep it honest:
+  - the option is chosen by the page's own level (`chartOptionAtLevel`), never by
+    position — the chinchompa chart holds one option per colour;
+  - a pickpocket's `time` is the **stun timer**, so the attempt time comes from the
+    published `2 + stun × (1 - p)` model on the Thieving page instead;
+  - a chart **label is not an item name** (`Harpoon`, `Sandworms`, `Normal`), so
+    Fishing refuses a chart unless every label matches an item on the page's own
+    drop table.
+  A row with no published attempt interval keeps `gpPerHour = null`: fishing and
+  hunter price the attempt and nothing else. The box trap's "attempt every 3 ticks"
+  is a per-trap **ceiling**, not throughput (no spawn-density or competition model),
+  so it is recorded on the source and never converted into gp/hour — doing that read
+  1.01M/h for red chinchompas.
+- **Template parameters are split on top-level pipes** (`src/api/wikiParams.ts`), not
+  on newlines: the same template is written inline on some pages and multi-line on
+  others, and a newline split silently reads only the first parameter — which looks
+  exactly like "the page has no chart".
 - **Phase 2 needs a different model.** Farming priced only its compost chain (12 of
   138 recipes): crop harvesting has no bucket recipe at all, and the nursery chain
   (acorn -> untradeable seedling -> sapling) cannot be priced one recipe at a time.
@@ -432,8 +467,9 @@ problem is not a cost. Tests pin both branches.
   recipe at all. The answer for two of them is the **gather model**
   (`src/api/wikiGathering.ts`, `scripts/gatheringNodes.ts`): one unit per
   wiki-published respawn, no inputs, `kind: 'gather'` — 25 rows across Mining and
-  Woodcutting. Fishing, Hunter and Thieving still need an expected value over a
-  success chance, which is §3.1's work. See `docs/skilling-plan.md` §8.12-8.15.
+  Woodcutting. Fishing, Hunter and Thieving needed an expected value over a
+  success chance; that is now built (§8.19), and it prices 16 more rows. See
+  `docs/skilling-plan.md` §8.12-8.19.
 - A recipe that **re-works a finished item into a better version of itself**
 (anguish -> rupture, ranger boots -> pegasian boots) is `kind: 'upgrade'`, from the
 curated, cited list in `scripts/skillUpgrades.ts`. It is still a sale, but eight
@@ -443,12 +479,20 @@ when a key matches no recipe, so the list cannot rot silently.
 - Time follows the plan's rule: a sourced action time gives gp/hour, a
 deterministic per-action profit with no clock keeps `gpPerHour = null` (`—`),
 and an activity whose profit only exists as a rate is skipped and counted.
+- **The page may fill a missing rate with the player's, and the artifact never
+  does.** `#/skilling` has an **Actions / hour** input
+  (`web/src/skillingRate.ts`): it applies only where the artifact has no rate
+  (fishing, most Hunter traps, recipes with no ticks), the result is marked *your
+  rate*, a published rate always wins, and it is capped by 4h market volume. It is
+  presentation arithmetic — `data/skilling.json` is not regenerated and `#/earn`
+  still ranks on sourced rates only. Per-action profit is shown in its own column
+  for every row, which is the number that does not depend on a rate at all.
 - Chance, range and level-scaled quantities are priced at a **sourced expected
 value** and labelled `EV`; without a published distribution the row stays out.
 - Phase 1 done: Smithing, Crafting, Fletching, Herblore, Runecraft, Construction,
-  Magic, Cooking, Farming, Sailing, Prayer, Firemaking, Agility and Slayer ✅ — 2,098
-  priced activities from 4,307 bucket recipes, 27 gathering nodes and 14 loot
-  tables, all
+  Magic, Cooking, Farming, Sailing, Prayer, Firemaking, Agility and Slayer ✅ — 2,114
+  priced activities from 4,307 bucket recipes, 27 gathering nodes and 30
+  expected-value sources, all
   re-framed by the same engine. The unpriced remainder is untradeable legs, no 4h
   liquidity, unmapped combined-item names, a chance note, or a Cooking food with
   no published no-burn level: counted, never estimated. Tanning hides is out
@@ -458,9 +502,10 @@ value** and labelled `EV`; without a published distribution the row stays out.
   cost coverage, and the page states the caveat rather than implying a losing row
   is dead.
 - The page (`web/src/Skilling.tsx`, route `#/skilling`) shows kind badges
-  (`Make` / `Upgrade` / `Cost`), a skill and kind filter, search across outputs and
-  inputs, and a **Cooking level** input: cooking rows stay hidden until the level
-  reaches each food's no-burn level, because a hidden gamble cannot be ranked. Its
+  (`Make` / `Upgrade` / `Cost` / `Gather` / `EV`), a skill and kind filter, search
+  across outputs and inputs, an **Actions / hour** input, and a **Cooking level**
+  input: cooking rows stay hidden until the level reaches each food's no-burn
+  level, because a hidden gamble cannot be ranked. Its
   data chunk is code-split; a slimmer projection is the known follow-up.
 - **Cooking is gated, not guessed.** A cooked food burns and destroys the input,
   so a Cooking row carries `noBurnLevel` (the level at which it stops burning, from

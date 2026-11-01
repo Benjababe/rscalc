@@ -30,12 +30,14 @@ import type {
   SkillActivityCatalog,
   SkillActivityKind,
 } from "../../src/types";
+import { DataTable, type DataColumn } from "./DataTable";
 import { FilterCheck, FilterNumber, FilterToolbar } from "./FilterToolbar";
 import { formatGp } from "./format";
 import { matchesQuery, normaliseQuery } from "./matching";
 import { usePagedRows } from "./paging";
+import { hourlyRate } from "./skillingRate";
 import { useSort, sortByMeasure } from "./sorting";
-import { Results, Stat, Th } from "./ui";
+import { Stat } from "./ui";
 import {
   currentViewState,
   pickOne,
@@ -115,19 +117,10 @@ type SortKey = (typeof SORT_KEYS)[number];
 const DEFAULT_COOKING_LEVEL = 0;
 
 /**
- * Column widths. `results-table` is `table-layout: fixed`, so without these every
- * column gets an equal share — which gives "Inputs" the same room as "#".
+ * The default actions/hour: 0 means "not given", so a row without a published rate
+ * keeps showing `—` rather than a number the player never asked for.
  */
-const COLUMNS = [
-  { key: "rank", width: 44 },
-  { key: "activity", width: 300 },
-  { key: "skill", width: 92 },
-  { key: "level", width: 84 },
-  { key: "inputs", width: 300 },
-  { key: "cost", width: 96 },
-  { key: "profit", width: 112 },
-  { key: "gpPerHour", width: 108 },
-] as const;
+const DEFAULT_RATE = 0;
 
 /** A row plus the skill it came from, so the table can show both. */
 interface Row {
@@ -176,6 +169,9 @@ export function SkillingPage(): JSX.Element {
   const [cookingLevel, setCookingLevel] = useState(
     initial.cookingLevel ?? DEFAULT_COOKING_LEVEL,
   );
+  const [actionsPerHour, setActionsPerHour] = useState(
+    initial.rate ?? DEFAULT_RATE,
+  );
   const [membersOnly, setMembersOnly] = useState(initial.members ?? false);
   const sort = useSort<SortKey>(
     pickOne(initial.sort, SORT_KEYS, "gpPerHour"),
@@ -215,7 +211,9 @@ export function SkillingPage(): JSX.Element {
     const measure = (row: Row): number | null => {
       switch (sort.sortKey) {
         case "gpPerHour":
-          return row.activity.gpPerHour;
+          // The displayed figure, so a row priced at the player's rate ranks with
+          // the sourced ones instead of falling to the bottom as unknown.
+          return hourlyRate(row.activity, actionsPerHour).gpPerHour;
         case "profit":
           return row.activity.profit;
         case "spend":
@@ -249,10 +247,118 @@ export function SkillingPage(): JSX.Element {
       });
     }
     return sortByMeasure(visible, measure, sort.descending, tieBreak);
-  }, [visible, sort]);
+  }, [visible, sort, actionsPerHour]);
+
+  // How many rows the player's rate is actually pricing. Shown in the hint line so
+  // an entered figure that changes nothing cannot look like it worked.
+  const manualRows = useMemo(
+    () =>
+      visible.filter(
+        (row) => hourlyRate(row.activity, actionsPerHour).basis === "manual",
+      ).length,
+    [visible, actionsPerHour],
+  );
 
   const paged = usePagedRows(sorted);
-  const pageRows = paged.pageRows;
+
+  // One column list per page: label, width, sort key and cell. Widths matter
+  // because `results-table` is `table-layout: fixed`, so without them every column
+  // would get an equal share and "Inputs" would have as much room as "#".
+  const columns = useMemo<DataColumn<Row>[]>(
+    () => [
+      {
+        key: "activity",
+        label: "Activity",
+        width: 300,
+        required: true,
+        sortKey: "name",
+        cellClassName: "item",
+        cell: (row) => <ActivityCell row={row} />,
+      },
+      {
+        key: "skill",
+        label: "Skill",
+        width: 92,
+        sortKey: "skill",
+        cell: (row) => row.skill,
+      },
+      {
+        key: "level",
+        label: "Level",
+        width: 84,
+        sortKey: "level",
+        title:
+          "The level the recipe needs. Cooking rows also show the level at which the food stops burning.",
+        cellClassName: "mono dim",
+        cell: (row) => {
+          const level = levelOf(row);
+          return (
+            <>
+              {level === null ? "—" : level}
+              {row.activity.noBurnLevel !== null && (
+                <span
+                  className="cell-note"
+                  title="Level at which this food stops burning"
+                >
+                  safe {row.activity.noBurnLevel}
+                </span>
+              )}
+            </>
+          );
+        },
+      },
+      {
+        key: "inputs",
+        label: "Inputs",
+        width: 300,
+        cellClassName: "dim wrap",
+        cell: (row) =>
+          row.activity.inputs
+            .map((item) => `${item.itemName} ×${item.quantity}`)
+            .join(" + ") || "—",
+      },
+      {
+        key: "cost",
+        label: "Cost / action",
+        width: 96,
+        sortKey: "spend",
+        align: "right",
+        cellClassName: "right mono",
+        cell: (row) => formatGp(row.activity.spend),
+      },
+      {
+        key: "profit",
+        label: "Profit / action",
+        width: 112,
+        sortKey: "profit",
+        align: "right",
+        cellClassName: (row) =>
+          row.activity.profit >= 0 ? "right mono pos" : "right mono neg",
+        cell: (row) => (
+          <>
+            {formatGp(row.activity.profit)}
+            <span className="cell-note">
+              {row.activity.marginPct.toFixed(0)}%
+            </span>
+          </>
+        ),
+      },
+      {
+        key: "gpPerHour",
+        label: "gp / hour",
+        width: 108,
+        sortKey: "gpPerHour",
+        align: "right",
+        cellClassName: "right mono strong",
+        title:
+          "Per-action profit at the rate the wiki publishes, capped by 4h market volume. — when no action time is published and no actions/hour is entered; a figure marked 'your rate' uses the actions/hour you entered instead.",
+        cell: (row) => (
+          <HourlyCell activity={row.activity} actionsPerHour={actionsPerHour} />
+        ),
+      },
+    ],
+    [actionsPerHour],
+  );
 
   // The strip must agree with the table: kind and profit counts come from the rows
   // in the *current* mode, not from the build-time coverage line. Only `unpriced`
@@ -261,18 +367,34 @@ export function SkillingPage(): JSX.Element {
     let transform = 0;
     let upgrade = 0;
     let train = 0;
+    let gather = 0;
+    let ev = 0;
     let profitable = 0;
     for (const row of all) {
-      if (row.activity.kind === 'upgrade') upgrade += 1;
-      else if (row.activity.kind === 'train') train += 1;
-      else transform += 1;
+      switch (row.activity.kind) {
+        case 'transform':
+          transform += 1;
+          break;
+        case 'upgrade':
+          upgrade += 1;
+          break;
+        case 'train':
+          train += 1;
+          break;
+        case 'gather':
+          gather += 1;
+          break;
+        case 'ev':
+          ev += 1;
+          break;
+      }
       if (row.activity.profit > 0) profitable += 1;
     }
     const unpriced = DATA.skills.reduce(
       (sum, catalog) => sum + catalog.coverage.unpriced,
       0,
     );
-    return { transform, upgrade, train, profitable, unpriced };
+    return { transform, upgrade, train, gather, ev, profitable, unpriced };
   }, [all]);
 
   const view: ViewState = useMemo(
@@ -285,8 +407,9 @@ export function SkillingPage(): JSX.Element {
       sort: sort.sortKey,
       desc: sort.descending,
       cookingLevel: cookingLevel > 0 ? cookingLevel : undefined,
+      rate: actionsPerHour > 0 ? actionsPerHour : undefined,
     }),
-    [mode, kindFilter, skillFilter, query, membersOnly, sort, cookingLevel],
+    [mode, kindFilter, skillFilter, query, membersOnly, sort, cookingLevel, actionsPerHour],
   );
   useShareableView("skilling", view);
 
@@ -295,7 +418,8 @@ export function SkillingPage(): JSX.Element {
     kindFilter !== "all" ||
     skillFilter !== "all" ||
     membersOnly ||
-    cookingLevel > 0;
+    cookingLevel > 0 ||
+    actionsPerHour > 0;
 
   function clearFilters(): void {
     setQuery("");
@@ -303,6 +427,7 @@ export function SkillingPage(): JSX.Element {
     setSkillFilter("all");
     setMembersOnly(false);
     setCookingLevel(DEFAULT_COOKING_LEVEL);
+    setActionsPerHour(DEFAULT_RATE);
   }
 
   return (
@@ -365,6 +490,15 @@ export function SkillingPage(): JSX.Element {
           onChange={setCookingLevel}
         />
 
+        <FilterNumber
+          label="Actions / hour"
+          title="Your own action rate. It fills only the rows the wiki publishes no rate for (every fishing method, most Hunter traps); a published rate always wins, and the 4h market volume still caps it. 0 = off."
+          ariaLabel="Actions per hour"
+          step={50}
+          value={actionsPerHour}
+          onChange={setActionsPerHour}
+        />
+
         <FilterCheck
           label="Members only"
           title="Hide free-to-play activities"
@@ -396,6 +530,16 @@ export function SkillingPage(): JSX.Element {
           title="Rows whose output cannot be sold, so the row is the cost of one action"
         />
         <Stat
+          label="Gathered"
+          value={totals.gather.toLocaleString()}
+          title="One unit per published respawn: no inputs, so the margin is the whole sale"
+        />
+        <Stat
+          label="Expected value"
+          value={totals.ev.toLocaleString()}
+          title="A published drop table or success chart, priced at its mean per attempt"
+        />
+        <Stat
           label="Profitable"
           value={totals.profitable.toLocaleString()}
           title="Rows with a positive per-action profit in the selected mode"
@@ -422,12 +566,32 @@ export function SkillingPage(): JSX.Element {
             them.
           </>
         )}
+        {actionsPerHour > 0 && (
+          <>
+            {" "}
+            <strong>{manualRows}</strong>{" "}
+            {manualRows === 1 ? "row is" : "rows are"} priced at your{" "}
+            <strong>{actionsPerHour.toLocaleString()}</strong> actions/hour because
+            the wiki publishes no rate for them; every other row keeps its sourced
+            rate.
+          </>
+        )}
       </p>
 
-      <Results
+      <DataTable<Row>
+        tableId="skilling"
         label="Skilling activities"
+        caption={`Skilling activities, ranked by ${sort.sortKey}`}
         noun="activities"
+        columns={columns}
         paged={paged}
+        sort={{
+          key: sort.sortKey,
+          descending: sort.descending,
+          toggle: (key) => sort.toggle(key as SortKey),
+        }}
+        rowKey={(row) => `${row.skill}-${row.activity.recipeId}`}
+        rank
         emptyText={
           hiddenCooking > 0 && all.length > 0 ? (
             <>
@@ -440,80 +604,7 @@ export function SkillingPage(): JSX.Element {
         }
         onClearFilters={clearFilters}
         busy={deferredQuery !== query}
-      >
-        <table className="results-table">
-          <caption className="visually-hidden">
-            Skilling activities, ranked by {sort.sortKey}
-          </caption>
-          <colgroup>
-            {COLUMNS.map((column) => (
-              <col
-                key={column.key}
-                className={column.key === "rank" ? "num-col" : undefined}
-                style={{ width: column.width }}
-              />
-            ))}
-          </colgroup>
-          <thead>
-            <tr>
-              <th scope="col" className="num-col">
-                #
-              </th>
-              <Th
-                label="Activity"
-                onClick={() => sort.toggle("name")}
-                active={sort.sortKey === "name"}
-                desc={sort.descending}
-              />
-              <Th
-                label="Skill"
-                onClick={() => sort.toggle("skill")}
-                active={sort.sortKey === "skill"}
-                desc={sort.descending}
-              />
-              <Th
-                label="Level"
-                onClick={() => sort.toggle("level")}
-                active={sort.sortKey === "level"}
-                desc={sort.descending}
-                title="The level the recipe needs. Cooking rows also show the level at which the food stops burning."
-              />
-              <th scope="col">Inputs</th>
-              <Th
-                label="Cost / action"
-                onClick={() => sort.toggle("spend")}
-                active={sort.sortKey === "spend"}
-                desc={sort.descending}
-                right
-              />
-              <Th
-                label="Profit / action"
-                onClick={() => sort.toggle("profit")}
-                active={sort.sortKey === "profit"}
-                desc={sort.descending}
-                right
-              />
-              <Th
-                label="gp / hour"
-                onClick={() => sort.toggle("gpPerHour")}
-                active={sort.sortKey === "gpPerHour"}
-                desc={sort.descending}
-                right
-                title="Per-action profit at the rate the wiki publishes, capped by 4h market volume. — when no action time is published."
-              />
-            </tr>
-          </thead>
-          <tbody>
-            {pageRows.map((row, index) => (
-              <ActivityRow
-                key={`${row.skill}-${row.activity.recipeId}`}
-                row={row}
-                rank={paged.start + index}
-              />
-            ))}
-          </tbody>
-        </table>
-      </Results>
+      />
 
       <footer className="footer">
         <details className="caveats">
@@ -545,19 +636,25 @@ export function SkillingPage(): JSX.Element {
             counted in the strip above, never estimated. Cooking rows appear only
             at or above the level where the food stops burning.
           </p>
+          <p>
+            <strong>Your rate is yours, not the wiki&apos;s.</strong> Where the wiki
+            publishes no action time — every fishing method, most Hunter traps, a
+            handful of recipes — the row shows — rather than an invented hour.
+            Entering <strong>Actions / hour</strong> above fills those rows with
+            your own figure (marked <em>your rate</em>) and leaves every sourced
+            rate alone, because a typed number must never look like a measured one.
+            The figure is still capped by what the market absorbs in 4h, and coin
+            fees, tax and per-action profit are unchanged.
+          </p>
         </details>
       </footer>
     </>
   );
 }
 
-function ActivityRow(props: { row: Row; rank: number }): JSX.Element {
-  const { activity, skill } = props.row;
-  const level = levelOf(props.row);
-  const inputs =
-    activity.inputs
-      .map((item) => `${item.itemName} ×${item.quantity}`)
-      .join(" + ") || "—";
+/** The activity cell: kind badge, wiki link, and the row's qualifiers. */
+function ActivityCell(props: { row: Row }): JSX.Element {
+  const { activity } = props.row;
   const output =
     activity.output === null
       ? `${activity.outputName} (not sold)`
@@ -566,66 +663,67 @@ function ActivityRow(props: { row: Row; rank: number }): JSX.Element {
         }`;
 
   return (
-    <tr>
-      <td className="right mono dim">{props.rank}</td>
-      <td className="item">
-        <span
-          className={`kind-badge kind-${activity.kind}`}
-          title={KIND_TITLE[activity.kind]}
-        >
-          {KIND_LABEL[activity.kind]}
-        </span>{" "}
-        <a
-          className="name wiki-link"
-          href={activity.source}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          {output}
-        </a>
-        {activity.members && <span className="badge">P2P</span>}
-        {activity.distribution !== null && (
-          <span
-            className="cell-note"
-            title={activity.distribution
-              .map(
-                (line) =>
-                  `${line.item} ×${line.quantity} — ${(line.chance * 100).toFixed(1)}% (${formatGp(line.expectedGp)} gp)`,
-              )
-              .join("\n")}
-          >
-            {activity.distribution.length} outcomes, mean
-          </span>
-        )}
-        {activity.feeGp > 0 && (
-          <span className="cell-note">+{formatGp(activity.feeGp)} gp fee</span>
-        )}
-      </td>
-      <td>{skill}</td>
-      <td className="mono dim">
-        {level === null ? "—" : level}
-        {activity.noBurnLevel !== null && (
-          <span className="cell-note" title="Level at which this food stops burning">
-            safe {activity.noBurnLevel}
-          </span>
-        )}
-      </td>
-      <td className="dim wrap">{inputs}</td>
-      <td className="right mono">{formatGp(activity.spend)}</td>
-      <td
-        className={
-          activity.profit >= 0 ? "right mono pos" : "right mono neg"
-        }
-        title={`${activity.marginPct.toFixed(1)}% of the cost`}
+    <>
+      <span
+        className={`kind-badge kind-${activity.kind}`}
+        title={KIND_TITLE[activity.kind]}
       >
-        {formatGp(activity.profit)}
-        <span className="cell-note">{activity.marginPct.toFixed(0)}%</span>
-      </td>
-      <td className="right mono strong">
-        {activity.gpPerHour === null
-          ? "—"
-          : formatGp(Math.round(activity.gpPerHour))}
-      </td>
-    </tr>
+        {KIND_LABEL[activity.kind]}
+      </span>{" "}
+      <a
+        className="name wiki-link"
+        href={activity.source}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        {output}
+      </a>
+      {activity.members && <span className="badge">P2P</span>}
+      {activity.distribution !== null && (
+        <span
+          className="cell-note"
+          title={activity.distribution
+            .map(
+              (line) =>
+                `${line.item} ×${line.quantity} — ${(line.chance * 100).toFixed(1)}% (${formatGp(line.expectedGp)} gp)`,
+            )
+            .join("\n")}
+        >
+          {activity.distribution.length} outcomes, mean
+        </span>
+      )}
+      {activity.feeGp > 0 && (
+        <span className="cell-note">+{formatGp(activity.feeGp)} gp fee</span>
+      )}
+    </>
+  );
+}
+
+/** The hourly cell: sourced, the player's own rate, or nothing. */
+function HourlyCell(props: {
+  activity: SkillActivity;
+  actionsPerHour: number;
+}): JSX.Element {
+  const hourly = hourlyRate(props.activity, props.actionsPerHour);
+  if (hourly.gpPerHour === null) return <>—</>;
+  return (
+    <>
+      {formatGp(Math.round(hourly.gpPerHour))}
+      {hourly.basis === "manual" && (
+        <span
+          className="cell-note"
+          title={
+            `${formatGp(props.activity.profit)} gp per action × ${(
+              hourly.appliedActionsPerHour ?? 0
+            ).toLocaleString()} actions/hour, at the rate you entered.` +
+            (hourly.capped
+              ? ` Capped from ${props.actionsPerHour.toLocaleString()}/h by what the market absorbs in 4h.`
+              : "")
+          }
+        >
+          your rate
+        </span>
+      )}
+    </>
   );
 }
