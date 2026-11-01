@@ -1,26 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { Opportunity, Ranking, SellMode } from "../../src/types";
-import {
-  DEFAULT_MAX_WORLDS,
-  DEFAULT_SECONDS_PER_TILE,
-  planWithBudget,
-  type BudgetPlan,
-} from "../../src/domain/budget";
+import { planWithBudget, type BudgetPlan } from "../../src/domain/budget";
 import { wikiUrl } from "../../src/util/wiki";
 import { AccessBadge } from "./AccessBadge";
 import { accessFor } from "./access";
-import { compact, formatGp, formatSourceDateTime, formatTime } from "./format";
-import { GoldInput } from "./GoldInput";
+import { BudgetPanel, TravelFields } from "./BudgetPanel";
+import { FilterCheck, FilterNumber, FilterToolbar } from "./FilterToolbar";
+import { formatGp } from "./format";
+import { matchesQuery, normaliseQuery } from "./matching";
 import { sellableAcrossWorlds, toShopRow } from "./opportunity";
 import { ShopBasketPanel } from "./ShopBasket";
-import {
-  browserStore,
-  readStoredBudget,
-  writeStoredBudget,
-  type BudgetState,
-  type BudgetView,
-} from "./storage";
-import { Stat, Th, Results, StaleWarning } from "./ui";
+import { useBudgetSettings, useTravelSettings } from "./settings";
+import { sortByMeasure, useSort } from "./sorting";
+import { Stat, Th, Results } from "./ui";
 import { usePagedRows } from "./paging";
 import {
   ColumnPicker,
@@ -133,6 +125,8 @@ const MODE_LABEL: Record<SellMode, string> = {
   patient: "Patient (GE high)",
 };
 
+const MODES = ["pessimistic", "patient"] as const;
+
 const BUDGET_SORTS: ReadonlySet<SortKey> = new Set<SortKey>([
   "gpPerHour",
   "profit",
@@ -141,8 +135,6 @@ const BUDGET_SORTS: ReadonlySet<SortKey> = new Set<SortKey>([
   "banks",
 ]);
 
-const DEFAULT_HOP_SECONDS = 10;
-
 export function ShopToGePage(): JSX.Element {
   const [mode, setMode] = useState<SellMode>("pessimistic");
   const [query, setQuery] = useState("");
@@ -150,18 +142,16 @@ export function ShopToGePage(): JSX.Element {
   const [hideLocked, setHideLocked] = useState(false);
   const [minVolume, setMinVolume] = useState(0);
   const [selectedShop, setSelectedShop] = useState<string | null>(null);
-  const [initialBudget] = useState<BudgetState>(() =>
-    readStoredBudget(browserStore()),
-  );
-  const [gold, setGold] = useState(initialBudget.gold);
-  const [view, setView] = useState<BudgetView>(initialBudget.view);
-  const [hopSeconds, setHopSeconds] = useState(DEFAULT_HOP_SECONDS);
-  const [maxWorlds, setMaxWorlds] = useState(DEFAULT_MAX_WORLDS);
-  const [secondsPerTile, setSecondsPerTile] = useState(
-    DEFAULT_SECONDS_PER_TILE,
-  );
-  const [sortKey, setSortKey] = useState<SortKey>("gpPerHour");
-  const [descending, setDescending] = useState(true);
+  const { gold, setGold, view, setView } = useBudgetSettings();
+  const {
+    hopSeconds,
+    setHopSeconds,
+    maxWorlds,
+    setMaxWorlds,
+    secondsPerTile,
+    setSecondsPerTile,
+  } = useTravelSettings();
+  const { sortKey, descending, toggle: toggleSort } = useSort<SortKey>("gpPerHour");
   const {
     visible,
     toggle: toggleColumn,
@@ -172,23 +162,18 @@ export function ShopToGePage(): JSX.Element {
   const budgetMode = gold > 0 && view === "budget";
   const currentColumns = columnsForMode(budgetMode);
 
-  useEffect(() => {
-    writeStoredBudget({ gold, view }, browserStore());
-  }, [gold, view]);
-
   const rows = useMemo<RowData[]>(() => {
-    const needle = query.trim().toLowerCase();
+    const needle = normaliseQuery(query);
 
     const filtered = ranking.opportunities.filter((opp) => {
       if (membersOnly && !opp.members) return false;
       if (hideLocked && accessFor(opp.shopPage) !== undefined) return false;
       if (opp.sellablePer4h < minVolume) return false;
-      if (needle === "") return true;
-      return (
-        opp.itemName.toLowerCase().includes(needle) ||
-        opp.shopName.toLowerCase().includes(needle) ||
-        (opp.location ?? "").toLowerCase().includes(needle)
-      );
+      return matchesQuery(needle, [
+        opp.itemName,
+        opp.shopName,
+        opp.location,
+      ]);
     });
 
     const withPlans: RowData[] =
@@ -246,23 +231,17 @@ export function ShopToGePage(): JSX.Element {
       }
     };
 
-    return [...withPlans].sort((a, b) => {
-      if (key === "itemName") {
-        return descending
+    if (key === "itemName") {
+      return [...withPlans].sort((a, b) =>
+        descending
           ? b.itemName.localeCompare(a.itemName)
-          : a.itemName.localeCompare(b.itemName);
-      }
-      const aValue = measure(a);
-      const bValue = measure(b);
-      if (aValue === null || bValue === null) {
-        if (aValue === bValue) return 0;
-        // An unknown bank time is never better than a known one, whichever way
-        // the column is sorted.
-        return aValue === null ? 1 : -1;
-      }
-      const delta = bValue - aValue;
-      return descending ? delta : -delta;
-    });
+          : a.itemName.localeCompare(b.itemName),
+      );
+    }
+
+    // Ties keep their ranked order (a stable sort), which is what the pages
+    // have always done for the shop-to-GE table.
+    return sortByMeasure(withPlans, measure, descending);
   }, [
     ranking,
     query,
@@ -304,14 +283,6 @@ export function ShopToGePage(): JSX.Element {
 
   const shopCount = new Set(rows.map((row) => row.shopPage)).size;
 
-  function toggleSort(key: SortKey): void {
-    if (key === sortKey) setDescending((d) => !d);
-    else {
-      setSortKey(key);
-      setDescending(true);
-    }
-  }
-
   /** Reset every filter, leaving the mode, sort and budget settings alone. */
   const clearFilters = (): void => {
     setQuery("");
@@ -324,210 +295,54 @@ export function ShopToGePage(): JSX.Element {
 
   return (
     <div className="page">
-      <section className="toolbar" aria-label="Filters">
-        <div className="toolbar-row">
-          <div className="modes" role="group" aria-label="Sell mode">
-            {(["pessimistic", "patient"] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                className={m === mode ? "mode active" : "mode"}
-                onClick={() => setMode(m)}
-                aria-pressed={m === mode}
-              >
-                {MODE_LABEL[m]}
-              </button>
-            ))}
-          </div>
-
-          <input
-            className="search"
-            type="search"
-            placeholder="Filter by item, shop or location…"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            aria-label="Filter"
-          />
-
-          <div className="asof">
-            <span className="label">GE prices as of</span>
-            <strong title={formatSourceDateTime(ranking.pricesAsOf)}>
-              {formatTime(ranking.pricesAsOf)}
-            </strong>
-            <span
-              className="label"
-              title={formatSourceDateTime(DATA.generatedAt)}
-            >
-              built {formatTime(DATA.generatedAt)}
-            </span>
-            <StaleWarning iso={ranking.pricesAsOf} />
-          </div>
-        </div>
-
-        <div className="toolbar-row chips">
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={membersOnly}
-              onChange={(event) => setMembersOnly(event.target.checked)}
-            />
-            Members only
-          </label>
-
-          <label
-            className="toggle"
-            title="Hide shops with a known access requirement from the curated, wiki-sourced access table"
-          >
-            <input
-              type="checkbox"
-              checked={hideLocked}
-              onChange={(event) => setHideLocked(event.target.checked)}
-            />
-            Hide locked
-          </label>
-
-          <label
-            className="toggle"
-            title="One shop visit's units, capped by 24h traded volume"
-          >
-            Min sellable
-            <input
-              className="num"
-              type="number"
-              min={0}
-              step={1}
-              value={minVolume}
-              onChange={(event) => setMinVolume(Number(event.target.value) || 0)}
-              aria-label="Minimum sellable units per shop visit"
-            />
-          </label>
-
-          {filtersActive && (
-            <button
-              type="button"
-              className="chip-clear"
-              onClick={clearFilters}
-            >
-              Clear filters
-            </button>
-          )}
-
-          <span className="toolbar-spacer" />
-
+      <FilterToolbar
+        modeGroupLabel="Sell mode"
+        modes={MODES.map((id) => ({ id, label: MODE_LABEL[id] }))}
+        mode={mode}
+        onMode={setMode}
+        query={query}
+        onQuery={setQuery}
+        placeholder="Filter by item, shop or location…"
+        searchLabel="Filter"
+        pricesAsOf={ranking.pricesAsOf}
+        generatedAt={DATA.generatedAt}
+        filtersActive={filtersActive}
+        onClearFilters={clearFilters}
+        actions={
           <ColumnPicker
             columns={currentColumns}
             visible={visible}
             onToggle={toggleColumn}
             onReset={resetColumns}
           />
-        </div>
-      </section>
+        }
+      >
+        <FilterCheck
+          label="Members only"
+          checked={membersOnly}
+          onChange={setMembersOnly}
+        />
+        <FilterCheck
+          label="Hide locked"
+          title="Hide shops with a known access requirement from the curated, wiki-sourced access table"
+          checked={hideLocked}
+          onChange={setHideLocked}
+        />
+        <FilterNumber
+          label="Min sellable"
+          title="One shop visit's units, capped by 24h traded volume"
+          ariaLabel="Minimum sellable units per shop visit"
+          step={1}
+          value={minVolume}
+          onChange={setMinVolume}
+        />
+      </FilterToolbar>
 
-      <section className="toolbar budget">
-        <div className="budget-inputs">
-          <div className="gold-compartment">
-            <label className="toggle">
-              <span className="label">Gold available</span>
-              <span className="field-control">
-                <GoldInput value={gold} onChange={setGold} />
-                <span className="field-unit">gp</span>
-              </span>
-            </label>
-
-            <div className="presets">
-              {[100_000, 1_000_000, 10_000_000, 100_000_000].map((amount) => (
-                <button
-                  key={amount}
-                  type="button"
-                  className={gold === amount ? "preset active" : "preset"}
-                  onClick={() => setGold(amount)}
-                >
-                  {compact(amount)}
-                </button>
-              ))}
-              <button type="button" className="preset" onClick={() => setGold(0)}>
-                Clear
-              </button>
-            </div>
-          </div>
-
-          <label
-            className="toggle inline"
-            title="Show the gold-sized Buy, Spend, Worlds, Banks and Profit columns."
-          >
-            <input
-              type="checkbox"
-              checked={budgetMode}
-              disabled={gold <= 0}
-              onChange={(event) =>
-                setView(event.target.checked ? "budget" : "shop")
-              }
-            />
-            Size buys to gold
-          </label>
-
-          <label className="toggle">
-            <span className="label">World hop</span>
-            <span className="field-control">
-              <input
-                className="num"
-                type="number"
-                min={0}
-                step={1}
-                value={hopSeconds}
-                onChange={(event) =>
-                  setHopSeconds(Math.max(0, Number(event.target.value) || 0))
-                }
-                aria-label="World hop time in seconds"
-              />
-              <span className="field-unit">s</span>
-            </span>
-          </label>
-
-          <label
-            className="toggle"
-            title="Maximum worlds you are willing to hop. The shop is assumed available on each one."
-          >
-            <span className="label">Max worlds</span>
-            <span className="field-control">
-              <input
-                className="num"
-                type="number"
-                min={1}
-                step={1}
-                value={maxWorlds}
-                onChange={(event) =>
-                  setMaxWorlds(
-                    Math.max(1, Math.floor(Number(event.target.value) || 1)),
-                  )
-                }
-                aria-label="Maximum worlds to hop"
-              />
-              <span className="field-unit">worlds</span>
-            </span>
-          </label>
-
-          <label className="toggle">
-            <span className="label">Travel speed</span>
-            <span className="field-control">
-              <input
-                className="num"
-                type="number"
-                min={0}
-                step={0.05}
-                value={secondsPerTile}
-                onChange={(event) =>
-                  setSecondsPerTile(Math.max(0, Number(event.target.value) || 0))
-                }
-                aria-label="Seconds per game tile"
-              />
-              <span className="field-unit">s / tile</span>
-            </span>
-          </label>
-        </div>
-
-        <p className="hint">
-          {budgetMode ? (
+      <BudgetPanel
+        gold={gold}
+        onGold={setGold}
+        hint={
+          budgetMode ? (
             <>
               Sizing buys for <strong>{formatGp(gold)} gp</strong> ·{" "}
               <strong>{hopSeconds}s</strong> hop ·{" "}
@@ -544,9 +359,33 @@ export function ShopToGePage(): JSX.Element {
             </>
           ) : (
             <>Enter gold to size buys across world hops.</>
-          )}
-        </p>
-      </section>
+          )
+        }
+      >
+        <label
+          className="toggle inline"
+          title="Show the gold-sized Buy, Spend, Worlds, Banks and Profit columns."
+        >
+          <input
+            type="checkbox"
+            checked={budgetMode}
+            disabled={gold <= 0}
+            onChange={(event) =>
+              setView(event.target.checked ? "budget" : "shop")
+            }
+          />
+          Size buys to gold
+        </label>
+
+        <TravelFields
+          hopSeconds={hopSeconds}
+          onHopSeconds={setHopSeconds}
+          maxWorlds={maxWorlds}
+          onMaxWorlds={setMaxWorlds}
+          secondsPerTile={secondsPerTile}
+          onSecondsPerTile={setSecondsPerTile}
+        />
+      </BudgetPanel>
 
       <section className="stats">
         <Stat label="Opportunities" value={rows.length.toLocaleString()} />

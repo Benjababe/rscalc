@@ -9,6 +9,11 @@ it can be re-checked after a change.
 travel model or the artifacts. These are presentation, accessibility and
 ergonomics changes over the same numbers.
 
+**Out of scope:** the site is desktop-only. Mobile is not a target for the
+foreseeable future, so there is no card-per-row table layout or touch-first
+redesign planned; a narrow window is served only by the existing column hiding
+in the media queries. Do not add mobile work here without a request.
+
 Legend: **impact** is user-visible benefit, **effort** is rough size of the
 change (S ≈ under an hour, M ≈ half a day, L ≈ a day or more).
 
@@ -24,7 +29,8 @@ change (S ≈ under an hour, M ≈ half a day, L ≈ a day or more).
 |1.6 Document head metadata|**done** — `web/index.html`|
 |1.7 Empty-state exit|**done** — clear-filters in the chip row and the empty panel|
 |1.8 `prefers-reduced-motion`|**done** — `web/src/styles.css`|
-|§2, §3|open|
+|2.1 Remove duplicated page orchestration|**done** — `FilterToolbar`, `BudgetPanel`, `settings`, `sorting`, `matching`|
+|2.2 Throttle re-planning · 2.3 UI tests · §3|open|
 
 ---
 
@@ -125,40 +131,49 @@ change (S ≈ under an hour, M ≈ half a day, L ≈ a day or more).
 
 ## 2. Medium effort
 
-### 2.1 Mobile table layout
+### 2.1 Remove the duplicated page orchestration
 
-- **Where:** `.tablewrap` / `.results-table` under the 720px breakpoint.
-- **Observed:** at ≤720px the table keeps 10+ columns in a horizontal scroller;
-  the informative columns (gp/hour, shop) end up off-screen.
-- **Change:** a card-per-row layout below the breakpoint — item and gp/hour
-  prominent, shop and margin secondary — or, at minimum, a pinned first column.
-  The sticky `thead` is already correct for the desktop case.
-- **Impact: high · Effort: M.**
+- **Where:** `web/src/ShopToGe.tsx` and `web/src/GeToShop.tsx`.
+- **Observed:** both independently implemented filter → plan → sort → stats, so a
+  fix had to be written twice and could drift. The toolbar card alone was 224
+  lines in `ShopToGe` and 225 in `GeToShop`, ~90% identical; the budget card was
+  another 90-190 lines each. `ShopToGe` even kept its own
+  `DEFAULT_HOP_SECONDS = 10` while `GeToShop` imported the same value from
+  `src/domain/budget`.
+- **Done:** the shared pieces live in their own modules — `FilterToolbar.tsx`
+  (mode switch, search, freshness line, chip row, clear link, `FilterCheck`,
+  `FilterNumber`), `BudgetPanel.tsx` (gold field, presets, hint, `TravelFields`),
+  `settings.ts` (`useBudgetSettings` — the only writer of `rscalc.budget` — and
+  `useTravelSettings`), `sorting.ts` (`useSort` + `sortByMeasure`, the
+  unknown-values-last rule) and `matching.ts` (`matchesQuery`).
+- **Result:** 3,165 → 3,186 lines in total, but the three pages lost ~430 lines
+  of duplicated orchestration between them; the remainder is page-specific
+  columns, cell rendering, stats and caveats, which is what the item asked to
+  keep.
+- **Verified:** the rendered `.page` text of all three pages in both modes was
+  hashed before and after the refactor — six snapshots, byte-identical (for
+  example Shop → GE pessimistic `8862615f`, 15,000 chars, 1,909 rows). Sort
+  toggling, search, clear-filters, the skill filter, the budget/shop view switch
+  and the travel fields were exercised afterwards.
+- **One behaviour change:** `matchesQuery` joins the fields and matches the
+  joined text, so a query may now span two fields ("rune shop" finds *Astral
+  rune* at *Baba Yaga's Magic Shop*). The shop pages already worked this way; the
+  processing page now matches identically instead of field by field.
 
-### 2.2 Remove the duplicated page orchestration
-
-- **Where:** `web/src/ShopToGe.tsx` (1,124 lines) and `web/src/GeToShop.tsx`
-  (930 lines).
-- **Observed:** both independently implement filter → plan → sort → stats, so a
-  fix has to be written twice and can drift.
-- **Change:** extract shared hooks/components (`useFilteredRows`, `useSort`,
-  `useResultsTable`, `useBudgetInputs`) and keep each page to its columns,
-  labels and planner call.
-- **Impact: medium (maintainability) · Effort: M.**
-
-### 2.3 Throttle re-planning while typing
+### 2.2 Throttle re-planning while typing
 
 - **Where:** the `useMemo` that runs `planWithBudget` over every filtered row in
   `ShopToGe.tsx` / `GeToShop.tsx` / `Processing.tsx`.
 - **Measured on a desktop-class machine** (Shop → GE, 2,151 rows): 17–75ms per
-  keystroke, 75ms per mode switch. Acceptable here, but a mid-range phone is
-  3–5× slower and the cost lands on every character.
+  keystroke, 75ms per mode switch. Tolerable on a fast machine, but the cost
+  lands on every character and grows with the result set, so a slow laptop or a
+  larger snapshot turns typing into a stutter.
 - **Change:** `useDeferredValue` (or a ~150ms debounce) on the search string,
   and memoise the derived stats — the median-margin stat currently copies and
   sorts the whole row array on every render.
 - **Impact: medium · Effort: S–M.**
 
-### 2.4 UI-level tests
+### 2.3 UI-level tests
 
 - **Where:** `tests/`.
 - **Observed:** only pure helpers are covered (`columns.test.ts`,
@@ -200,8 +215,10 @@ while browsing a long result set.
 If these are taken in order, two coherent commits cover the cheap wins:
 
 1. **Table chrome and accessibility** — 1.1, 1.3, 1.7, 1.8, plus the metadata
-   in 1.6. Mechanical, no behaviour change, easy to review.
+   in 1.6. Mechanical, no behaviour change, easy to review. **Landed.**
 2. **Shareable state and input ergonomics** — 1.2, 1.4, 1.5. Adds URL state and
-   input parsing; wants its own tests.
+   input parsing; wants its own tests. (1.4 and 1.5 landed; 1.2 is still open.)
+3. **Page deduplication** — 2.1. **Landed**, verified by hashing the rendered
+   text of all three pages in both modes before and after.
 
-Then 2.1 (mobile) and 2.2 (deduplication) as standalone pieces of work.
+Remaining: 1.2, then 2.2 and 2.3.

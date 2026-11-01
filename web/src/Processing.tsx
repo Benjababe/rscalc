@@ -1,25 +1,23 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
-import type {
-  ProcessOpportunity,
-  ProcessPayload,
-  SellMode,
-} from "../../src/types";
 import {
   actions4hForRate,
   actionsPerHour,
   capActionsPerHour,
 } from "../../src/domain/processTime";
+import type {
+  ProcessOpportunity,
+  ProcessPayload,
+  SellMode,
+} from "../../src/types";
 import { wikiUrl } from "../../src/util/wiki";
-import { compact, formatGp, formatSourceDateTime, formatTime } from "./format";
-import { GoldInput } from "./GoldInput";
-import {
-  browserStore,
-  readStoredBudget,
-  writeStoredBudget,
-  type BudgetState,
-} from "./storage";
-import { Stat, Th, Results, StaleWarning } from "./ui";
+import { BudgetPanel } from "./BudgetPanel";
+import { FilterCheck, FilterNumber, FilterToolbar } from "./FilterToolbar";
+import { formatGp } from "./format";
+import { matchesQuery, normaliseQuery } from "./matching";
+import { useBudgetSettings } from "./settings";
+import { sortByMeasure, useSort } from "./sorting";
+import { Stat, Th, Results } from "./ui";
 import { usePagedRows } from "./paging";
 import {
   ColumnPicker,
@@ -86,6 +84,8 @@ const MODE_TITLE: Record<SellMode, string> = {
   patient: "Rest a buy at the GE low, rest a sell at the GE high",
 };
 
+const MODES = ["pessimistic", "patient"] as const;
+
 const BINDING_LABEL: Record<Binding, string> = {
   time: "time cap",
   market: "GE cap",
@@ -113,24 +113,13 @@ export function ProcessingPage(): JSX.Element {
   const [skill, setSkill] = useState("all");
   const [minProfit, setMinProfit] = useState(0);
   const [actionsPerHourCap, setActionsPerHourCap] = useState(0);
-  const [initialBudget] = useState<BudgetState>(() =>
-    readStoredBudget(browserStore()),
-  );
-  const [gold, setGold] = useState(initialBudget.gold);
-  const [storedView] = useState(initialBudget.view);
-  const [sortKey, setSortKey] = useState<SortKey>("gpPerHour");
-  const [descending, setDescending] = useState(true);
+  const { gold, setGold } = useBudgetSettings();
+  const { sortKey, descending, toggle: toggleSort } = useSort<SortKey>("gpPerHour");
   const {
     visible,
     toggle: toggleColumn,
     reset: resetColumns,
   } = useColumnVisibility("processing", PROCESSING_COLUMNS);
-
-  // The same storage key as the shop pages: gold and the budget/shop view are
-  // shared, so opening this page does not reset a choice made elsewhere.
-  useEffect(() => {
-    writeStoredBudget({ gold, view: storedView }, browserStore());
-  }, [gold, storedView]);
 
   const ranking = DATA[mode];
 
@@ -143,7 +132,7 @@ export function ProcessingPage(): JSX.Element {
   }, []);
 
   const rows = useMemo<RowData[]>(() => {
-    const needle = query.trim().toLowerCase();
+    const needle = normaliseQuery(query);
     const planned: RowData[] = [];
 
     for (const opp of ranking.opportunities) {
@@ -157,18 +146,17 @@ export function ProcessingPage(): JSX.Element {
       }
       if (opp.profit < minProfit) continue;
 
-      if (needle !== "") {
-        const haystack = [
+      if (
+        !matchesQuery(needle, [
           opp.output.itemName,
           ...opp.inputs.map((input) => input.itemName),
-          opp.method ?? "",
-          opp.facility ?? "",
-          opp.tools ?? "",
+          opp.method,
+          opp.facility,
+          opp.tools,
           ...opp.skills.map((entry) => entry.name),
-        ]
-          .join(" ")
-          .toLowerCase();
-        if (!haystack.includes(needle)) continue;
+        ])
+      ) {
+        continue;
       }
 
       // Gold caps the number of actions, as do the GE's supply/demand windows
@@ -246,37 +234,28 @@ export function ProcessingPage(): JSX.Element {
       }
     };
 
-    return planned.sort((a, b) => {
-      if (sortKey === "outputName") {
-        const byName = a.opp.output.itemName.localeCompare(
-          b.opp.output.itemName,
-        );
-        if (byName !== 0) return descending ? -byName : byName;
-      } else if (sortKey === "skill") {
-        const aSkill = a.opp.skills[0]?.name ?? "";
-        const bSkill = b.opp.skills[0]?.name ?? "";
-        const bySkill = aSkill.localeCompare(bSkill);
-        if (bySkill !== 0) return descending ? -bySkill : bySkill;
-      } else {
-        const aValue = measure(a);
-        const bValue = measure(b);
-        if (aValue === null || bValue === null) {
-          if (aValue !== bValue) {
-            // Unknown time is never better than a known time, whichever way the
-            // column is sorted.
-            return aValue === null ? 1 : -1;
-          }
-        } else if (aValue !== bValue) {
-          return descending ? bValue - aValue : aValue - bValue;
-        }
-      }
-
+    // Output, then recipe id: two recipes can produce the same item.
+    const tieBreak = (a: RowData, b: RowData): number => {
       const byOutput = a.opp.output.itemName.localeCompare(
         b.opp.output.itemName,
       );
       if (byOutput !== 0) return byOutput;
       return a.opp.recipeId.localeCompare(b.opp.recipeId);
-    });
+    };
+
+    if (sortKey === "outputName" || sortKey === "skill") {
+      const primary = (row: RowData): string =>
+        sortKey === "outputName"
+          ? row.opp.output.itemName
+          : (row.opp.skills[0]?.name ?? "");
+      return [...planned].sort((a, b) => {
+        const byPrimary = primary(a).localeCompare(primary(b));
+        if (byPrimary !== 0) return descending ? -byPrimary : byPrimary;
+        return tieBreak(a, b);
+      });
+    }
+
+    return sortByMeasure(planned, measure, descending, tieBreak);
   }, [
     ranking,
     query,
@@ -322,14 +301,6 @@ export function ProcessingPage(): JSX.Element {
     undefined,
   );
 
-  function toggleSort(key: SortKey): void {
-    if (key === sortKey) setDescending((value) => !value);
-    else {
-      setSortKey(key);
-      setDescending(true);
-    }
-  }
-
   /** Reset every filter, leaving the mode, sort and budget settings alone. */
   const clearFilters = (): void => {
     setQuery("");
@@ -342,196 +313,127 @@ export function ProcessingPage(): JSX.Element {
 
   return (
     <div className="page">
-      <section className="toolbar" aria-label="Filters">
-        <div className="toolbar-row">
-          <div className="modes" role="group" aria-label="Price mode">
-            {(["pessimistic", "patient"] as const).map((candidate) => (
-              <button
-                key={candidate}
-                type="button"
-                className={candidate === mode ? "mode active" : "mode"}
-                onClick={() => setMode(candidate)}
-                aria-pressed={candidate === mode}
-                title={MODE_TITLE[candidate]}
-              >
-                {MODE_LABEL[candidate]}
-              </button>
-            ))}
-          </div>
-
-          <input
-            className="search"
-            type="search"
-            placeholder="Filter by output, input, method, facility or skill…"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            aria-label="Filter recipes"
-          />
-
-          <div className="asof">
-            <span className="label">GE prices as of</span>
-            <strong title={formatSourceDateTime(ranking.pricesAsOf)}>
-              {formatTime(ranking.pricesAsOf)}
-            </strong>
-            <span
-              className="label"
-              title={formatSourceDateTime(DATA.generatedAt)}
-            >
-              built {formatTime(DATA.generatedAt)}
-            </span>
-            <StaleWarning iso={ranking.pricesAsOf} />
-          </div>
-        </div>
-
-        <div className="toolbar-row chips">
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={membersOnly}
-              onChange={(event) => setMembersOnly(event.target.checked)}
-            />
-            Members only
-          </label>
-
-          <label className="toggle">
-            Skill
-            <select
-              className="select"
-              value={skill}
-              onChange={(event) => setSkill(event.target.value)}
-              aria-label="Skill filter"
-            >
-              <option value="all">All skills</option>
-              <option value="none">No skill (facility)</option>
-              {skillOptions.map((option) => (
-                <option key={option} value={option}>
-                  {titleCase(option)}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="toggle" title="Minimum profit for one action, before sizing">
-            Min profit / action
-            <input
-              className="num"
-              type="number"
-              min={0}
-              step={1}
-              value={minProfit}
-              onChange={(event) =>
-                setMinProfit(Math.max(0, Number(event.target.value) || 0))
-              }
-              aria-label="Minimum profit per action"
-            />
-          </label>
-
-          {filtersActive && (
-            <button
-              type="button"
-              className="chip-clear"
-              onClick={clearFilters}
-            >
-              Clear filters
-            </button>
-          )}
-
-          <span className="toolbar-spacer" />
-
+      <FilterToolbar
+        modeGroupLabel="Price mode"
+        modes={MODES.map((id) => ({
+          id,
+          label: MODE_LABEL[id],
+          title: MODE_TITLE[id],
+        }))}
+        mode={mode}
+        onMode={setMode}
+        query={query}
+        onQuery={setQuery}
+        placeholder="Filter by output, input, method, facility or skill…"
+        searchLabel="Filter recipes"
+        pricesAsOf={ranking.pricesAsOf}
+        generatedAt={DATA.generatedAt}
+        filtersActive={filtersActive}
+        onClearFilters={clearFilters}
+        actions={
           <ColumnPicker
             columns={PROCESSING_COLUMNS}
             visible={visible}
             onToggle={toggleColumn}
             onReset={resetColumns}
           />
-        </div>
-      </section>
+        }
+      >
+        <FilterCheck
+          label="Members only"
+          checked={membersOnly}
+          onChange={setMembersOnly}
+        />
 
-      <section className="toolbar budget">
-        <div className="budget-inputs">
-          <div className="gold-compartment">
-            <label className="toggle">
-              <span className="label">Gold available</span>
-              <span className="field-control">
-                <GoldInput value={gold} onChange={setGold} />
-                <span className="field-unit">gp</span>
-              </span>
-            </label>
-
-            <div className="presets">
-              {[100_000, 1_000_000, 10_000_000, 100_000_000].map((amount) => (
-                <button
-                  key={amount}
-                  type="button"
-                  className={gold === amount ? "preset active" : "preset"}
-                  onClick={() => setGold(amount)}
-                >
-                  {compact(amount)}
-                </button>
-              ))}
-              <button type="button" className="preset" onClick={() => setGold(0)}>
-                Clear
-              </button>
-            </div>
-          </div>
-
-          <label
-            className="toggle"
-            title="Cap every recipe's published action rate to model slower play. It can only slow a recipe down; 0 uses the wiki's rate."
+        <label className="toggle">
+          Skill
+          <select
+            className="select"
+            value={skill}
+            onChange={(event) => setSkill(event.target.value)}
+            aria-label="Skill filter"
           >
-            <span className="label">Actions / hour cap</span>
-            <span className="field-control">
-              <input
-                className="num wide"
-                type="number"
-                min={0}
-                step={100}
-                value={actionsPerHourCap}
-                onChange={(event) =>
-                  setActionsPerHourCap(
-                    Math.max(0, Number(event.target.value) || 0),
-                  )
-                }
-                aria-label="Actions per hour cap"
-              />
-              <span className="field-unit">0 = recipe</span>
-            </span>
-          </label>
-        </div>
+            <option value="all">All skills</option>
+            <option value="none">No skill (facility)</option>
+            {skillOptions.map((option) => (
+              <option key={option} value={option}>
+                {titleCase(option)}
+              </option>
+            ))}
+          </select>
+        </label>
 
-        <p className="hint">
-          Buy the inputs at the GE{" "}
-          <strong>{mode === "pessimistic" ? "high" : "low"}</strong> and sell the
-          output at the <strong>{mode === "pessimistic" ? "low" : "high"}</strong>.
-          Coin fees (tanners, sawmills) and the runes consumed by a spell are
-          included, and the output leg pays the 2% GE tax. The 4h plan is capped
-          by the input&apos;s buy limit and 24h volume, the output&apos;s 24h
-          volume, the wiki&apos;s published ticks, your <strong>Actions / hour
-          cap</strong> and your gold.{" "}
-          <strong>Banking and travel to the facility are not modelled</strong>, so
-          gp / hour is a processing-only ceiling.{" "}
-          {actionsPerHourCap > 0 ? (
-            <>
-              Capping every recipe at{" "}
-              <strong>{formatGp(actionsPerHourCap)} actions/hour</strong> for
-              slower play.{" "}
-            </>
-          ) : (
-            <>
-              Using each recipe&apos;s published action rate; set a lower{" "}
-              <strong>Actions / hour cap</strong> to model slower play.{" "}
-            </>
-          )}
-          {gold > 0 ? (
-            <>
-              Sizing to <strong>{formatGp(gold)} gp</strong>; clear to 0 for the
-              uncapped plan.
-            </>
-          ) : (
-            <>Showing the uncapped plan; enter gold to size it.</>
-          )}
-        </p>
-      </section>
+        <FilterNumber
+          label="Min profit / action"
+          title="Minimum profit for one action, before sizing"
+          ariaLabel="Minimum profit per action"
+          step={1}
+          value={minProfit}
+          onChange={setMinProfit}
+        />
+      </FilterToolbar>
+
+      <BudgetPanel
+        gold={gold}
+        onGold={setGold}
+        hint={
+          <>
+            Buy the inputs at the GE{" "}
+              <strong>{mode === "pessimistic" ? "high" : "low"}</strong> and sell the
+              output at the <strong>{mode === "pessimistic" ? "low" : "high"}</strong>.
+              Coin fees (tanners, sawmills) and the runes consumed by a spell are
+              included, and the output leg pays the 2% GE tax. The 4h plan is capped
+              by the input&apos;s buy limit and 24h volume, the output&apos;s 24h
+              volume, the wiki&apos;s published ticks, your <strong>Actions / hour
+              cap</strong> and your gold.{" "}
+              <strong>Banking and travel to the facility are not modelled</strong>, so
+              gp / hour is a processing-only ceiling.{" "}
+              {actionsPerHourCap > 0 ? (
+                <>
+                  Capping every recipe at{" "}
+                  <strong>{formatGp(actionsPerHourCap)} actions/hour</strong> for
+                  slower play.{" "}
+                </>
+              ) : (
+                <>
+                  Using each recipe&apos;s published action rate; set a lower{" "}
+                  <strong>Actions / hour cap</strong> to model slower play.{" "}
+                </>
+              )}
+              {gold > 0 ? (
+                <>
+                  Sizing to <strong>{formatGp(gold)} gp</strong>; clear to 0 for the
+                  uncapped plan.
+                </>
+              ) : (
+                <>Showing the uncapped plan; enter gold to size it.</>
+              )}
+          </>
+        }
+      >
+        <label
+          className="toggle"
+          title="Cap every recipe's published action rate to model slower play. It can only slow a recipe down; 0 uses the wiki's rate."
+        >
+          <span className="label">Actions / hour cap</span>
+          <span className="field-control">
+            <input
+              className="num wide"
+              type="number"
+              min={0}
+              step={100}
+              value={actionsPerHourCap}
+              onChange={(event) =>
+                setActionsPerHourCap(
+                  Math.max(0, Number(event.target.value) || 0),
+                )
+              }
+              aria-label="Actions per hour cap"
+            />
+            <span className="field-unit">0 = recipe</span>
+          </span>
+        </label>
+      </BudgetPanel>
 
       <section className="stats">
         <Stat label="Recipes" value={rows.length.toLocaleString()} />
