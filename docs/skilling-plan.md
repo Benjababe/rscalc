@@ -20,7 +20,7 @@ priced recipe rows** across **7 skills**, already with inputs, outputs, GE tax,
 fees, buy-limit caps, ticks and gp/hour.
 
 | Skill | Rows | Profitable rows |
-|---|---|---|
+| --- | --- | --- |
 | Crafting | 93 | 93 |
 | Magic | 69 | 69 |
 | Smithing | 61 | 61 |
@@ -101,7 +101,7 @@ unknown stays `null`, no `as`, no `any`, zod on the artifact.
 ## 3. Source policy per kind
 
 | kind | inputs | outputs | time |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `transform` | GE buy | recipe bucket (`bucket=recipe`) | recipe ticks |
 | `gather` | none (tools are capital, not cost) | item page / skilling tables | node respawn or click interval — **skipped when unpublished** |
 | `collect` (farming) | seed GE buy | patch yield (expected value) | patch growth timer (a game constant — the most defensible time model we have) |
@@ -167,7 +167,7 @@ estimates are for sanity-checking the output, not targets.
 ### Phase 1 — `transform` (recipe-backed; extend what exists)
 
 | # | Skill | Expected work |
-|---|---|---|
+| --- | --- | --- |
 | 1 | Smithing | **✅ scanned — see §8.3** |
 | 2 | Crafting | **✅ scanned — see §8.1** |
 | 3 | Fletching | **✅ scanned — see §8.2** |
@@ -180,7 +180,7 @@ estimates are for sanity-checking the output, not targets.
 ### Phase 2 — gathering and collection (new sources)
 
 | # | Skill | Time source | Risk |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 9 | Farming | **✅ scanned — see §8.12** | compost prices; crops have no bucket recipe, and the nursery is an untradeable chain |
 | 10 | Sailing | **✅ scanned — see §8.13** | 124 cost rows; every output is untradeable, and salvage has no recipe at all |
 | 11 | Mining | **✅ gather model — see §8.15** | 11 nodes priced from respawn times |
@@ -196,7 +196,7 @@ Do not pad it with a player-entered rate.
 ### Phase 3 — loss / cost-of-training (`kind: train`, negative gp)
 
 | # | Skill | Status | Note |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 16 | Prayer | **✅ scanned — see §8.16** | 3 rows: blessing symbols; bones have no recipe |
 | 17 | Firemaking | **✅ scanned — see §8.16** | 8 pyre-log rows; burning has no output |
 | 18 | Agility | **✅ scanned — see §8.16** | 1 recipe, unpriced at both ends |
@@ -205,7 +205,7 @@ Do not pad it with a player-entered rate.
 ### Phase 4 — needs an explicit decision before any scanning
 
 | # | Skill | Why it is parked |
-|---|---|---|
+| --- | --- | --- |
 | 20–24 | Attack, Strength, Defence, Ranged, Hitpoints | profit is monster drops × kill rate — a different engine, not a recipe |
 | — | Minigames / skilling bosses | Wintertodt, Tempoross, Guardians of the Rift, Zalcano, Blast Furnace, Mahogany Homes: all loot-roll based, so they need a sourced table for the EV (§3.1) before they can be priced |
 
@@ -305,7 +305,7 @@ below one action on one side of the book).
 #### What is priced
 
 | Group | Rows | Note |
-|---|---|---|
+| --- | --- | --- |
 | Jewellery (gold/silver + gems) | 63 | Dragonstone bracelet 319 gp/action (547k gp/h) is the pessimistic leader |
 | Dragonhide armour | 32 | every body/chaps/vambraces/shield tier, mostly loss-making at instant prices |
 | Gem cutting | 13 | uncut → cut for all seven gems, incl. Amethyst tips |
@@ -437,7 +437,7 @@ So Construction needed a row shape the artifact did not have: `kind: 'train'`,
 only question the skill can answer — what training costs per action and per hour:
 
 | Build | Cost / action | Cost / hour |
-|---|---|---|
+| --- | --- | --- |
 | Vale offerings (oak logs + oak shield x4) | −116 gp | −203 |
 | Wooden hull (hull parts x10 + 300 bronze nails) | −1,930 gp | −965 |
 | Gold candlesticks (6 bars + 6 candles) | −1,770 gp | −2,655 |
@@ -615,7 +615,7 @@ So Sailing is the same shape as Construction, and adding it to `TRAIN_SKILLS`
 turned 124 silent refusals into the cost table the skill actually needs:
 
 | Build | Cost / action | Cost / hour |
-|---|---|---|
+| --- | --- | --- |
 | Wooden hull (hull parts ×10 + 300 bronze nails + tar) | −1,660 gp | −830 |
 | Shark trim (2 shark paint) | −6,990 gp | −3,495 |
 | Oak hull (16 large hull parts + 600 iron nails) | −26,499 gp | −13,249 |
@@ -644,7 +644,7 @@ gap. The recipe bucket answers "what does item A become?", and a gathering skill
 never asks that question — a rock is not a recipe.
 
 | Skill | Bucket recipes | Priced | Why the rest are not |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Mining | 2 | 0 | both untradeable at one end |
 | Woodcutting | 27 | 3 | the bucket holds Forestry/ritual side-actions, not tree chopping |
 | Fishing | 18 | 0 | all 18 outputs untradeable (mounted trophies, infernal harpoon) |
@@ -717,7 +717,7 @@ The row: **one unit per respawn, no inputs**. `secondsPerAction` is the respawn,
 sustains. `kind: 'gather'` is the fourth row kind, with its own badge.
 
 | Node | Respawn | gp/action | gp/hour |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Runite ore | 720s | 9,738 | 48,690 |
 | Copper ore | 2.4s | 24 | 36,000 |
 | Iron ore | 5.4s | 49 | 32,659 |
@@ -755,7 +755,7 @@ Eleven rows between the four, and the split is instructive: two of these skills
 price a *real* activity, two price nothing at all.
 
 | Skill | Recipes | Priced | What priced, and what did not |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Prayer | 32 | 3 | blessing unblessed symbols; heraldic armour is untradeable |
 | Firemaking | 32 | 8 | pyre logs (logs + sacred oil); burning has no output |
 | Agility | 1 | 0 | a single recipe, untradeable at both ends |
@@ -955,7 +955,7 @@ patient toggle is a UI-only change later. Nothing needs regenerating for it.
 ## 9. Phase 1 complete (8 of 8 skills)
 
 | Skill | Status | Rows |
-|---|---|---|
+| --- | --- | --- |
 | Smithing | ✅ §8.3 | 230 |
 | Crafting | ✅ §8.1 | 299 |
 | Fletching | ✅ §8.2 | 238 |

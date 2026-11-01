@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
+import type { ComponentType } from "react";
 
 import { ThemeToggle } from "./ThemeToggle";
 import { useTheme } from "./theme";
@@ -28,6 +29,27 @@ const ProcessingPage = lazy(() =>
 const SkillingPage = lazy(() =>
   import("./Skilling").then((module) => ({ default: module.SkillingPage })),
 );
+
+/**
+ * Which component renders which page.
+ *
+ * A record rather than a ternary chain: the chain fell through to `ShopToGePage`
+ * for anything unrecognised, so a page added to `route.ts` but not here would
+ * silently render the shop page. With `Record<Page, ...>` that is a type error
+ * instead, and the router's exhaustive list is what the compiler checks.
+ */
+const PAGE_COMPONENTS: Record<Page, ComponentType> = {
+  earn: EarnPage,
+  "shop-to-ge": ShopToGePage,
+  "ge-to-shop": GeToShopPage,
+  processing: ProcessingPage,
+  skilling: SkillingPage,
+};
+
+function CurrentPage({ page }: { page: Page }): JSX.Element {
+  const Component = PAGE_COMPONENTS[page];
+  return <Component />;
+}
 
 /**
  * The shell: header, page tabs and attribution. Each page owns its data
@@ -93,17 +115,7 @@ export function App(): JSX.Element {
           </div>
         }
       >
-        {page === "earn" ? (
-          <EarnPage />
-        ) : page === "ge-to-shop" ? (
-          <GeToShopPage />
-        ) : page === "processing" ? (
-          <ProcessingPage />
-        ) : page === "skilling" ? (
-          <SkillingPage />
-        ) : (
-          <ShopToGePage />
-        )}
+        <CurrentPage page={page} />
       </Suspense>
 
       <footer className="footer">

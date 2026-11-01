@@ -237,6 +237,24 @@ function recipeWhere(opp: ProcessOpportunity): string {
 }
 
 /**
+ * What a skilling row's second column says: what you consume, or what you work.
+ *
+ * A gather has no inputs and an EV row's inputs are a drop table, so both need
+ * their own phrasing; only a transform lists materials. Written as a function
+ * rather than a ternary chain because the chain was unreadable at the call site.
+ */
+function skillWhere(opp: SkillActivity): string {
+  if (opp.kind === 'gather') return 'one node, one respawn';
+  if (opp.kind === 'ev') {
+    return `loot table, ${opp.distribution?.length ?? 0} outcomes`;
+  }
+  const materials = opp.inputs
+    .map((item) => `${item.itemName} ×${item.quantity}`)
+    .join(', ');
+  return materials === '' ? 'nothing' : materials;
+}
+
+/**
  * Build the leaderboard.
  *
  * Pure: no I/O, no network, no clock. The caller passes the payloads, the gold
@@ -474,14 +492,7 @@ export function buildEarnings(
       id: `skilling:${entry.skill}:${opp.recipeId}`,
       kind: 'skilling',
       name: opp.outputName,
-      where:
-        opp.kind === 'gather'
-          ? 'one node, one respawn'
-          : opp.kind === 'ev'
-            ? `loot table, ${opp.distribution?.length ?? 0} outcomes`
-            : opp.inputs
-                .map((item) => `${item.itemName} ×${item.quantity}`)
-                .join(', ') || 'nothing',
+      where: skillWhere(opp),
       detail: opp.facility ?? opp.method,
       members: opp.members,
       gpPerHour: opp.gpPerHour,
