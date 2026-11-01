@@ -190,17 +190,20 @@ export function SinkBasketPanel({
 
           <div className="basket-tablewrap">
             <table className="basket-table">
+              <caption className="visually-hidden">
+                Items in this GE to shop basket
+              </caption>
               <thead>
                 <tr>
-                  <th>Item</th>
-                  <th className="right">Units</th>
-                  <th className="right">Batch</th>
-                  <th className="right">GE cost</th>
-                  <th className="right">Avg shop</th>
-                  <th className="right">Margin</th>
-                  <th className="right">Spend</th>
-                  <th className="right">Profit</th>
-                  <th className="right">Shop price</th>
+                  <th scope="col">Item</th>
+                  <th scope="col" className="right">Units</th>
+                  <th scope="col" className="right">Batch</th>
+                  <th scope="col" className="right">GE cost</th>
+                  <th scope="col" className="right">Avg shop</th>
+                  <th scope="col" className="right">Margin</th>
+                  <th scope="col" className="right">Spend</th>
+                  <th scope="col" className="right">Profit</th>
+                  <th scope="col" className="right">Shop price</th>
                 </tr>
               </thead>
               <tbody>

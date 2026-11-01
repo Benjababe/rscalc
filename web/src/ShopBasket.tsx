@@ -202,17 +202,20 @@ export function ShopBasketPanel({
 
           <div className="basket-tablewrap">
             <table className="basket-table">
+              <caption className="visually-hidden">
+                Items in this shop basket
+              </caption>
               <thead>
                 <tr>
-                  <th>Item</th>
-                  <th className="right">Buy</th>
-                  <th className="right">Unit cost</th>
-                  <th className="right">Sell</th>
-                  <th className="right">Margin</th>
-                  <th className="right">Spend</th>
-                  <th className="right">Profit</th>
-                  <th className="right">/ world</th>
-                  <th>Slots</th>
+                  <th scope="col">Item</th>
+                  <th scope="col" className="right">Buy</th>
+                  <th scope="col" className="right">Unit cost</th>
+                  <th scope="col" className="right">Sell</th>
+                  <th scope="col" className="right">Margin</th>
+                  <th scope="col" className="right">Spend</th>
+                  <th scope="col" className="right">Profit</th>
+                  <th scope="col" className="right">/ world</th>
+                  <th scope="col">Slots</th>
                 </tr>
               </thead>
               <tbody>

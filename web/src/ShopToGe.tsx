@@ -10,6 +10,7 @@ import { wikiUrl } from "../../src/util/wiki";
 import { AccessBadge } from "./AccessBadge";
 import { accessFor } from "./access";
 import { compact, formatGp, formatSourceDateTime, formatTime } from "./format";
+import { GoldInput } from "./GoldInput";
 import { sellableAcrossWorlds, toShopRow } from "./opportunity";
 import { ShopBasketPanel } from "./ShopBasket";
 import {
@@ -19,7 +20,8 @@ import {
   type BudgetState,
   type BudgetView,
 } from "./storage";
-import { Stat, Th } from "./ui";
+import { Stat, Th, Results, StaleWarning } from "./ui";
+import { usePagedRows } from "./paging";
 import {
   ColumnPicker,
   useColumnVisibility,
@@ -276,6 +278,8 @@ export function ShopToGePage(): JSX.Element {
     descending,
   ]);
 
+  const paged = usePagedRows(rows);
+
   const bestPlanRow = rows.reduce<RowData | undefined>((best, row) => {
     const gp = row.plan?.gpPerHour;
     if (gp == null) return best;
@@ -307,6 +311,16 @@ export function ShopToGePage(): JSX.Element {
       setDescending(true);
     }
   }
+
+  /** Reset every filter, leaving the mode, sort and budget settings alone. */
+  const clearFilters = (): void => {
+    setQuery("");
+    setMembersOnly(false);
+    setHideLocked(false);
+    setMinVolume(0);
+  };
+  const filtersActive =
+    query.trim() !== "" || membersOnly || hideLocked || minVolume > 0;
 
   return (
     <div className="page">
@@ -346,6 +360,7 @@ export function ShopToGePage(): JSX.Element {
             >
               built {formatTime(DATA.generatedAt)}
             </span>
+            <StaleWarning iso={ranking.pricesAsOf} />
           </div>
         </div>
 
@@ -387,6 +402,16 @@ export function ShopToGePage(): JSX.Element {
             />
           </label>
 
+          {filtersActive && (
+            <button
+              type="button"
+              className="chip-clear"
+              onClick={clearFilters}
+            >
+              Clear filters
+            </button>
+          )}
+
           <span className="toolbar-spacer" />
 
           <ColumnPicker
@@ -404,17 +429,7 @@ export function ShopToGePage(): JSX.Element {
             <label className="toggle">
               <span className="label">Gold available</span>
               <span className="field-control">
-                <input
-                  className="num wide"
-                  type="number"
-                  min={0}
-                  step={100_000}
-                  value={gold}
-                  onChange={(event) =>
-                    setGold(Math.max(0, Number(event.target.value) || 0))
-                  }
-                  aria-label="Gold available"
-                />
+                <GoldInput value={gold} onChange={setGold} />
                 <span className="field-unit">gp</span>
               </span>
             </label>
@@ -624,8 +639,17 @@ export function ShopToGePage(): JSX.Element {
         />
       )}
 
-      <div className="tablewrap">
+      <Results
+        label="Shop to Grand Exchange opportunities"
+        paged={paged}
+        noun="opportunities"
+        emptyText="No opportunities match these filters."
+        onClearFilters={clearFilters}
+      >
         <table className="results-table">
+          <caption className="visually-hidden">
+            Shop to Grand Exchange opportunities, ranked by profit
+          </caption>
           <colgroup>
             {currentColumns.filter((column) => visible.has(column.key)).map(
               (column) => (
@@ -647,7 +671,11 @@ export function ShopToGePage(): JSX.Element {
           </colgroup>
           <thead>
             <tr>
-              {visible.has("rank") && <th className="num-col">#</th>}
+              {visible.has("rank") && (
+                <th scope="col" className="num-col">
+                  #
+                </th>
+              )}
               {visible.has("item") && (
                 <Th
                   label="Item"
@@ -657,9 +685,11 @@ export function ShopToGePage(): JSX.Element {
                   title="Item name; click to sort"
                 />
               )}
-              {visible.has("shop") && <th>Shop</th>}
+              {visible.has("shop") && <th scope="col">Shop</th>}
               {visible.has("location") && (
-                <th className="loc-col">Location</th>
+                <th scope="col" className="loc-col">
+                  Location
+                </th>
               )}
               {visible.has("unitCost") && (
                 <Th
@@ -682,7 +712,9 @@ export function ShopToGePage(): JSX.Element {
                 />
               )}
               {visible.has("tax") && (
-                <th className="right tax-col">Tax</th>
+                <th scope="col" className="right tax-col">
+                  Tax
+                </th>
               )}
               {visible.has("margin") && (
                 <Th
@@ -782,6 +814,7 @@ export function ShopToGePage(): JSX.Element {
                   )}
                   {visible.has("sellable") && (
                     <th
+                      scope="col"
                       className="right"
                       title="One shop visit's units, capped by the 4h volume column"
                     >
@@ -813,11 +846,11 @@ export function ShopToGePage(): JSX.Element {
             </tr>
           </thead>
           <tbody>
-            {rows.slice(0, 300).map((row, index) => (
+            {paged.pageRows.map((row, index) => (
               <Row
                 key={`${row.itemId}-${row.shopPage}`}
                 row={row}
-                rank={index + 1}
+                rank={paged.start + index}
                 budgetMode={budgetMode}
                 onSelectShop={setSelectedShop}
                 visible={visible}
@@ -825,15 +858,7 @@ export function ShopToGePage(): JSX.Element {
             ))}
           </tbody>
         </table>
-        {rows.length === 0 && (
-          <p className="empty">No opportunities match these filters.</p>
-        )}
-        {rows.length > 300 && (
-          <p className="empty">
-            Showing the top 300 of {rows.length.toLocaleString()}.
-          </p>
-        )}
-      </div>
+      </Results>
 
       <footer className="footer">
         <details className="caveats">

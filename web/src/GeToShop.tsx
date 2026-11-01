@@ -18,6 +18,7 @@ import { wikiUrl } from "../../src/util/wiki";
 import { AccessBadge } from "./AccessBadge";
 import { accessFor } from "./access";
 import { compact, formatDuration, formatGp, formatSourceDateTime, formatTime } from "./format";
+import { GoldInput } from "./GoldInput";
 import { toSinkShopRow } from "./opportunity";
 import { SinkBasketPanel } from "./SinkBasket";
 import {
@@ -26,7 +27,8 @@ import {
   writeStoredBudget,
   type BudgetState,
 } from "./storage";
-import { Stat, Th } from "./ui";
+import { Stat, Th, Results, StaleWarning } from "./ui";
+import { usePagedRows } from "./paging";
 import {
   ColumnPicker,
   useColumnVisibility,
@@ -219,6 +221,8 @@ export function GeToShopPage(): JSX.Element {
     descending,
   ]);
 
+  const paged = usePagedRows(rows);
+
   if (ranking.opportunities.length === 0) {
     return (
       <div className="page">
@@ -254,6 +258,21 @@ export function GeToShopPage(): JSX.Element {
       setDescending(true);
     }
   }
+
+  /** Reset every filter, leaving the mode, sort and budget settings alone. */
+  const clearFilters = (): void => {
+    setQuery("");
+    setMembersOnly(false);
+    setHideLocked(false);
+    setMinProfit(0);
+    setMinVolume(0);
+  };
+  const filtersActive =
+    query.trim() !== "" ||
+    membersOnly ||
+    hideLocked ||
+    minProfit > 0 ||
+    minVolume > 0;
 
   return (
     <div className="page">
@@ -293,6 +312,7 @@ export function GeToShopPage(): JSX.Element {
             >
               built {formatTime(DATA.generatedAt)}
             </span>
+            <StaleWarning iso={ranking.pricesAsOf} />
           </div>
         </div>
 
@@ -350,6 +370,16 @@ export function GeToShopPage(): JSX.Element {
             />
           </label>
 
+          {filtersActive && (
+            <button
+              type="button"
+              className="chip-clear"
+              onClick={clearFilters}
+            >
+              Clear filters
+            </button>
+          )}
+
           <span className="toolbar-spacer" />
 
           <ColumnPicker
@@ -367,17 +397,7 @@ export function GeToShopPage(): JSX.Element {
             <label className="toggle">
               <span className="label">Gold available</span>
               <span className="field-control">
-                <input
-                  className="num wide"
-                  type="number"
-                  min={0}
-                  step={100_000}
-                  value={gold}
-                  onChange={(event) =>
-                    setGold(Math.max(0, Number(event.target.value) || 0))
-                  }
-                  aria-label="Gold available"
-                />
+                <GoldInput value={gold} onChange={setGold} />
                 <span className="field-unit">gp</span>
               </span>
             </label>
@@ -529,8 +549,17 @@ export function GeToShopPage(): JSX.Element {
         />
       )}
 
-      <div className="tablewrap">
+      <Results
+        label="Grand Exchange to shop flips"
+        paged={paged}
+        noun="flips"
+        emptyText="No flips match these filters. Try raising gold or clearing the minimum profit."
+        onClearFilters={clearFilters}
+      >
         <table className="results-table">
+          <caption className="visually-hidden">
+            Grand Exchange to shop flips, ranked by profit
+          </caption>
           <colgroup>
             {GE_TO_SHOP_COLUMNS.filter((column) =>
               visible.has(column.key),
@@ -550,7 +579,11 @@ export function GeToShopPage(): JSX.Element {
           </colgroup>
           <thead>
             <tr>
-              {visible.has("rank") && <th className="num-col">#</th>}
+              {visible.has("rank") && (
+                <th scope="col" className="num-col">
+                  #
+                </th>
+              )}
               {visible.has("item") && (
                 <Th
                   label="Item"
@@ -560,9 +593,11 @@ export function GeToShopPage(): JSX.Element {
                   title="Item name; click to sort"
                 />
               )}
-              {visible.has("shop") && <th>Shop</th>}
+              {visible.has("shop") && <th scope="col">Shop</th>}
               {visible.has("location") && (
-                <th className="loc-col">Location</th>
+                <th scope="col" className="loc-col">
+                  Location
+                </th>
               )}
               {visible.has("geBuy") && (
                 <Th
@@ -667,29 +702,18 @@ export function GeToShopPage(): JSX.Element {
             </tr>
           </thead>
           <tbody>
-            {rows.slice(0, 300).map((entry, index) => (
+            {paged.pageRows.map((entry, index) => (
               <Row
                 key={`${entry.opp.itemId}-${entry.opp.shopPage}`}
                 data={entry}
-                rank={index + 1}
+                rank={paged.start + index}
                 onSelectShop={setSelectedShop}
                 visible={visible}
               />
             ))}
           </tbody>
         </table>
-        {rows.length === 0 && (
-          <p className="empty">
-            No flips match these filters. Try raising gold or clearing the
-            minimum profit.
-          </p>
-        )}
-        {rows.length > 300 && (
-          <p className="empty">
-            Showing the top 300 of {rows.length.toLocaleString()}.
-          </p>
-        )}
-      </div>
+      </Results>
 
       <footer className="footer">
         <details className="caveats">

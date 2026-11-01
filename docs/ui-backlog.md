@@ -12,6 +12,20 @@ ergonomics changes over the same numbers.
 Legend: **impact** is user-visible benefit, **effort** is rough size of the
 change (S ≈ under an hour, M ≈ half a day, L ≈ a day or more).
 
+## Status
+
+|Item|State|
+|-|-|
+|1.1 Surface the 300-row cap|**done** — replaced by pagination (`web/src/paging.tsx`)|
+|1.2 Shareable view state|open|
+|1.3 Table accessibility|**done** — `scope`, `aria-sort`, `<caption>`, focusable region|
+|1.4 Gold input ergonomics|**done** — `web/src/money.ts` + `GoldInput.tsx`|
+|1.5 Stale snapshot warning|**done** — `StaleWarning` in `web/src/ui.tsx`|
+|1.6 Document head metadata|**done** — `web/index.html`|
+|1.7 Empty-state exit|**done** — clear-filters in the chip row and the empty panel|
+|1.8 `prefers-reduced-motion`|**done** — `web/src/styles.css`|
+|§2, §3|open|
+
 ---
 
 ## 1. High impact, small effort
@@ -20,15 +34,17 @@ change (S ≈ under an hour, M ≈ half a day, L ≈ a day or more).
 
 - **Where:** `web/src/ShopToGe.tsx:831`, `web/src/GeToShop.tsx:689`,
   `web/src/Processing.tsx:701`.
-- **Observed:** each page renders `rows.slice(0, 300)` and prints
+- **Observed:** each page rendered `rows.slice(0, 300)` and printed
   "Showing the top 300 of N" as a `<p class="empty">` **inside** the scrolling
   `.tablewrap` (measured on Shop → GE: 2,151 matches, 300 rows in the DOM).
-  The notice is only reachable by scrolling to the bottom of a 74vh box, so the
-  truncation is effectively invisible.
-- **Change:** move the count into the results area above the table
-  (`2,151 matches · top 300 shown`), and optionally add a "show more" control
-  that raises the cap.
-- **Impact: high · Effort: S.**
+  The notice was only reachable by scrolling to the bottom of a 74vh box, so
+  the truncation was effectively invisible.
+- **Done:** the cap is gone. `usePagedRows` pages the filtered rows (default
+  100, options 50/100/250), the count above the table reads
+  `1–100 of 1,909 opportunities`, and a pager below the table jumps to any
+  page. Filtering or re-sorting returns to page 1. Verified: 1,909 rows split
+  across 20 pages with each row appearing exactly once, and the last page
+  showing 1,901–1,909.
 
 ### 1.2 Shareable, deep-linkable view state
 

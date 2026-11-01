@@ -12,13 +12,15 @@ import {
 } from "../../src/domain/processTime";
 import { wikiUrl } from "../../src/util/wiki";
 import { compact, formatGp, formatSourceDateTime, formatTime } from "./format";
+import { GoldInput } from "./GoldInput";
 import {
   browserStore,
   readStoredBudget,
   writeStoredBudget,
   type BudgetState,
 } from "./storage";
-import { Stat, Th } from "./ui";
+import { Stat, Th, Results, StaleWarning } from "./ui";
+import { usePagedRows } from "./paging";
 import {
   ColumnPicker,
   useColumnVisibility,
@@ -287,6 +289,8 @@ export function ProcessingPage(): JSX.Element {
     descending,
   ]);
 
+  const paged = usePagedRows(rows);
+
   if (DATA.pessimistic.count === 0 && DATA.patient.count === 0) {
     return (
       <div className="page">
@@ -325,6 +329,16 @@ export function ProcessingPage(): JSX.Element {
       setDescending(true);
     }
   }
+
+  /** Reset every filter, leaving the mode, sort and budget settings alone. */
+  const clearFilters = (): void => {
+    setQuery("");
+    setMembersOnly(false);
+    setSkill("all");
+    setMinProfit(0);
+  };
+  const filtersActive =
+    query.trim() !== "" || membersOnly || skill !== "all" || minProfit > 0;
 
   return (
     <div className="page">
@@ -365,6 +379,7 @@ export function ProcessingPage(): JSX.Element {
             >
               built {formatTime(DATA.generatedAt)}
             </span>
+            <StaleWarning iso={ranking.pricesAsOf} />
           </div>
         </div>
 
@@ -411,6 +426,16 @@ export function ProcessingPage(): JSX.Element {
             />
           </label>
 
+          {filtersActive && (
+            <button
+              type="button"
+              className="chip-clear"
+              onClick={clearFilters}
+            >
+              Clear filters
+            </button>
+          )}
+
           <span className="toolbar-spacer" />
 
           <ColumnPicker
@@ -428,17 +453,7 @@ export function ProcessingPage(): JSX.Element {
             <label className="toggle">
               <span className="label">Gold available</span>
               <span className="field-control">
-                <input
-                  className="num wide"
-                  type="number"
-                  min={0}
-                  step={100_000}
-                  value={gold}
-                  onChange={(event) =>
-                    setGold(Math.max(0, Number(event.target.value) || 0))
-                  }
-                  aria-label="Gold available"
-                />
+                <GoldInput value={gold} onChange={setGold} />
                 <span className="field-unit">gp</span>
               </span>
             </label>
@@ -562,8 +577,17 @@ export function ProcessingPage(): JSX.Element {
         />
       </section>
 
-      <div className="tablewrap">
+      <Results
+        label="Deterministic processing recipes"
+        paged={paged}
+        noun="recipes"
+        emptyText="No recipes match these filters. Try clearing the minimum profit or raising your gold."
+        onClearFilters={clearFilters}
+      >
         <table className="results-table">
+          <caption className="visually-hidden">
+            Deterministic processing recipes, ranked by profit
+          </caption>
           <colgroup>
             {PROCESSING_COLUMNS.filter((column) => visible.has(column.key)).map(
               (column) => (
@@ -577,7 +601,11 @@ export function ProcessingPage(): JSX.Element {
           </colgroup>
           <thead>
             <tr>
-              {visible.has("rank") && <th className="num-col">#</th>}
+              {visible.has("rank") && (
+                <th scope="col" className="num-col">
+                  #
+                </th>
+              )}
               {visible.has("output") && (
                 <Th
                   label="Output"
@@ -587,7 +615,7 @@ export function ProcessingPage(): JSX.Element {
                   title="The item produced; click to sort"
                 />
               )}
-              {visible.has("inputs") && <th>Inputs</th>}
+              {visible.has("inputs") && <th scope="col">Inputs</th>}
               {visible.has("skill") && (
                 <Th
                   label="Skill"
@@ -680,28 +708,17 @@ export function ProcessingPage(): JSX.Element {
             </tr>
           </thead>
           <tbody>
-            {rows.slice(0, 300).map((row, index) => (
+            {paged.pageRows.map((row, index) => (
               <Row
                 key={row.opp.recipeId}
                 data={row}
-                rank={index + 1}
+                rank={paged.start + index}
                 visible={visible}
               />
             ))}
           </tbody>
         </table>
-        {rows.length === 0 && (
-          <p className="empty">
-            No recipes match these filters. Try clearing the minimum profit or
-            raising your gold.
-          </p>
-        )}
-        {rows.length > 300 && (
-          <p className="empty">
-            Showing the top 300 of {rows.length.toLocaleString()}.
-          </p>
-        )}
-      </div>
+      </Results>
 
       <footer className="footer">
         <details className="caveats">

@@ -1,4 +1,9 @@
-/** Small table/stat building blocks shared by the two result pages. */
+/** Small table/stat building blocks shared by the three result pages. */
+
+import type { ReactNode } from "react";
+
+import { formatDuration, hoursSince, STALE_SNAPSHOT_HOURS } from "./format";
+import { Pagination, type PagedRows } from "./paging";
 
 export function Th(props: {
   label: string;
@@ -8,9 +13,18 @@ export function Th(props: {
   right?: boolean;
   title?: string;
 }): JSX.Element {
+  // `aria-sort` belongs on every sortable header, with "none" for the columns
+  // that are not currently sorting.
+  const ariaSort = props.active
+    ? props.desc
+      ? "descending"
+      : "ascending"
+    : "none";
   return (
     <th
+      scope="col"
       className={props.right ? "right sortable" : "sortable"}
+      aria-sort={ariaSort}
       title={props.title}
     >
       <button type="button" onClick={props.onClick}>
@@ -37,5 +51,100 @@ export function Stat(props: {
       <span className="label">{props.label}</span>
       <strong>{props.value}</strong>
     </div>
+  );
+}
+
+/**
+ * Flags a price snapshot that is old enough to mislead.
+ *
+ * Renders nothing for fresh or unparseable timestamps: silence is only ever
+ * "not obviously stale", never a claim that the prices are current.
+ */
+export function StaleWarning({ iso }: { iso: string }): JSX.Element | null {
+  const hours = hoursSince(iso);
+  if (hours === null || hours < STALE_SNAPSHOT_HOURS) return null;
+  const age = formatDuration(hours * 3600);
+  return (
+    <span
+      className="stale-flag"
+      title={`These prices were fetched ${age} ago. Run pnpm refresh to rebuild the snapshot.`}
+    >
+      {age} old
+    </span>
+  );
+}
+
+/**
+ * The result region: a row count and page range, the scrollable table, the
+ * pager, or an empty state that offers a way back.
+ *
+ * The count and the empty state used to live inside `.tablewrap`, where the
+ * "top 300 of N" notice could only be read by scrolling to the bottom.
+ */
+export function Results(props: {
+  /** Accessible name for the scroll region. */
+  label: string;
+  /** Plural noun for the row count, e.g. "opportunities". */
+  noun: string;
+  paged: PagedRows<unknown>;
+  emptyText: ReactNode;
+  onClearFilters: () => void;
+  children: ReactNode;
+}): JSX.Element {
+  const total = props.paged.total;
+  return (
+    <>
+      <div className="result-bar">
+        <span className="result-count">
+          {props.paged.start === 0 ? (
+            <>
+              <strong>0</strong> {props.noun}
+            </>
+          ) : (
+            <>
+              <strong>
+                {props.paged.start.toLocaleString()}–
+                {props.paged.end.toLocaleString()}
+              </strong>{" "}
+              of {total.toLocaleString()} {props.noun}
+            </>
+          )}
+        </span>
+      </div>
+
+      {total === 0 ? (
+        <div className="empty-panel">
+          <p>{props.emptyText}</p>
+          <button
+            type="button"
+            className="preset"
+            onClick={props.onClearFilters}
+          >
+            Clear filters
+          </button>
+        </div>
+      ) : (
+        <>
+          <div
+            className="tablewrap"
+            role="region"
+            tabIndex={0}
+            aria-label={props.label}
+          >
+            {props.children}
+          </div>
+
+          {props.paged.pageCount > 1 && (
+            <Pagination
+              page={props.paged.page}
+              pageCount={props.paged.pageCount}
+              pageSize={props.paged.pageSize}
+              onPage={props.paged.setPage}
+              onPageSize={props.paged.setPageSize}
+            />
+          )}
+        </>
+      )}
+    </>
   );
 }
