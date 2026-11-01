@@ -17,7 +17,10 @@ export const PAGE_LABELS: Record<Page, string> = {
  * shop -> GE page, so old bookmarks and a bare URL keep working.
  */
 export function parsePageHash(hash: string): Page {
-  const cleaned = hash
+  // The query string carries the view (`viewState.ts`); the page is the path
+  // before it, so it must not be matched against the parameters.
+  const path = hash.split("?")[0] ?? hash;
+  const cleaned = path
     .trim()
     .replace(/^#\/?/, "")
     .replace(/\/+$/, "")

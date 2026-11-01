@@ -22,7 +22,7 @@ change (S ≈ under an hour, M ≈ half a day, L ≈ a day or more).
 |Item|State|
 |-|-|
 |1.1 Surface the 300-row cap|**done** — replaced by pagination (`web/src/paging.tsx`)|
-|1.2 Shareable view state|open|
+|1.2 Shareable view state|**done** — view in the hash + Copy link|
 |1.3 Table accessibility|**done** — `scope`, `aria-sort`, `<caption>`, focusable region|
 |1.4 Gold input ergonomics|**done** — `web/src/money.ts` + `GoldInput.tsx`|
 |1.5 Stale snapshot warning|**done** — `StaleWarning` in `web/src/ui.tsx`|
@@ -36,8 +36,8 @@ change (S ≈ under an hour, M ≈ half a day, L ≈ a day or more).
 |3.2 Keyboard shortcut to focus search|**done** — `/` and Ctrl/Cmd+K|
 |3.3 Sticky toolbar|open — optional|
 
-**Open:** 1.2 (high impact), 2.3 (medium), 3.1 and 3.3 (optional).
-Everything in §1 except 1.2, and all of §2 except 2.3, has landed.
+**Open:** 2.3 (medium), 3.1 and 3.3 (optional).
+All of §1 has landed, and all of §2 except 2.3.
 
 ---
 
@@ -61,16 +61,30 @@ Everything in §1 except 1.2, and all of §2 except 2.3, has landed.
 
 ### 1.2 Shareable, deep-linkable view state
 
-- **Where:** `web/src/route.ts` (hash holds the page only), `storage.ts`
-  (persists gold/view), `columns.tsx` (persists column visibility).
-- **Observed:** mode, sort key, sort direction, search text, members-only,
-  hide-locked and the numeric thresholds all reset on reload. A filtered or
-  sorted view cannot be linked or bookmarked.
-- **Change:** encode `mode`, `sort`, `desc`, `q` and the active filters in the
-  hash (the existing `pageHash`/`parsePageHash` pattern extends naturally).
-  Keep `localStorage` as the default for gold and columns, and add a
-  **Copy link** affordance next to the toolbar.
-- **Impact: high · Effort: M.**
+- **Where:** `web/src/viewState.ts` (new), `web/src/route.ts`, all three pages.
+- **Done.** The hash now carries the view after the page:
+  `#/ge-to-shop?mode=patient&sort=profit&desc=0&q=emerald&minprofit=1000`.
+  Encoded: `mode`, `sort`, `desc` (only when ascending), `q`, `members`,
+  `locked=0` (hide locked), `minvol`, `minprofit`, `skill`. Gold and column
+  visibility stay in `localStorage` — they are preferences, not part of a shared
+  view. Only values that differ from the defaults are written, so an untouched
+  page keeps a clean `#/ge-to-shop`.
+- **Copy link** sits next to the column picker in the shared toolbar and reports
+  `Copied` / `Copy failed` in place, because a silent clipboard write leaves the
+  player unsure whether anything happened.
+- **Router bug found while testing:** `parsePageHash` matched the whole hash, so
+  `#/ge-to-shop?q=rune` fell through to the default page and loaded the wrong
+  calculator. It now matches the path before `?`; `tests/route.test.ts` pins it.
+- **Writes use `replaceState`,** not `location.hash =`, so editing filters does
+  not put one history entry per keystroke on the back button, and it cannot
+  re-trigger the router.
+- **Tested:** `tests/viewState.test.ts` (17 cases) covers the round trip, the
+  omission of defaults, junk in hand-edited hashes (negative or non-numeric
+  amounts, `members=true`, unknown keys) and `pickOne`. In the browser a deep
+  link restored mode, search, chips, thresholds, sort key and direction on all
+  three pages; editing them updated the hash without growing history; and the
+  copy button wrote the current URL (success, rejection and missing-clipboard
+  paths all checked).
 
 ### 1.3 Table accessibility
 
@@ -267,4 +281,4 @@ If these are taken in order, two coherent commits cover the cheap wins:
 3. **Page deduplication** — 2.1. **Landed**, verified by hashing the rendered
    text of all three pages in both modes before and after.
 
-Remaining: 1.2 and 2.3.
+Remaining: 2.3 (and the optional §3).

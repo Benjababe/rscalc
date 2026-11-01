@@ -16,6 +16,7 @@ import { matchesQuery, normaliseQuery } from "./matching";
 import { toSinkShopRow } from "./opportunity";
 import { SinkBasketPanel } from "./SinkBasket";
 import { useBudgetSettings, useTravelSettings } from "./settings";
+import { currentViewState, pickOne, useShareableView } from "./viewState";
 import { sortByMeasure, useSort } from "./sorting";
 import { Stat, Th, Results } from "./ui";
 import { usePagedRows } from "./paging";
@@ -46,19 +47,23 @@ const GE_TO_SHOP_COLUMNS: readonly ColumnDef[] = [
   { key: "gpPerHour", label: "gp / hour", width: 110 },
 ];
 
-type SortKey =
-  | "gpPerHour"
-  | "profit"
-  | "spend"
-  | "units"
-  | "unitsPerWorld"
-  | "worlds"
-  | "margin"
-  | "marginPct"
-  | "geBuyPrice"
-  | "shopAvgPrice"
-  | "geTiles"
-  | "itemName";
+/** Every sortable column. Also the allowlist for a shared link. */
+const SORT_KEYS = [
+  "gpPerHour",
+  "profit",
+  "spend",
+  "units",
+  "unitsPerWorld",
+  "worlds",
+  "margin",
+  "marginPct",
+  "geBuyPrice",
+  "shopAvgPrice",
+  "geTiles",
+  "itemName",
+] as const;
+
+type SortKey = (typeof SORT_KEYS)[number];
 
 interface RowData {
   opp: ShopSinkOpportunity;
@@ -84,12 +89,16 @@ const MODES = ["pessimistic", "patient"] as const;
 const DATA = payload as unknown as ShopSinksPayload;
 
 export function GeToShopPage(): JSX.Element {
-  const [mode, setMode] = useState<SellMode>("pessimistic");
-  const [query, setQuery] = useState("");
-  const [membersOnly, setMembersOnly] = useState(false);
-  const [hideLocked, setHideLocked] = useState(false);
-  const [minProfit, setMinProfit] = useState(0);
-  const [minVolume, setMinVolume] = useState(0);
+  // A shared link carries the view; gold and column choices stay in storage.
+  const [shared] = useState(() => currentViewState());
+  const [mode, setMode] = useState<SellMode>(
+    shared.mode === "patient" ? "patient" : "pessimistic",
+  );
+  const [query, setQuery] = useState(shared.q ?? "");
+  const [membersOnly, setMembersOnly] = useState(shared.members === true);
+  const [hideLocked, setHideLocked] = useState(shared.hideLocked === true);
+  const [minProfit, setMinProfit] = useState(shared.minProfit ?? 0);
+  const [minVolume, setMinVolume] = useState(shared.minVolume ?? 0);
   const { gold, setGold } = useBudgetSettings();
   const {
     hopSeconds,
@@ -99,7 +108,10 @@ export function GeToShopPage(): JSX.Element {
     secondsPerTile,
     setSecondsPerTile,
   } = useTravelSettings();
-  const { sortKey, descending, toggle: toggleSort } = useSort<SortKey>("gpPerHour");
+  const { sortKey, descending, toggle: toggleSort } = useSort<SortKey>(
+    pickOne(shared.sort, SORT_KEYS, "gpPerHour"),
+    shared.desc ?? true,
+  );
   // The input updates immediately; the planned rows catch up in a deferred,
   // interruptible render so typing never waits for 600 flips to be re-planned.
   const deferredQuery = useDeferredValue(query);
@@ -109,6 +121,17 @@ export function GeToShopPage(): JSX.Element {
     toggle: toggleColumn,
     reset: resetColumns,
   } = useColumnVisibility("ge-to-shop", GE_TO_SHOP_COLUMNS);
+
+  useShareableView("ge-to-shop", {
+    mode,
+    sort: sortKey,
+    desc: descending,
+    q: query,
+    members: membersOnly,
+    hideLocked,
+    minProfit,
+    minVolume,
+  });
   const [selectedShop, setSelectedShop] = useState<string | null>(null);
 
   const ranking = DATA[mode];

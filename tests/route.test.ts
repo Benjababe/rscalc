@@ -26,6 +26,12 @@ describe('parsePageHash', () => {
     }
   });
 
+  it('ignores the view query string that follows the page', () => {
+    expect(parsePageHash('#/ge-to-shop?mode=patient&q=rune')).toBe('ge-to-shop');
+    expect(parsePageHash('#/processing?sort=profit&desc=0')).toBe('processing');
+    expect(parsePageHash('#/shop-to-ge?q=runite')).toBe('shop-to-ge');
+  });
+
   it('recognises an explicit shop -> GE hash', () => {
     expect(parsePageHash('#/shop-to-ge')).toBe('shop-to-ge');
   });

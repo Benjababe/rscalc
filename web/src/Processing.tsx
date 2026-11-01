@@ -16,6 +16,7 @@ import { FilterCheck, FilterNumber, FilterToolbar } from "./FilterToolbar";
 import { formatGp } from "./format";
 import { matchesQuery, normaliseQuery } from "./matching";
 import { useBudgetSettings } from "./settings";
+import { currentViewState, pickOne, useShareableView } from "./viewState";
 import { sortByMeasure, useSort } from "./sorting";
 import { Stat, Th, Results } from "./ui";
 import { usePagedRows } from "./paging";
@@ -43,18 +44,22 @@ const PROCESSING_COLUMNS: readonly ColumnDef[] = [
   { key: "gpPerHour", label: "gp / hour", width: 120 },
 ];
 
-type SortKey =
-  | "gpPerHour"
-  | "profitPer4h"
-  | "profitPerAction"
-  | "marginPct"
-  | "actions"
-  | "actionsPerHour"
-  | "spend"
-  | "spendPerAction"
-  | "netRevenue"
-  | "outputName"
-  | "skill";
+/** Every sortable column. Also the allowlist for a shared link. */
+const SORT_KEYS = [
+  "gpPerHour",
+  "profitPer4h",
+  "profitPerAction",
+  "marginPct",
+  "actions",
+  "actionsPerHour",
+  "spend",
+  "spendPerAction",
+  "netRevenue",
+  "outputName",
+  "skill",
+] as const;
+
+type SortKey = (typeof SORT_KEYS)[number];
 
 /** What ended the 4h plan: the recipe, the GE, or the user's gold. */
 type Binding = "time" | "market" | "budget" | "unknown-time";
@@ -107,14 +112,21 @@ const DATA = payload as unknown as ProcessPayload;
  * and chance-based yields. See the caveats under the table.
  */
 export function ProcessingPage(): JSX.Element {
-  const [mode, setMode] = useState<SellMode>("pessimistic");
-  const [query, setQuery] = useState("");
-  const [membersOnly, setMembersOnly] = useState(false);
-  const [skill, setSkill] = useState("all");
-  const [minProfit, setMinProfit] = useState(0);
+  // A shared link carries the view; gold and column choices stay in storage.
+  const [shared] = useState(() => currentViewState());
+  const [mode, setMode] = useState<SellMode>(
+    shared.mode === "patient" ? "patient" : "pessimistic",
+  );
+  const [query, setQuery] = useState(shared.q ?? "");
+  const [membersOnly, setMembersOnly] = useState(shared.members === true);
+  const [skill, setSkill] = useState(shared.skill ?? "all");
+  const [minProfit, setMinProfit] = useState(shared.minProfit ?? 0);
   const [actionsPerHourCap, setActionsPerHourCap] = useState(0);
   const { gold, setGold } = useBudgetSettings();
-  const { sortKey, descending, toggle: toggleSort } = useSort<SortKey>("gpPerHour");
+  const { sortKey, descending, toggle: toggleSort } = useSort<SortKey>(
+    pickOne(shared.sort, SORT_KEYS, "gpPerHour"),
+    shared.desc ?? true,
+  );
   // The input updates immediately; the planned rows catch up in a deferred,
   // interruptible render so typing never waits for every recipe to be re-priced.
   const deferredQuery = useDeferredValue(query);
@@ -124,6 +136,16 @@ export function ProcessingPage(): JSX.Element {
     toggle: toggleColumn,
     reset: resetColumns,
   } = useColumnVisibility("processing", PROCESSING_COLUMNS);
+
+  useShareableView("processing", {
+    mode,
+    sort: sortKey,
+    desc: descending,
+    q: query,
+    members: membersOnly,
+    minProfit,
+    skill,
+  });
 
   const ranking = DATA[mode];
 

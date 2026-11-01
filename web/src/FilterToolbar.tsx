@@ -10,6 +10,7 @@
 import type { ReactNode } from "react";
 
 import { formatSourceDateTime, formatTime } from "./format";
+import { CopyLink } from "./CopyLink";
 import { useSearchShortcut } from "./searchShortcut";
 import { StaleWarning } from "./ui";
 
@@ -106,6 +107,7 @@ export function FilterToolbar<T extends string>(props: {
 
         <span className="toolbar-spacer" />
 
+        <CopyLink />
         {props.actions}
       </div>
     </section>

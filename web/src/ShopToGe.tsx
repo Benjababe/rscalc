@@ -11,6 +11,7 @@ import { matchesQuery, normaliseQuery } from "./matching";
 import { sellableAcrossWorlds, toShopRow } from "./opportunity";
 import { ShopBasketPanel } from "./ShopBasket";
 import { useBudgetSettings, useTravelSettings } from "./settings";
+import { currentViewState, pickOne, useShareableView } from "./viewState";
 import { sortByMeasure, useSort } from "./sorting";
 import { Stat, Th, Results } from "./ui";
 import { usePagedRows } from "./paging";
@@ -90,19 +91,23 @@ function columnsForMode(budgetMode: boolean): readonly ColumnDef[] {
       ];
 }
 
-type SortKey =
-  | "gpPer4h"
-  | "gpPerHour"
-  | "margin"
-  | "volume4h"
-  | "avgCost"
-  | "sellPrice"
-  | "units"
-  | "profit"
-  | "spend"
-  | "worlds"
-  | "banks"
-  | "itemName";
+/** Every sortable column. Also the allowlist for a shared link. */
+const SORT_KEYS = [
+  "gpPer4h",
+  "gpPerHour",
+  "margin",
+  "volume4h",
+  "avgCost",
+  "sellPrice",
+  "units",
+  "profit",
+  "spend",
+  "worlds",
+  "banks",
+  "itemName",
+] as const;
+
+type SortKey = (typeof SORT_KEYS)[number];
 
 interface OpportunitiesPayload {
   generatedAt: string;
@@ -136,11 +141,15 @@ const BUDGET_SORTS: ReadonlySet<SortKey> = new Set<SortKey>([
 ]);
 
 export function ShopToGePage(): JSX.Element {
-  const [mode, setMode] = useState<SellMode>("pessimistic");
-  const [query, setQuery] = useState("");
-  const [membersOnly, setMembersOnly] = useState(false);
-  const [hideLocked, setHideLocked] = useState(false);
-  const [minVolume, setMinVolume] = useState(0);
+  // A shared link carries the view; gold and column choices stay in storage.
+  const [shared] = useState(() => currentViewState());
+  const [mode, setMode] = useState<SellMode>(
+    shared.mode === "patient" ? "patient" : "pessimistic",
+  );
+  const [query, setQuery] = useState(shared.q ?? "");
+  const [membersOnly, setMembersOnly] = useState(shared.members === true);
+  const [hideLocked, setHideLocked] = useState(shared.hideLocked === true);
+  const [minVolume, setMinVolume] = useState(shared.minVolume ?? 0);
   const [selectedShop, setSelectedShop] = useState<string | null>(null);
   const { gold, setGold, view, setView } = useBudgetSettings();
   const {
@@ -151,7 +160,10 @@ export function ShopToGePage(): JSX.Element {
     secondsPerTile,
     setSecondsPerTile,
   } = useTravelSettings();
-  const { sortKey, descending, toggle: toggleSort } = useSort<SortKey>("gpPerHour");
+  const { sortKey, descending, toggle: toggleSort } = useSort<SortKey>(
+    pickOne(shared.sort, SORT_KEYS, "gpPerHour"),
+    shared.desc ?? true,
+  );
   // Typing must stay responsive: the input updates immediately, and the rows
   // (which plan a budget each) recompute in a deferred, interruptible render.
   const deferredQuery = useDeferredValue(query);
@@ -161,6 +173,16 @@ export function ShopToGePage(): JSX.Element {
     toggle: toggleColumn,
     reset: resetColumns,
   } = useColumnVisibility("shop-to-ge", SHOP_TO_GE_ALL);
+
+  useShareableView("shop-to-ge", {
+    mode,
+    sort: sortKey,
+    desc: descending,
+    q: query,
+    members: membersOnly,
+    hideLocked,
+    minVolume,
+  });
 
   const ranking = DATA[mode];
   const budgetMode = gold > 0 && view === "budget";
