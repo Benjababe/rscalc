@@ -26,6 +26,8 @@ export interface ViewState {
   minVolume?: number;
   minProfit?: number;
   skill?: string;
+  /** Method family filter on the earn page: shop-run, shop-dump, processing. */
+  kind?: string;
 }
 
 /**
@@ -88,6 +90,9 @@ export function parseViewState(hash: string): ViewState {
   const skill = params.get("skill");
   if (skill !== null && skill !== "") state.skill = skill;
 
+  const kind = params.get("kind");
+  if (kind !== null && kind !== "") state.kind = kind;
+
   return state;
 }
 
@@ -124,6 +129,9 @@ export function buildViewHash(page: Page, state: ViewState): string {
   }
   if (state.skill !== undefined && state.skill !== "all") {
     params.set("skill", state.skill);
+  }
+  if (state.kind !== undefined && state.kind !== "all") {
+    params.set("kind", state.kind);
   }
 
   const query = params.toString();

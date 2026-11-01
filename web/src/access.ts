@@ -13,6 +13,12 @@ const DATA = payload as unknown as ShopAccessCatalog;
 const ACCESS = toAccessMap(DATA.entries);
 
 /**
+ * The whole access table, for callers that join it themselves (the gp-earning
+ * leaderboard needs it for three different row families at once).
+ */
+export const ACCESS_MAP: ReadonlyMap<string, ShopAccessEntry> = ACCESS;
+
+/**
  * The known access requirement for a shop, or undefined when the wiki-backed
  * table does not list one. Undefined means unknown, not "accessible".
  */

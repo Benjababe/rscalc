@@ -1,15 +1,38 @@
 # rscalc
 
-Shop, Grand Exchange and item-processing profit calculator for Old School RuneScape.
+A gp-earning calculator for Old School RuneScape.
 
-Three questions, one sourced model: **if I buy this item from this shop and sell
-it on the GE**, **if I buy on the GE and sell to a shop**, and **if I buy an item
-on the GE, process it, and sell the result** — what is the realistic profit, and
-what is it worth per hour?
+One question, answered from sourced data: **at the gold I actually have, what
+earns the most gp per hour, what does it cost up front, and how long does a run
+take?**
+
+Three families are modelled, each from its own wiki-sourced data and all priced
+by the same pure planners:
+
+- **shop runs** — buy stock from an NPC shop and sell it on the GE;
+- **sell to shop** — buy on the GE and sell it to an NPC shop;
+- **processing** — buy inputs on the GE, transform them with a deterministic
+  recipe and sell the output.
+
+The front page puts all three in **one leaderboard**, so the comparison the
+player actually wants ("what should I do with 5m gp?") is not spread across
+three tabs. The tabs are the detail pages behind each row.
+
+```text
+EARN GP at 1,000,000 gp  [every row sized to that gold]
+#  Method          Type        gp / hour   Capital    Profit      Time    Needs
+1  Astral rune     Shop run     5,494,360     999,991   1,098,872   12m 00s Lunar Diplomacy
+2  Cosmic rune     Shop run     4,418,020     999,991     883,604   12m 00s Song of the Elves
+3  Blood rune      Processing   1,956,000      48,000   7,824,000   4h 00m  Runecraft 77
+4  Wrath rune      Processing   1,800,000      48,000   7,200,000   4h 00m  Runecraft 95
+5  Ring of recoil  Processing   1,596,000     999,635   1,753,206   1h 05m  Magic 7
+6  Jaguar fur      Shop run     1,582,790      38,600   1,314,200   49m 49s —
+```
 
 Works for all **593 shops** in the game, 3,595 priceable shop → GE pairs,
 603 GE → shop flips, and 407 instant / 651 patient processing recipes at the
-last build.
+last build — 2,486 methods ranked at 1,000,000 gp, with the rest counted and
+explained rather than filled in.
 
 ```text
 SHOP -> GE
@@ -22,8 +45,6 @@ SHOP -> GE
 GE -> SHOP
 #  Item                Shop                     GE buy  Shop pays   Qty   Batch Wrlds Spend      Profit    gp/hour
 1  Ruby necklace       Grum's Gold Exchan…   911     1,522→913   3000  15    200*  2,733,000  920,200   1,380,300
-2  Diamond necklace    Grum's Gold Exchan…   1,810   2,572→1,837 2200  11    200*  3,982,000  868,400   1,332,061
-3  Emerald necklace    Grum's Gold Exchan…   538     997→541     3400  17    200*  1,829,200  786,200   1,040,559
 
 PROCESSING (patient)
 #  Output    Inputs              Skill        Profit/act  Actions/4h  Actions/hour  gp/hour
@@ -57,7 +78,7 @@ pnpm dev            # web UI at http://localhost:5173
 | `pnpm sinks --write` | emit `data/shop-sinks.json` for the UI |
 | `pnpm process` | processing ranking + `data/process.json` |
 | `pnpm dev` / `pnpm build` | web UI |
-| `pnpm test` / `pnpm typecheck` | 318 tests / `tsc --noEmit` |
+| `pnpm test` / `pnpm typecheck` | 414 tests / `tsc --noEmit` |
 | `pnpm lint` / `pnpm lint:fix` | ESLint, type-aware; `--fix` applies safe autofixes |
 
 `pnpm report` flags: `--mode=pessimistic|patient`, `--limit=N`, `--members`,
@@ -105,15 +126,54 @@ prices.runescape.wiki/api/v2     ─┴─► catalogue + GE quotes
     data/opportunities.json     data/shop-sinks.json         data/process.json
               │                           │                           │
               └───────────────┬───────────┴───────────────────────────┘
-      pnpm report / pnpm sinks / pnpm process          web UI (three pages)
+                              │
+                 src/domain/earnings.ts  ← one gp/hour leaderboard
+                              │
+      pnpm report / pnpm sinks / pnpm process          web UI (four pages)
 ```
 
-The browser never calls an external API: it renders static snapshots. The three
-page modules and their data are code-split, so each direction loads only its own
-snapshot, and the site is still deployable as plain files. Price and build
-timestamps are rendered in your local timezone, with the source date-time in
-the hover tooltip. Each main result table has a **Columns** menu for hiding
-columns you do not need; the choice is remembered per table in this browser.
+The browser never calls an external API: it renders static snapshots. The
+**Earn gp** page joins all three artifacts in the browser through
+`src/domain/earnings.ts`, so the leaderboard is always computed by the same
+planners as the detail pages and cannot drift from them. Each page module and
+its data are code-split; the leaderboard is the only page that needs all three
+snapshots (about 500 kB gzipped). Price and build timestamps are rendered in your
+local timezone, with the source date-time in the hover tooltip. Each detail table
+has a **Columns** menu for hiding columns you do not need; the choice is
+remembered per table in this browser.
+
+## Earn gp — the leaderboard (web UI)
+
+The front page (`#/earn`, and the default when you open the site). Every row is a
+method you can actually execute, re-planned at your own gold:
+
+- **gp / hour** — profit divided by the time the plan takes, using the same time
+  model as that method's detail page. This is the ranking.
+- **Capital** — the coins the plan ties up (shop stock, GE purchases, or inputs
+  plus fees). Not a suggested bank; the money you need on hand to run it.
+- **Profit** — what the plan returns after costs, including the GE tax where one
+  applies (a GE sale, never a shop sale).
+- **Time** — how long the plan takes: world hops and bank trips against the GE's
+  own throughput for a shop run; one GE round trip plus hops against the GE's
+  supply for a sell-to-shop flip; the recipe's published action rate against a
+  4h market window for processing.
+- **Needs** — the wiki-cited access requirement for a shop, or the recipe's skill
+  levels. Levels are shown, never enforced: this is not a read of your account.
+
+The **method filter** narrows the list to shop runs, sell-to-shop flips or
+processing; **Members only** and **Hide locked** behave exactly as on the detail
+pages. Clicking a method opens its detail page with the same price mode and the
+item already searched.
+
+Rows that cannot be numbered are excluded **and reported**: a shop with no bank
+on its map that needs banking, a flip whose shop has no map distance to the GE,
+and a recipe with no published tick time are counted under the table. Nothing is
+estimated to fill the gap, and at a given gold the page also says how many
+methods that gold cannot fund.
+
+The leaderboard compares three different models of time. It is a fair comparison
+of *this repo's* modelled methods, not a claim about every way to make gp: bossing,
+Slayer and skilling are out of scope.
 
 ## Budget mode (web UI)
 
@@ -395,13 +455,14 @@ off-by-one that a naive implementation gets wrong). Beyond that, be aware:
 src/api/       HTTP gateway (UA, 1 req/s, TTL cache, backoff) + typed clients,
               including wikiRecipes.ts for the recipe bucket
 src/domain/   shopPrice.ts (game maths), shopSink.ts (GE -> shop), shopAccess.ts,
-              tax.ts, profit.ts, budget.ts, basket.ts, bankTrip.ts — pure, no I/O
+              tax.ts, profit.ts, budget.ts, basket.ts, bankTrip.ts,
+              earnings.ts (the gp/hour leaderboard) — pure, no I/O
 src/engine/   rank.ts (shop -> GE), sinkRank.ts (GE -> shop),
               processRank.ts (processing) — join catalogue × prices
 src/types.ts   zod schemas for every artifact
 scripts/       refresh-shops, refresh-market, refresh-access, report,
               refresh-sinks, refresh-process, smoke
-web/           Vite + React: shop -> GE, GE -> shop and processing pages
+web/           Vite + React: the earn leaderboard plus the three detail pages
 data/          generated JSON (committed so the UI builds offline)
 docs/          shop-mechanics.md, data-sources.md, shop-access.md,
               processing.md, tooling-notes.md

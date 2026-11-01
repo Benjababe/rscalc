@@ -4,15 +4,24 @@ Shop, Grand Exchange and item-processing profit calculator for Old School RuneSc
 
 ## Mission
 
-Given a shop and an item, answer: **can I buy it from that shop and sell it on the
-GE for profit, and how much is that worth per 4 hours / per hour?** And the
-reverse: **can I buy it on the GE and sell it to a shop for profit?** And a third
-direction: **can I buy an item on the GE, process it deterministically, and sell
-the result back to the GE for profit?**
+The site answers the player's real question, which is not "is this shop arbitrage
+profitable": **at the gold I have, what earns the most gp per hour, what does it
+cost up front, and how long does a run take?**
 
-Correctness of the shop pricing formula, the GE tax, the travel-time model and
-the recipe/time model matters more than UI polish. A wrong number presented
-confidently is the worst possible outcome for this project.
+Three sourced money-making families feed one leaderboard, and each also has its
+own detail page:
+
+- **Shop run** — can I buy it from that shop and sell it on the GE for profit,
+  and how much is that worth per hour?
+- **Sell to shop** — can I buy it on the GE and sell it to a shop for profit?
+- **Processing** — can I buy an item on the GE, process it deterministically, and
+  sell the result back to the GE for profit?
+
+`src/domain/earnings.ts` re-plans all three at the player's gold and ranks them
+by gp/hour; the front page is that ranking. Correctness of the shop pricing
+formula, the GE tax, the travel-time model and the recipe/time model matters more
+than UI polish. A wrong number presented confidently is the worst possible
+outcome for this project.
 
 ## Ground rules (non-negotiable)
 
@@ -92,6 +101,9 @@ src/engine/sinkRank.ts joins for GE -> shop; buy limit as a purchase cap,
                        general-store exclusion, published buy prices only
 src/engine/processRank.ts joins deterministic recipes x GE quotes; per-action
                        profit, input buy caps, output volume caps, ticks
+src/domain/earnings.ts one gp/hour leaderboard: re-plans every shop run, shop
+                       dump and recipe at the player's gold, drops rows whose
+                       time model cannot answer, ranks deterministically
 src/types.ts           shared domain types and zod schemas
 scripts/refresh-shops.ts   build data/shops.json (storeline + map + banks)
 scripts/refresh-market.ts  build data/market.json (prices + stackability)
@@ -103,6 +115,8 @@ scripts/refresh-access.ts  apply scripts/shopAccessRules.ts; emits shop-access.j
 scripts/shopAccessRules.ts curated, cited shop access rules and exceptions
 scripts/smoke.ts           connectivity + schema check
 web/                       Vite + React UI (reads static data only)
+web/src/Earn.tsx           the front page: every family in one ranked table,
+                           with the method filter and the coverage line
 data/                      generated JSON (committed so the UI works offline)
 tests/                     unit + jsdom render tests; mocked fetch, no live network
 docs/                      sourced mechanics + data-source documentation
@@ -331,6 +345,29 @@ recipe, and sell the result back to the GE.
   output-volume caps (not the output buy limit), unknown ticks → `null`,
   deterministic-only exclusions, skill-less facility work, members filtering
   and exact ordering.
+
+### M13 — GP-earning leaderboard ✅
+The site is a gp-earning site, not a shop-arbitrage tool: `#/earn` is the
+landing page and the three calculators are its detail pages.
+- `src/domain/earnings.ts` joins all three artifacts into one list, re-planning
+each row at the player's gold with the same pure planners the detail pages use.
+It must never read `Opportunity.gpPerHour`: that field is a documented
+placeholder equal to `gpPer4h`, so using it would overstate a shop run fourfold.
+- Each row carries gp/hour (the ranking), the capital the plan ties up, the
+profit, the plan's own duration and its sourced requirements (shop access from
+the curated table, recipe skill levels). Rows link to their detail page with the
+same mode and search text.
+- A row whose time model cannot answer is excluded **and counted**: unknown bank
+distance with banking needed, unknown GE distance for a flip, no published tick
+time for a recipe. No-4h-market rows and rows the gold cannot fund are counted
+separately, and the page states all three.
+- Ranking is total and deterministic: gp/hour, then profit, then kind, then name,
+then id. The method filter (`shop-run`, `shop-dump`, `processing`), members-only
+and hide-locked behave as on the detail pages.
+**Accept:** tests pin the re-planned (not placeholder) hourly rate, gold sizing,
+the hop-bound and market-bound branches, null-time exclusion, the unexecutable
+vs unaffordable split, access requirements, the total order, the empty result,
+and the Earn page's rendering, filters, deep links and coverage line.
 
 ## Engineering conventions
 

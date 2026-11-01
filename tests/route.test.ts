@@ -2,15 +2,23 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_PAGE,
   PAGE_LABELS,
+  PAGE_TITLES,
   PAGES,
   pageHash,
   parsePageHash,
 } from '../web/src/route.js';
 
 describe('parsePageHash', () => {
-  it('defaults to the shop -> GE page', () => {
+  it('defaults to the gp-earning leaderboard', () => {
     for (const hash of ['', '#', '#/', '#nonsense', '#/not-a-page']) {
       expect(parsePageHash(hash)).toBe(DEFAULT_PAGE);
+    }
+    expect(DEFAULT_PAGE).toBe('earn');
+  });
+
+  it('recognises the earn page with or without the slash', () => {
+    for (const hash of ['#/earn', '#earn', '#/earn/', '#/EARN', '  #/earn  ']) {
+      expect(parsePageHash(hash)).toBe('earn');
     }
   });
 
@@ -30,6 +38,7 @@ describe('parsePageHash', () => {
     expect(parsePageHash('#/ge-to-shop?mode=patient&q=rune')).toBe('ge-to-shop');
     expect(parsePageHash('#/processing?sort=profit&desc=0')).toBe('processing');
     expect(parsePageHash('#/shop-to-ge?q=runite')).toBe('shop-to-ge');
+    expect(parsePageHash('#/earn?kind=processing&q=rune')).toBe('earn');
   });
 
   it('recognises an explicit shop -> GE hash', () => {
@@ -58,6 +67,11 @@ describe('pageHash', () => {
   it('names every page', () => {
     for (const page of PAGES) {
       expect(PAGE_LABELS[page].length).toBeGreaterThan(0);
+      expect(PAGE_TITLES[page].length).toBeGreaterThan(0);
     }
+  });
+
+  it('puts the earn page first in the navigation', () => {
+    expect(PAGES[0]).toBe('earn');
   });
 });

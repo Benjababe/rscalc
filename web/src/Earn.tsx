@@ -1,0 +1,603 @@
+/**
+ * The gp-earning leaderboard — the front door of the site.
+ *
+ * This page exists because the three calculators answered three separate
+ * questions and left the player to compare them. `buildEarnings` (in
+ * `src/domain/earnings.ts`) re-plans every shop run, shop dump and recipe at
+ * the player's own gold, so all three families arrive in one comparable list:
+ * **what earns the most per hour, what does it cost up front, and how long does
+ * a run take?**
+ *
+ * The numbers are computed by the same pure planners the detail pages use, and
+ * each row links to its detail page with the same view (mode + item search), so
+ * the leaderboard can never drift from the calculator it is summarising.
+ * A row the time model cannot price is excluded and counted, never guessed.
+ */
+
+import { useDeferredValue, useMemo, useState } from "react";
+
+import {
+  buildEarnings,
+  EARN_KIND_LABELS,
+  EARN_KIND_TITLES,
+} from "../../src/domain/earnings";
+import type { EarnMethod, EarnResult } from "../../src/domain/earnings";
+import type {
+  ProcessPayload,
+  Ranking,
+  SellMode,
+  ShopSinkRanking,
+} from "../../src/types";
+import { wikiUrl } from "../../src/util/wiki";
+import { ACCESS_MAP } from "./access";
+import { BudgetPanel, TravelFields } from "./BudgetPanel";
+import { FilterCheck, FilterToolbar } from "./FilterToolbar";
+import { formatDuration, formatGp } from "./format";
+import { matchesQuery, normaliseQuery } from "./matching";
+import { usePagedRows } from "./paging";
+import {
+  buildViewHash,
+  currentViewState,
+  pickOne,
+  useShareableView,
+} from "./viewState";
+import { useBudgetSettings, useTravelSettings } from "./settings";import { sortByMeasure, useSort } from "./sorting";
+import { Results, Stat, Th } from "./ui";
+
+import opportunitiesPayload from "../../data/opportunities.json";
+import sinksPayload from "../../data/shop-sinks.json";
+import processPayload from "../../data/process.json";
+
+interface OpportunitiesData {
+  generatedAt: string;
+  pessimistic: Ranking;
+  patient: Ranking;
+}
+
+interface SinksData {
+  generatedAt: string;
+  pessimistic: ShopSinkRanking;
+  patient: ShopSinkRanking;
+}
+
+/**
+ * All three artifacts are static snapshots built by `scripts/`. There is no
+ * network call in this component, by design.
+ */
+const OPPORTUNITIES = opportunitiesPayload as unknown as OpportunitiesData;
+const SINKS = sinksPayload as unknown as SinksData;
+const PROCESS = processPayload as unknown as ProcessPayload;
+
+const MODE_LABEL: Record<SellMode, string> = {
+  pessimistic: "Instant (GE low)",
+  patient: "Patient (GE high)",
+};
+
+const MODES = ["pessimistic", "patient"] as const;
+
+const KINDS = ["all", "shop-run", "shop-dump", "processing"] as const;
+type KindFilter = (typeof KINDS)[number];
+
+const KIND_LABEL: Record<KindFilter, string> = {
+  all: "All methods",
+  "shop-run": EARN_KIND_LABELS["shop-run"],
+  "shop-dump": EARN_KIND_LABELS["shop-dump"],
+  processing: EARN_KIND_LABELS.processing,
+};
+
+const SORT_KEYS = [
+  "gpPerHour",
+  "profitGp",
+  "capitalGp",
+  "timeSeconds",
+  "name",
+] as const;
+type SortKey = (typeof SORT_KEYS)[number];
+
+const COLUMNS = [
+  { key: "rank", width: 44 },
+  { key: "method", width: 220 },
+  { key: "kind", width: 112 },
+  { key: "where", width: 260 },
+  { key: "gpPerHour", width: 116 },
+  { key: "capital", width: 110 },
+  { key: "profit", width: 110 },
+  { key: "time", width: 100 },
+  { key: "needs", width: 190 },
+] as const;
+
+export function EarnPage(): JSX.Element {
+  // A shared link carries the view; gold and travel assumptions stay in the
+  // same storage the detail pages use, so the numbers agree across pages.
+  const [shared] = useState(() => currentViewState());
+  const [mode, setMode] = useState<SellMode>(
+    shared.mode === "patient" ? "patient" : "pessimistic",
+  );
+  const [query, setQuery] = useState(shared.q ?? "");
+  const [membersOnly, setMembersOnly] = useState(shared.members === true);
+  const [hideLocked, setHideLocked] = useState(shared.hideLocked === true);
+  const [kind, setKind] = useState<KindFilter>(
+    pickOne(shared.kind, KINDS, "all"),
+  );
+  const { gold, setGold } = useBudgetSettings();
+  const {
+    hopSeconds,
+    setHopSeconds,
+    maxWorlds,
+    setMaxWorlds,
+    secondsPerTile,
+    setSecondsPerTile,
+  } = useTravelSettings();
+  const { sortKey, descending, toggle: toggleSort } = useSort<SortKey>(
+    pickOne(shared.sort, SORT_KEYS, "gpPerHour"),
+    shared.desc ?? true,
+  );
+
+  // Typing must stay responsive: the box updates immediately and the rows
+  // re-plan in a deferred, interruptible render.
+  const deferredQuery = useDeferredValue(query);
+  const filtering = query !== deferredQuery;
+
+  useShareableView("earn", {
+    mode,
+    sort: sortKey,
+    desc: descending,
+    q: query,
+    members: membersOnly,
+    hideLocked,
+    kind,
+  });
+
+  /** Every method, sized to the current gold and travel assumptions. */
+  const earnings = useMemo(
+    () =>
+      buildEarnings(
+        {
+          shopRuns: OPPORTUNITIES[mode].opportunities,
+          shopDumps: SINKS[mode].opportunities,
+          recipes: PROCESS[mode].opportunities,
+        },
+        { goldGp: gold, hopSeconds, maxWorlds, secondsPerTile, access: ACCESS_MAP },
+      ),
+    [mode, gold, hopSeconds, maxWorlds, secondsPerTile],
+  );
+
+  const rows = useMemo<EarnMethod[]>(() => {
+    const needle = normaliseQuery(deferredQuery);
+
+    const filtered = earnings.methods.filter((method) => {
+      if (kind !== "all" && method.kind !== kind) return false;
+      if (membersOnly && !method.members) return false;
+      if (hideLocked && method.locked) return false;
+      return matchesQuery(needle, [
+        method.name,
+        method.where,
+        method.detail,
+        ...method.requirements,
+      ]);
+    });
+
+    if (sortKey === "name") {
+      return [...filtered].sort((a, b) =>
+        descending
+          ? b.name.localeCompare(a.name)
+          : a.name.localeCompare(b.name),
+      );
+    }
+
+    const measure = (row: EarnMethod): number | null => {
+      switch (sortKey) {
+        case "gpPerHour":
+          return row.gpPerHour;
+        case "profitGp":
+          return row.profitGp;
+        case "capitalGp":
+          return row.capitalGp;
+        case "timeSeconds":
+          return row.timeSeconds;
+        default:
+          return null;
+      }
+    };
+
+    // The default order already ties on gp/hour and profit, so re-sorting by
+    // the same measure keeps the leaderboard's deterministic tail.
+    return sortByMeasure(filtered, measure, descending);
+  }, [earnings, deferredQuery, kind, membersOnly, hideLocked, sortKey, descending]);
+
+  const paged = usePagedRows(rows);
+
+  const summary = useMemo(() => {
+    const best = rows[0];
+    const freeToPlay = rows.find((row) => !row.members);
+    const rates = rows.map((row) => row.gpPerHour).sort((a, b) => a - b);
+    const median =
+      rates.length > 0 ? (rates[Math.floor(rates.length / 2)] ?? null) : null;
+    return {
+      best: best ?? null,
+      freeToPlay: freeToPlay ?? null,
+      median,
+      kinds: new Set(rows.map((row) => row.kind)).size,
+    };
+  }, [rows]);
+
+  const clearFilters = (): void => {
+    setQuery("");
+    setMembersOnly(false);
+    setHideLocked(false);
+    setKind("all");
+  };
+  const filtersActive =
+    query.trim() !== "" || membersOnly || hideLocked || kind !== "all";
+
+  return (
+    <div className="page">
+      <FilterToolbar
+        modeGroupLabel="Price mode"
+        modes={MODES.map((id) => ({ id, label: MODE_LABEL[id] }))}
+        mode={mode}
+        onMode={setMode}
+        query={query}
+        onQuery={setQuery}
+        placeholder="Filter by item, shop or input…"
+        searchLabel="Filter money makers"
+        pricesAsOf={OPPORTUNITIES[mode].pricesAsOf}
+        generatedAt={OPPORTUNITIES.generatedAt}
+        filtersActive={filtersActive}
+        onClearFilters={clearFilters}
+      >
+        <div className="modes" role="group" aria-label="Method type">
+          {KINDS.map((candidate) => (
+            <button
+              key={candidate}
+              type="button"
+              className={candidate === kind ? "mode active" : "mode"}
+              onClick={() => setKind(candidate)}
+              aria-pressed={candidate === kind}
+              title={
+                candidate === "all"
+                  ? "Every family this model can price"
+                  : EARN_KIND_TITLES[candidate]
+              }
+            >
+              {KIND_LABEL[candidate]}
+            </button>
+          ))}
+        </div>
+        <FilterCheck
+          label="Members only"
+          checked={membersOnly}
+          onChange={setMembersOnly}
+        />
+        <FilterCheck
+          label="Hide locked"
+          title="Hide shops with a known access requirement from the curated, wiki-sourced access table"
+          checked={hideLocked}
+          onChange={setHideLocked}
+        />
+      </FilterToolbar>
+
+      <BudgetPanel
+        gold={gold}
+        onGold={setGold}
+        hint={
+          gold > 0 ? (
+            <>
+              Every method is sized to <strong>{formatGp(gold)} gp</strong>, so
+              the ranking answers &quot;what would <em>my</em> gold earn?&quot;
+              rather than what an unlimited bank could. Shop runs assume full
+              default stock on each world, <strong>{secondsPerTile}s</strong>{" "}
+              per tile and up to <strong>{maxWorlds} worlds</strong>; processing
+              uses each recipe&apos;s published action rate.
+            </>
+          ) : (
+            <>
+              No gold cap: each method is sized to the most the market can
+              absorb in a 4h window, up to{" "}
+              <strong>{maxWorlds} worlds</strong> for shop visits. Enter gold to
+              see what you can actually fund.
+            </>
+          )
+        }
+      >
+        <TravelFields
+          hopSeconds={hopSeconds}
+          onHopSeconds={setHopSeconds}
+          maxWorlds={maxWorlds}
+          onMaxWorlds={setMaxWorlds}
+          secondsPerTile={secondsPerTile}
+          onSecondsPerTile={setSecondsPerTile}
+        />
+      </BudgetPanel>
+
+      <section className="stats">
+        <Stat
+          label="Methods priced"
+          value={rows.length.toLocaleString()}
+          title="Rows with a profit and a known time model at this gold"
+        />
+        <Stat
+          label="Best gp / hour"
+          value={
+            summary.best === null
+              ? "—"
+              : formatGp(Math.round(summary.best.gpPerHour))
+          }
+          title={
+            summary.best === null
+              ? "No row matches these filters"
+              : `${summary.best.name} · ${EARN_KIND_LABELS[summary.best.kind]}`
+          }
+          accent
+        />
+        <Stat
+          label="Best free-to-play"
+          value={
+            summary.freeToPlay === null
+              ? "—"
+              : formatGp(Math.round(summary.freeToPlay.gpPerHour))
+          }
+          title={
+            summary.freeToPlay === null
+              ? "No free-to-play row matches these filters"
+              : `${summary.freeToPlay.name} · ${EARN_KIND_LABELS[summary.freeToPlay.kind]}`
+          }
+        />
+        <Stat
+          label="Median gp / hour"
+          value={
+            summary.median === null
+              ? "—"
+              : formatGp(Math.round(summary.median))
+          }
+        />
+      </section>
+
+      <p className="hint earn-coverage">
+        {summary.kinds > 1 ? `${summary.kinds} method types in view. ` : ""}
+        {coverage(earnings, gold)}
+      </p>
+
+      <Results
+        label="Money-making methods"
+        paged={paged}
+        noun="methods"
+        busy={filtering}
+        emptyText="No method earns at this gold with these filters. Try clearing the method filter, lowering your gold, or raising Max worlds."
+        onClearFilters={clearFilters}
+      >
+        <table className="results-table">
+          <caption className="visually-hidden">
+            Money-making methods, ranked by gp per hour
+          </caption>
+          <colgroup>
+            {COLUMNS.map((column) => (
+              <col
+                key={column.key}
+                className={column.key === "rank" ? "num-col" : undefined}
+                style={{ width: column.width }}
+              />
+            ))}
+          </colgroup>
+          <thead>
+            <tr>
+              <th scope="col" className="num-col">
+                #
+              </th>
+              <Th
+                label="Method"
+                onClick={() => toggleSort("name")}
+                active={sortKey === "name"}
+                desc={descending}
+                title="The item you buy low or produce; click to sort"
+              />
+              <th scope="col">Type</th>
+              <th scope="col">Where</th>
+              <Th
+                label="gp / hour"
+                onClick={() => toggleSort("gpPerHour")}
+                active={sortKey === "gpPerHour"}
+                desc={descending}
+                title="Profit per hour while executing the sized plan, using the same time model as the detail page"
+                right
+              />
+              <Th
+                label="Capital"
+                onClick={() => toggleSort("capitalGp")}
+                active={sortKey === "capitalGp"}
+                desc={descending}
+                title="Coins tied up for the whole plan: shop stock, GE purchases, or inputs plus fees"
+                right
+              />
+              <Th
+                label="Profit"
+                onClick={() => toggleSort("profitGp")}
+                active={sortKey === "profitGp"}
+                desc={descending}
+                title="Profit across the whole plan, after the GE tax where one applies"
+                right
+              />
+              <Th
+                label="Time"
+                onClick={() => toggleSort("timeSeconds")}
+                active={sortKey === "timeSeconds"}
+                desc={descending}
+                title="Seconds the plan takes: travel and world hops against the GE's own throughput"
+                right
+              />
+              <th scope="col">Needs</th>
+            </tr>
+          </thead>
+          <tbody>
+            {paged.pageRows.map((row, index) => (
+              <Row
+                key={row.id}
+                row={row}
+                rank={paged.start + index}
+                mode={mode}
+              />
+            ))}
+          </tbody>
+        </table>
+      </Results>
+
+      <footer className="footer">
+        <details className="caveats">
+          <summary>How these numbers are made</summary>
+          <p>
+            <strong>One list, three models.</strong> Every row is re-planned at
+            your gold by the same code as its detail page, so the leaderboard
+            cannot disagree with the calculator behind it. A{" "}
+            <strong>shop run</strong> buys stock from a shop and sells on the
+            GE: time is max(world hops + bank trips, time for the GE to absorb
+            the units), and the GE tax is charged on the sale. A{" "}
+            <strong>sell-to-shop</strong> row buys on the GE and sells to a shop:
+            one GE round trip plus one hop per world, no tax on either leg.{" "}
+            <strong>Processing</strong> uses the recipe&apos;s published action
+            rate against a 4h market window, with the tax on the output.
+          </p>
+          <p>
+            <strong>Capital</strong> is the money the plan ties up, not a
+            suggestion that you need that much to start. <strong>Profit</strong>{" "}
+            is what the plan returns after costs and tax.{" "}
+            <strong>gp / hour</strong> divides one by the other, so a method can
+            have a large profit and a modest hourly rate.
+          </p>
+          <p>
+            <strong>What is missing is missing on purpose.</strong> A shop whose
+            bank distance the wiki map does not give, a GE → shop flip whose shop
+            has no map distance to the GE, and a recipe with no published tick
+            time are all excluded and counted above, never filled in with a
+            plausible trip. Distances are straight-line tiles, not routes;{" "}
+            <strong>{secondsPerTile}s per tile</strong> stands in for walking
+            (0.6) or running (0.3) and corners are not modelled. Processing
+            skill levels are shown but not checked — this is not a read of your
+            account.
+          </p>
+          <p>
+            This is not a claim about every way to make gp in Old School
+            RuneScape. It covers the families this repo can price from sourced
+            data: shop runs, GE ↔ shop flips and deterministic processing.
+            Slayer, bossing, skilling and anything else is out of scope, and
+            nothing here is interpolated to stand in for it.
+          </p>
+        </details>
+        <p className="attribution">
+          Item names and icons © Jagex. Wiki data CC BY-SA. Shop stock, map
+          distances and recipes from the OSRS Wiki. The snapshots are static; no
+          external API calls.
+        </p>
+      </footer>
+    </div>
+  );
+}
+
+/**
+ * One sentence covering what the leaderboard left out, and why. Only the
+ * non-zero reasons are named: an empty clause reads as an excuse, not a fact.
+ */
+function coverage(result: EarnResult, gold: number): string {
+  const parts: string[] = [];
+  if (result.unranked > 0) {
+    parts.push(
+      `${result.unranked.toLocaleString()} are not ranked because the wiki data has no time model for them`,
+    );
+  }
+  if (result.unexecutable > 0) {
+    parts.push(
+      `${result.unexecutable.toLocaleString()} have no 4h market to sell into`,
+    );
+  }
+  if (gold > 0 && result.unaffordable > 0) {
+    parts.push(
+      `${result.unaffordable.toLocaleString()} cannot be funded with ${formatGp(gold)} gp`,
+    );
+  }
+  if (parts.length === 0) return "Every priced method is ranked at this gold.";
+  return `${joinClauses(parts)}. Nothing is estimated to fill the gap.`;
+}
+
+/** `a, b and c` — Oxford commas read oddly in a single sentence here. */
+function joinClauses(parts: string[]): string {
+  if (parts.length <= 1) return parts[0] ?? "";
+  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1] ?? ""}`;
+}
+
+function Row({
+  row,
+  rank,
+  mode,
+}: {
+  row: EarnMethod;
+  rank: number;
+  mode: SellMode;
+}): JSX.Element {
+  // The same view the leaderboard used, handed to the detail page so the row is
+  // easy to find again.
+  const href = buildViewHash(row.target.page, {
+    mode,
+    q: row.target.query,
+  });
+
+  return (
+    <tr>
+      <td className="num-col">{rank}</td>
+      <td className="item">
+        <a
+          className="name wiki-link"
+          href={href}
+          title={`Open in ${row.target.page === "shop-to-ge" ? "Shop → GE" : row.target.page === "ge-to-shop" ? "GE → shop" : "Processing"}`}
+        >
+          {row.name}
+        </a>
+        {row.members && <span className="badge">P2P</span>}
+      </td>
+      <td>
+        <span
+          className={`kind-badge kind-${row.kind}`}
+          title={EARN_KIND_TITLES[row.kind]}
+        >
+          {EARN_KIND_LABELS[row.kind]}
+        </span>
+      </td>
+      <td className="shop">
+        {row.kind === "processing" ? (
+          <span title={row.detail ?? undefined}>{row.where}</span>
+        ) : (
+          <a
+            className="wiki-link"
+            href={wikiUrl(row.where)}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {row.where}
+          </a>
+        )}
+        {row.detail !== null && row.detail !== row.where && (
+          <span className="cell-note">{row.detail}</span>
+        )}
+      </td>
+      <td className="right mono strong">{formatGp(Math.round(row.gpPerHour))}</td>
+      <td className="right mono">{formatGp(Math.round(row.capitalGp))}</td>
+      <td className="right mono pos">{formatGp(Math.round(row.profitGp))}</td>
+      <td className="right mono dim">{formatDuration(row.timeSeconds)}</td>
+      <td className="needs">
+        {row.requirements.length === 0 ? (
+          <span className="dim">—</span>
+        ) : row.requirementSource === null ? (
+          row.requirements.join(" · ")
+        ) : (
+          <a
+            className="wiki-link"
+            href={row.requirementSource}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={`${row.requirements.join(" · ")} (wiki source)`}
+          >
+            {row.requirements.join(" · ")}
+          </a>
+        )}
+      </td>
+    </tr>
+  );
+}

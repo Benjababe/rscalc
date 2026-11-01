@@ -6,12 +6,16 @@ import { useTheme } from "./theme";
 import {
   DEFAULT_PAGE,
   PAGE_LABELS,
+  PAGE_TITLES,
   PAGES,
   pageHash,
   parsePageHash,
   type Page,
 } from "./route";
 
+const EarnPage = lazy(() =>
+  import("./Earn").then((module) => ({ default: module.EarnPage })),
+);
 const ShopToGePage = lazy(() =>
   import("./ShopToGe").then((module) => ({ default: module.ShopToGePage })),
 );
@@ -24,7 +28,7 @@ const ProcessingPage = lazy(() =>
 
 /**
  * The shell: header, page tabs and attribution. Each page owns its data
- * artifact, controls, table and caveats, so the two directions can evolve
+ * artifact, controls, table and caveats, so the directions can evolve
  * independently. Routing is a hash so the build stays a static bundle.
  */
 export function App(): JSX.Element {
@@ -51,14 +55,15 @@ export function App(): JSX.Element {
         <div>
           <h1>rscalc</h1>
           <p className="sub">
-            Arbitrage between OSRS shops, the Grand Exchange and item
-            processing, priced from the Wiki&apos;s real-time API. Every
-            calculator is a static snapshot, so the site makes no external API
-            calls.
+            A gp-earning calculator for Old School RuneScape: shop runs, Grand
+            Exchange flips and deterministic processing, priced from the
+            Wiki&apos;s real-time API and ranked by gp per hour at your own
+            gold. Every number is a static snapshot, so the site makes no
+            external API calls.
           </p>
         </div>
         <div className="header-actions">
-          <nav className="pages" aria-label="Calculator direction">
+          <nav className="pages" aria-label="Calculator">
             {PAGES.map((candidate) => (
               <button
                 key={candidate}
@@ -66,6 +71,7 @@ export function App(): JSX.Element {
                 className={candidate === page ? "page-tab active" : "page-tab"}
                 onClick={() => navigate(candidate)}
                 aria-current={candidate === page ? "page" : undefined}
+                title={PAGE_TITLES[candidate]}
               >
                 {PAGE_LABELS[candidate]}
               </button>
@@ -84,7 +90,9 @@ export function App(): JSX.Element {
           </div>
         }
       >
-        {page === "ge-to-shop" ? (
+        {page === "earn" ? (
+          <EarnPage />
+        ) : page === "ge-to-shop" ? (
           <GeToShopPage />
         ) : page === "processing" ? (
           <ProcessingPage />

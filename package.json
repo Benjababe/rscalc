@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "OSRS shop -> Grand Exchange profit calculator",
+  "description": "OSRS gp-per-hour calculator: shop runs, GE flips and processing",
   "engines": {
     "node": ">=22"
   },
