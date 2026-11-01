@@ -57,7 +57,8 @@ confidently is the worst possible outcome for this project.
 ## Stack
 
 pnpm · TypeScript (strict, ESM) · Node >= 22 · Vite + React for the UI ·
-`tsx` for scripts · `vitest` for tests · `eslint` (flat config, type-aware) for
+`tsx` for scripts · `vitest` for tests (`jsdom` + Testing Library for the UI
+render tests, node for everything else) · `eslint` (flat config, type-aware) for
 lint · `zod` for every external JSON payload.
 
 No database. The pipeline is file-based: `scripts/` fetch → `data/*.json`
@@ -103,7 +104,7 @@ scripts/shopAccessRules.ts curated, cited shop access rules and exceptions
 scripts/smoke.ts           connectivity + schema check
 web/                       Vite + React UI (reads static data only)
 data/                      generated JSON (committed so the UI works offline)
-tests/                     unit tests; mocked fetch, no live network
+tests/                     unit + jsdom render tests; mocked fetch, no live network
 docs/                      sourced mechanics + data-source documentation
 eslint.config.js           flat config: type-aware rules for src/scripts/tests/web
 ```

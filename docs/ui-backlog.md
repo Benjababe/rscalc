@@ -31,13 +31,13 @@ change (S ≈ under an hour, M ≈ half a day, L ≈ a day or more).
 |1.8 `prefers-reduced-motion`|**done** — `web/src/styles.css`|
 |2.1 Remove duplicated page orchestration|**done** — `FilterToolbar`, `BudgetPanel`, `settings`, `sorting`, `matching`|
 |2.2 Throttle re-planning|**done** — deferred query + memoised stats|
-|2.3 UI-level tests|open — no test exercises rendering|
+|2.3 UI-level tests|**done** — jsdom render tests for page + controls|
 |3.1 Light theme|open — optional|
 |3.2 Keyboard shortcut to focus search|**done** — `/` and Ctrl/Cmd+K|
 |3.3 Sticky toolbar|open — optional|
 
-**Open:** 2.3 (medium), 3.1 and 3.3 (optional).
-All of §1 has landed, and all of §2 except 2.3.
+**Open:** 3.1 and 3.3 (optional).
+All of §1 and §2 has landed; only the optional §3 items remain.
 
 ---
 
@@ -219,15 +219,27 @@ All of §1 has landed, and all of §2 except 2.3.
 
 ### 2.3 UI-level tests
 
-- **Where:** `tests/`.
-- **Observed:** only pure helpers are covered (`columns.test.ts`,
-  `storage.test.ts`, `route.test.ts`); nothing exercises rendering.
-- **Change:** add jsdom render tests pinning the behaviours that are easy to
-  break — a filter hides matching rows, a header click flips `aria-sort` and the
-  order, the column picker round-trips through `localStorage`. Requires
-  `jsdom` + `@testing-library/react` as dev dependencies, so it should be a
-  deliberate, separate change.
-- **Impact: medium · Effort: M.**
+- **Where:** `tests/shopToGePage.test.tsx`, `tests/uiControls.test.tsx` (new).
+- **Done.** `jsdom` and `@testing-library/react` are dev dependencies; UI tests
+  opt into the DOM per file with `// @vitest-environment jsdom`, so the pure
+  suites keep running in node. `vitest.config.ts` now includes `*.test.tsx`.
+- **Page tests** render the real `ShopToGePage` against the committed artifact:
+  it shows one page of 100 rows with the range above the table; a search hides
+  non-matching rows; an impossible query shows the empty state and its clear
+  button restores the full list; a header click sorts, flips `aria-sort` on the
+  second click, and leaves exactly one column sorted; the column picker removes
+  a column; Next pages to `101–200` with row numbering continuing; and a URL
+  with `q=` and `members=1` restores that view.
+- **Control tests** cover what the page cannot reach cheaply: the gold field's
+  shorthand (`2.5m` → 2,500,000 committed, junk not committed, blur restores the
+  committed amount), the copy link's success/refused/absent-clipboard labels,
+  and the `/` shortcut focusing the box from the body but not from a field the
+  player is already typing in.
+- **Cost:** ~3.4s for both files including the 2.5MB artifact, so the whole
+  suite is still under 5s.
+- **Not covered:** the GE → shop and processing pages are only exercised by the
+  shared components they use; a page-level test for them is the obvious next
+  step if their page-specific cells change.
 
 ---
 
@@ -281,4 +293,4 @@ If these are taken in order, two coherent commits cover the cheap wins:
 3. **Page deduplication** — 2.1. **Landed**, verified by hashing the rendered
    text of all three pages in both modes before and after.
 
-Remaining: 2.3 (and the optional §3).
+Remaining: the optional §3 items.
