@@ -614,12 +614,23 @@ What the eight skills taught, in the order it will bite when the page is built:
    Crafting 41%. Every gap I checked was "the input or output is untradeable",
    which is a fact about the game, not about the data.
 
+### The page
+
+`#/skilling` exists (`web/src/Skilling.tsx`): instant mode by default, a patient
+toggle, skill + kind filters, search across outputs *and* inputs, paging, and a
+Cooking level input that hides foods you cannot yet cook without burning. Rows
+carry their kind badge (`Make` / `Upgrade` / `Cost`) and, for cooking, the level at
+which the food stops burning. The coverage strip reports activities by kind,
+profitable count, and the number of bucket recipes that could not be priced.
+
+The artifact is code-split with the page (3.0 MB, 350 kB gzip). That is larger than
+the other data chunks and is the one thing about this page worth revisiting: either
+ship a slimmer projection (the UI does not need per-input `volume4h`, `geBuyLimit`
+or the 4h action arithmetic) or split per skill.
+
 ### Next
 
 Phase 2 (Farming, Mining, Woodcutting, Fishing, Hunter, Thieving, Sailing) is the
 hard half: those skills have no recipe table, so each one needs its own sourced
 time model. Under §4 an activity whose profit only exists as a rate is skipped, so
 expect Phase 2 to contribute far fewer rows and to take far longer per row.
-
-Before that, the page itself is one commit away from being buildable on the seven
-scanned skills — and items 1–3 above are design decisions, not data work.

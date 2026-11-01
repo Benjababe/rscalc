@@ -1,6 +1,11 @@
-/** Four-page hash routing, so the site stays a static bundle with no router. */
+/** Five-page hash routing, so the site stays a static bundle with no router. */
 
-export type Page = "earn" | "shop-to-ge" | "ge-to-shop" | "processing";
+export type Page =
+  | "earn"
+  | "shop-to-ge"
+  | "ge-to-shop"
+  | "processing"
+  | "skilling";
 
 /**
  * The gp-earning leaderboard is the front door: the site is a money-making
@@ -13,6 +18,7 @@ export const PAGES: readonly Page[] = [
   "shop-to-ge",
   "ge-to-shop",
   "processing",
+  "skilling",
 ];
 
 export const PAGE_LABELS: Record<Page, string> = {
@@ -20,6 +26,7 @@ export const PAGE_LABELS: Record<Page, string> = {
   "shop-to-ge": "Shop → GE",
   "ge-to-shop": "GE → shop",
   processing: "Processing",
+  skilling: "Skilling",
 };
 
 /** One-line description of each page, used in the header and in tests. */
@@ -28,6 +35,7 @@ export const PAGE_TITLES: Record<Page, string> = {
   "shop-to-ge": "Buy from an NPC shop, sell on the Grand Exchange",
   "ge-to-shop": "Buy on the Grand Exchange, sell to an NPC shop",
   processing: "Buy inputs, transform them, sell the output",
+  skilling: "Every priced activity of a skill, profit or loss",
 };
 
 const HASHES: Record<string, Page> = {
@@ -35,6 +43,7 @@ const HASHES: Record<string, Page> = {
   "shop-to-ge": "shop-to-ge",
   "ge-to-shop": "ge-to-shop",
   processing: "processing",
+  skilling: "skilling",
 };
 
 /**

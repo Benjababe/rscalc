@@ -28,6 +28,8 @@ export interface ViewState {
   skill?: string;
   /** Method family filter on the earn page: shop-run, shop-dump, processing. */
   kind?: string;
+  /** The player's Cooking level on the skilling page; 0/absent means "not set". */
+  cookingLevel?: number;
 }
 
 /**
@@ -93,6 +95,11 @@ export function parseViewState(hash: string): ViewState {
   const kind = params.get("kind");
   if (kind !== null && kind !== "") state.kind = kind;
 
+  const cookingLevel = readNumber(params.get("cooking"));
+  if (cookingLevel !== undefined && cookingLevel > 0 && cookingLevel <= 99) {
+    state.cookingLevel = cookingLevel;
+  }
+
   return state;
 }
 
@@ -132,6 +139,13 @@ export function buildViewHash(page: Page, state: ViewState): string {
   }
   if (state.kind !== undefined && state.kind !== "all") {
     params.set("kind", state.kind);
+  }
+  if (
+    state.cookingLevel !== undefined &&
+    state.cookingLevel > 0 &&
+    state.cookingLevel <= 99
+  ) {
+    params.set("cooking", String(state.cookingLevel));
   }
 
   const query = params.toString();

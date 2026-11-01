@@ -25,6 +25,9 @@ const GeToShopPage = lazy(() =>
 const ProcessingPage = lazy(() =>
   import("./Processing").then((module) => ({ default: module.ProcessingPage })),
 );
+const SkillingPage = lazy(() =>
+  import("./Skilling").then((module) => ({ default: module.SkillingPage })),
+);
 
 /**
  * The shell: header, page tabs and attribution. Each page owns its data
@@ -96,6 +99,8 @@ export function App(): JSX.Element {
           <GeToShopPage />
         ) : page === "processing" ? (
           <ProcessingPage />
+        ) : page === "skilling" ? (
+          <SkillingPage />
         ) : (
           <ShopToGePage />
         )}

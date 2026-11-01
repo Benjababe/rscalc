@@ -39,6 +39,11 @@
   --accent-edge: rgba(255, 210, 74, 0.45);
   --accent-ring: rgba(255, 210, 74, 0.13);
 
+  /* controls */
+  /* The dropdown arrow, as a data URI: a native `select` arrow cannot be
+     recoloured, so we hide it and draw this one instead. */
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23cfd4dc' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+
   /* links */
   --link: #ffffff;
   --link-hover: #ffd24a;
@@ -48,6 +53,7 @@
 
   /* status */
   --pos: #5ddb8b;
+  --neg: #ff8f8f;
   --badge-bg: #3a2f4a;
   --badge-ink: #c9a6ff;
   --warn-bg: #2f2612;
@@ -103,6 +109,8 @@
   --accent-edge: rgba(140, 110, 0, 0.45);
   --accent-ring: rgba(176, 138, 0, 0.22);
 
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%235b6472' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+
   --link: #1b4fa8;
   --link-hover: #12386f;
   --link-underline: rgba(27, 79, 168, 0.45);
@@ -110,6 +118,7 @@
   --underline-soft: rgba(20, 22, 26, 0.2);
 
   --pos: #0d7a3c;
+  --neg: #b3261e;
   --badge-bg: #efe6ff;
   --badge-ink: #5b2fa8;
   --warn-bg: #fdf3d3;
@@ -563,6 +572,29 @@ body {
   color: var(--dim);
 }
 
+/*
+ * One focus ring per chip, not two.
+ *
+ * A chip wraps its field, and both drew a ring on focus: the chip via
+ * `:focus-within` (3px accent halo) and the field itself (`.num` box-shadow,
+ * `.select` outline). That reads as a double halo. The field is the thing you
+ * are actually focusing, so it keeps the ring and the chip stands down — its
+ * border still reacts to hover, just not to focus.
+ */
+.toolbar-row > .toggle:has(.num):focus-within,
+.toolbar-row > .toggle:has(.select):focus-within {
+  border-color: var(--line);
+  box-shadow: none;
+}
+
+/* Inside a chip the select gets the same ring as the number field, instead of
+   an outline drawn outside its own border. */
+.toolbar-row > .toggle .select:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
 /* reset link that appears once any filter is active */
 .chip-clear {
   background: none;
@@ -599,6 +631,58 @@ body {
 
 .select:hover {
   border-color: var(--line-strong);
+}
+
+/*
+ * The dropdown itself.
+ *
+ * A native `select` popup is drawn by the OS and cannot be styled past a few
+ * properties, but the ones that do work are the ones that matter: the closed
+ * control gets our own arrow (the native one ignores the palette), and the open
+ * list gets themed rows instead of the platform's default white-on-black. Where
+ * the platform ignores these — Safari's popup, some GTK themes — it degrades to
+ * the native list, which `color-scheme` already tints to match.
+ */
+.select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: var(--chevron);
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  background-size: 10px 6px;
+  padding-right: 27px;
+}
+
+.select option,
+.select optgroup {
+  background-color: var(--panel);
+  color: var(--text);
+}
+
+.select optgroup {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--text-soft);
+}
+
+.select option {
+  font-weight: 400;
+  padding: 6px 10px;
+}
+
+/* The row the control is currently on, so the open list shows where you are. */
+.select option:checked {
+  background-color: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.select option:disabled {
+  color: var(--dim);
+}
+
+/* A chip that carries a select already has its own padding; do not double it. */
+.toolbar-row > .toggle:has(.select) {
+  padding-right: 2px;
 }
 
 /* column picker */
@@ -1042,6 +1126,17 @@ tbody tr:hover {
   color: var(--pos);
 }
 
+/* A loss is a first-class value on the skilling page, not an error. */
+.neg {
+  color: var(--neg);
+}
+
+/* Long input lists (a potion needs four runes) wrap instead of overflowing. */
+.wrap {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .strong {
   color: var(--accent-text);
   font-weight: 600;
@@ -1102,6 +1197,31 @@ tbody tr:hover {
 .kind-processing {
   border-color: var(--pos);
   color: var(--pos);
+}
+
+/*
+ * Skilling kinds. `Make` is the money-making default and takes the accent;
+ * `Upgrade` is a one-off conversion, so it reads as a different family; `Cost`
+ * is not a sale at all, so it stays dashed and grey rather than borrowing a
+ * "good" or "bad" colour.
+ */
+.kind-transform {
+  border-color: var(--accent-edge);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.kind-upgrade {
+  border-color: var(--badge-bg);
+  background: var(--badge-bg);
+  color: var(--badge-ink);
+}
+
+.kind-train {
+  border-style: dashed;
+  border-color: var(--line-strong);
+  background: transparent;
+  color: var(--dim);
 }
 
 .needs {

@@ -126,6 +126,8 @@ scripts/smoke.ts           connectivity + schema check
 web/                       Vite + React UI (reads static data only)
 web/src/Earn.tsx           the front page: every family in one ranked table,
                            with the method filter and the coverage line
+web/src/Skilling.tsx       #/skilling: every priced activity of a skill in both
+                           modes, kind badges, cooking-level gate
 data/                      generated JSON (committed so the UI works offline)
 tests/                     unit + jsdom render tests; mocked fetch, no live network
 docs/                      sourced mechanics + data-source documentation
@@ -422,7 +424,13 @@ value** and labelled `EV`; without a published distribution the row stays out.
   (no xp, no recipe).
 - `#/skilling` opens in **instant** mode (Q10) and prices **GE buy -> GE sell
   only** (Q6): no high-alch and no shop-sale channel. Both are deliberate, both
-  cost coverage, and the page must say so rather than imply a losing row is dead.
+  cost coverage, and the page states the caveat rather than implying a losing row
+  is dead.
+- The page (`web/src/Skilling.tsx`, route `#/skilling`) shows kind badges
+  (`Make` / `Upgrade` / `Cost`), a skill and kind filter, search across outputs and
+  inputs, and a **Cooking level** input: cooking rows stay hidden until the level
+  reaches each food's no-burn level, because a hidden gamble cannot be ranked. Its
+  data chunk is code-split; a slimmer projection is the known follow-up.
 - **Cooking is gated, not guessed.** A cooked food burns and destroys the input,
   so a Cooking row carries `noBurnLevel` (the level at which it stops burning, from
   the wiki's burn table) and is only meaningful at or above it. The artifact keeps
