@@ -57,7 +57,8 @@ confidently is the worst possible outcome for this project.
 ## Stack
 
 pnpm · TypeScript (strict, ESM) · Node >= 22 · Vite + React for the UI ·
-`tsx` for scripts · `vitest` for tests · `zod` for every external JSON payload.
+`tsx` for scripts · `vitest` for tests · `eslint` (flat config, type-aware) for
+lint · `zod` for every external JSON payload.
 
 No database. The pipeline is file-based: `scripts/` fetch → `data/*.json`
 (build artifacts) → engine reads them → UI reads the engine output.
@@ -104,6 +105,7 @@ web/                       Vite + React UI (reads static data only)
 data/                      generated JSON (committed so the UI works offline)
 tests/                     unit tests; mocked fetch, no live network
 docs/                      sourced mechanics + data-source documentation
+eslint.config.js           flat config: type-aware rules for src/scripts/tests/web
 ```
 
 ## Data artifacts
@@ -129,6 +131,8 @@ shop page excludes general stores and rows without a published shop buy price.
 
 ```sh
 pnpm typecheck      # tsc --noEmit
+pnpm lint           # eslint, type-aware; no `any`, no unawaited promises
+pnpm lint:fix       # eslint --fix
 pnpm test           # vitest, no live network
 pnpm shops          # data/shops.json (cold cache: ~35s incl. map + banks)
 pnpm market         # data/market.json (cold cache: ~30s incl. stackability)
@@ -356,8 +360,9 @@ Commit frequently — after each coherent, working change rather than at the end
 a long session. A commit must stand on its own: it builds, typechecks and passes
 tests without relying on uncommitted work.
 
-- Run `pnpm typecheck` and `pnpm test` before committing. If a zod schema changed,
-  regenerate `data/*.json` and include the artifacts in the same commit.
+- Run `pnpm typecheck`, `pnpm lint` and `pnpm test` before committing. If a zod
+  schema changed, regenerate `data/*.json` and include the artifacts in the same
+  commit.
 - Keep commits thematic. Do not mix a refactor, a data refresh and a UI change in
   one commit unless they are inseparable; split them where the history would
   otherwise be impossible to review.
@@ -372,9 +377,9 @@ tests without relying on uncommitted work.
 
 ## Definition of done for any task
 
-1. `pnpm test` passes. 2. `pnpm typecheck` clean. 3. Any new game-mechanic claim
-has a URL citation. 4. No new outbound call bypassing `src/api/http.ts`. 5. If a
-zod schema changed, regenerate `data/*.json` and commit the artifacts. 6. UI
-changes: `pnpm build` passes. 7. Unknown data stays `null`; never introduce a
-global default for a per-shop quantity. 8. The change is committed (frequently,
-in thematic commits — see above).
+1. `pnpm test` passes. 2. `pnpm typecheck` clean. 3. `pnpm lint` clean. 4. Any new
+game-mechanic claim has a URL citation. 5. No new outbound call bypassing
+`src/api/http.ts`. 6. If a zod schema changed, regenerate `data/*.json` and
+commit the artifacts. 7. UI changes: `pnpm build` passes. 8. Unknown data stays
+`null`; never introduce a global default for a per-shop quantity. 9. The change
+is committed (frequently, in thematic commits — see above).

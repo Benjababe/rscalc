@@ -228,8 +228,9 @@ export async function fetchText(
       await writeCache(url, text);
       return { body: text, fetchedAt: Date.now(), fromCache: false };
     } catch (error) {
-      if (error instanceof HttpError && error.status && error.status < 500)
+      if (error instanceof HttpError && error.status && error.status < 500) {
         throw error;
+      }
       lastError = error;
       if (attempt < attempts) await sleep(2 ** attempt * 500);
     }

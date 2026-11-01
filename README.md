@@ -57,7 +57,8 @@ pnpm dev            # web UI at http://localhost:5173
 | `pnpm sinks --write` | emit `data/shop-sinks.json` for the UI |
 | `pnpm process` | processing ranking + `data/process.json` |
 | `pnpm dev` / `pnpm build` | web UI |
-| `pnpm test` / `pnpm typecheck` | 287 tests / `tsc --noEmit` |
+| `pnpm test` / `pnpm typecheck` | 318 tests / `tsc --noEmit` |
+| `pnpm lint` / `pnpm lint:fix` | ESLint, type-aware; `--fix` applies safe autofixes |
 
 `pnpm report` flags: `--mode=pessimistic|patient`, `--limit=N`, `--members`,
 `--min-volume4h=N`, `--min-margin=N`, `--infinite`, `--write`.

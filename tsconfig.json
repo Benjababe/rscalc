@@ -21,6 +21,6 @@
     "forceConsistentCasingInFileNames": true,
     "noEmit": true
   },
-  "include": ["src", "scripts", "tests", "web/src"],
+  "include": ["src", "scripts", "tests", "web/src", "vitest.config.ts", "web/vite.config.ts"],
   "exclude": ["node_modules", "dist", "web/dist"]
 }

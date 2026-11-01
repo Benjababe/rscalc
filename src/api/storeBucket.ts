@@ -212,10 +212,15 @@ function parseSoldItemJson(raw: string): SoldItemJson {
   if (raw.trim() === '') return {};
   try {
     const parsed: unknown = JSON.parse(raw);
-    return typeof parsed === 'object' && parsed !== null ? (parsed as SoldItemJson) : {};
+    return isSoldItemJson(parsed) ? parsed : {};
   } catch {
     return {};
   }
+}
+
+/** The bucket stores an object of optional text fields; anything else is {} */
+function isSoldItemJson(value: unknown): value is SoldItemJson {
+  return typeof value === 'object' && value !== null;
 }
 
 // ---------------------------------------------------------------------------

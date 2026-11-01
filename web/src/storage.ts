@@ -27,6 +27,11 @@ function defaults(): BudgetState {
   return { gold: DEFAULT_GOLD, view: DEFAULT_VIEW };
 }
 
+/** Narrow a parsed value to something with readable fields, without a cast. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 /**
  * Parse a stored entry. Returns defaults for missing, malformed or out-of-range
  * values; never throws.
@@ -41,11 +46,10 @@ export function parseBudgetState(raw: string | null): BudgetState {
     return defaults();
   }
 
-  if (typeof parsed !== "object" || parsed === null) return defaults();
+  if (!isRecord(parsed)) return defaults();
 
-  const fields = new Map(Object.entries(parsed));
-  const rawGold = fields.get("gold");
-  const rawView = fields.get("view");
+  const rawGold = parsed['gold'];
+  const rawView = parsed['view'];
 
   const gold =
     typeof rawGold === "number" && Number.isFinite(rawGold) && rawGold >= 0

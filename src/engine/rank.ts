@@ -72,12 +72,9 @@ export function rank(
   const includeOtherCurrencies = options.includeOtherCurrencies ?? false;
 
   const opportunities: Opportunity[] = [];
-  let skippedUnpriceable = 0;
-  let skippedCurrency = 0;
 
   for (const entry of catalog.entries) {
     if (!includeOtherCurrencies && entry.currency.toLowerCase() !== COINS) {
-      skippedCurrency += 1;
       continue;
     }
     if (entry.infiniteStock && !includeInfiniteStock) continue;
@@ -85,10 +82,7 @@ export function rank(
     if (entry.itemId === null) continue;
 
     const row = toShopRow(entry);
-    if (row === null) {
-      skippedUnpriceable += 1;
-      continue;
-    }
+    if (row === null) continue;
 
     const quote = market.quotes[String(entry.itemId)];
     if (quote === undefined) continue;

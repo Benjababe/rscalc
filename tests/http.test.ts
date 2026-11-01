@@ -8,10 +8,17 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+/** The URL a stubbed fetch was called with, whatever shape it was passed. */
+function requestUrl(input: RequestInfo | URL): string {
+  if (typeof input === 'string') return input;
+  if (input instanceof URL) return input.href;
+  return input.url;
+}
+
 function stubFetch(handler: (url: string, init?: RequestInit) => Response): void {
   globalThis.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
-    Promise.resolve(handler(String(input), init)),
-  ) as unknown as typeof fetch;
+    Promise.resolve(handler(requestUrl(input), init)),
+  );
 }
 
 describe('fetchJson', () => {

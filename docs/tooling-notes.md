@@ -80,3 +80,36 @@ file instead.
 Files may be reformatted on save (observed: single quotes converted to double
 quotes, long expressions reflowed). This is cosmetic. If it becomes noisy, pin
 the style in a `biome.json` at the repo root rather than fighting it per-file.
+
+## 5. ESLint needs the config files inside `tsconfig.json`
+
+`eslint.config.js` uses `typescript-eslint` with `parserOptions.projectService`,
+which resolves every linted file through a tsconfig. A file that no tsconfig
+`include`s produces:
+
+```text
+Parsing error: ... was not found by the project service
+```
+
+`vitest.config.ts` and `web/vite.config.ts` sit outside the source directories,
+so they are listed explicitly in `tsconfig.json`:
+
+```json
+"include": ["src", "scripts", "tests", "web/src", "vitest.config.ts", "web/vite.config.ts"]
+```
+
+Adding a `.ts` file elsewhere (for example a new root-level config) therefore
+means adding it to that list, or ESLint will refuse to lint it. `pnpm typecheck`
+covers the same files, so the failure shows up there too rather than only in
+lint.
+
+Two rules are load-bearing rather than stylistic:
+
+- `@typescript-eslint/no-floating-promises` — an unawaited promise in a
+  `scripts/refresh-*.ts` run means a half-written artifact that still exits 0.
+- `@typescript-eslint/no-explicit-any` — the `any` escape hatch would let an
+  unvalidated wiki payload flow into the pricing maths, which is the one mistake
+  this project cannot tolerate. External JSON goes through `zod` instead.
+
+Type-aware rules are slower than syntax-only ones; `pnpm lint` takes a few
+seconds over the whole repo, so it is cheap enough to run before every commit.

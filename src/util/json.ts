@@ -7,7 +7,7 @@
  */
 
 import { readFile } from 'fs/promises';
-import { z } from 'zod';
+import type { z } from 'zod';
 
 /**
  * Read, parse and schema-validate a JSON file.
