@@ -37,6 +37,9 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  process.stderr.write(`smoke test failed: ${String(error)}\n`);
+  // Narrow at the boundary instead of stringifying an unknown: an Error keeps its
+  // message, anything else is stringified deliberately.
+  const message = error instanceof Error ? error.message : String(error);
+  process.stderr.write(`smoke test failed: ${message}\n`);
   process.exitCode = 1;
 });

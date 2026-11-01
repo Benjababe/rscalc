@@ -178,21 +178,27 @@ async function main(): Promise<void> {
       `${unresolved.size.toLocaleString()} recipe item names have no GE mapping`,
   );
   if (unresolved.size > 0) {
-    const examples = [...unresolved].sort().slice(0, 8);
+    // Explicit comparator: the default sort is string order, which is right here but
+    // is exactly the ambiguity the linter flags.
+    const examples = [...unresolved]
+      .sort((a, b) => a.localeCompare(b))
+      .slice(0, 8);
     log(`    e.g. ${examples.join(', ')}`);
     log(
       '    Unmapped names are usually untradeable quest/minigame items; their recipes are skipped, never priced with a guess.',
     );
   }
 
-  const quotes: Record<string, MarketQuote> = {};
+  // A Map while building, an object in the snapshot: the object is what the schema
+  // wants, but accumulating into a widened `Record` literal hides the value type.
+  const quoteMap = new Map<string, MarketQuote>();
   for (const id of wantedIds) {
     const meta = metaById.get(id);
     if (meta === undefined) continue;
     const live = latest.data[String(id)];
     const daily = volume.data[String(id)];
 
-    quotes[String(id)] = {
+    quoteMap.set(String(id), {
       id,
       name: meta.name,
       members: meta.members,
@@ -210,13 +216,14 @@ async function main(): Promise<void> {
       lowVolume24h: daily?.lowPriceVolume ?? 0,
       highTime: live?.highTime ?? null,
       lowTime: live?.lowTime ?? null,
-    };
+    });
   }
 
+  const quotes = Object.fromEntries(quoteMap);
   const market: MarketSnapshot = {
     generatedAt: new Date().toISOString(),
     pricesAsOf: new Date(latest.fetchedAt).toISOString(),
-    itemCount: Object.keys(quotes).length,
+    itemCount: quoteMap.size,
     quotes,
   };
 
@@ -245,24 +252,39 @@ async function main(): Promise<void> {
   await mkdir(dirname(OUT), { recursive: true });
   await writeFile(OUT, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
 
+  const displayOptions = {
+    mode: cli.mode,
+    membersOnly: cli.members,
+    minProfit: cli.minProfit,
+    minigameRates: MINIGAME_RATES,
+    maxActionsPerHour: cli.actionsPerHour,
+    limit: cli.limit,
+  };
   const display = ProcessRankingSchema.parse(
-    rankProcess(recipes.recipes, market, {
-      mode: cli.mode,
-      membersOnly: cli.members,
-      ...(cli.skills.length > 0 ? { skills: cli.skills } : {}),
-      minProfit: cli.minProfit,
-      minigameRates: MINIGAME_RATES,
-      maxActionsPerHour: cli.actionsPerHour,
-      limit: cli.limit,
-    }),
+    rankProcess(
+      recipes.recipes,
+      market,
+      // A missing `skills` means "every processing skill"; adding the key only when
+      // the flag was given keeps that distinction explicit.
+      cli.skills.length > 0
+        ? { ...displayOptions, skills: cli.skills }
+        : displayOptions,
+    ),
   );
 
-  printReport(cli, display, payload.pessimistic, payload.patient, market, {
-    recipeCount: recipes.recipes.length,
-    pages: recipes.pages,
-    skipped: recipes.skipped,
-    pricedItems: wantedIds.size,
-    unresolved: unresolved.size,
+  printReport({
+    cli,
+    display,
+    pessimistic: payload.pessimistic,
+    patient: payload.patient,
+    market,
+    stats: {
+      recipeCount: recipes.recipes.length,
+      pages: recipes.pages,
+      skipped: recipes.skipped,
+      pricedItems: wantedIds.size,
+      unresolved: unresolved.size,
+    },
   });
 }
 
@@ -274,14 +296,15 @@ interface ReportStats {
   unresolved: number;
 }
 
-function printReport(
-  cli: Cli,
-  display: ProcessRanking,
-  pessimistic: ProcessRanking,
-  patient: ProcessRanking,
-  market: MarketSnapshot,
-  stats: ReportStats,
-): void {
+function printReport(report: {
+  cli: Cli;
+  display: ProcessRanking;
+  pessimistic: ProcessRanking;
+  patient: ProcessRanking;
+  market: MarketSnapshot;
+  stats: ReportStats;
+}): void {
+  const { cli, display, pessimistic, patient, market, stats } = report;
   const direction =
     cli.mode === 'pessimistic'
       ? 'instant buy at GE high / instant sell at GE low'
@@ -326,19 +349,18 @@ function printReport(
 
   display.opportunities.forEach((opportunity, index) => {
     const skill = opportunity.skills[0];
+    // One label, built with if/else: the nested ternary it replaces was the least
+    // readable line in the file.
+    let skillLabel = '-';
+    if (skill !== undefined) {
+      const level = skill.level === null ? '' : ` ${skill.level}`;
+      skillLabel = truncate(`${skill.name}${level}`, 15);
+    }
     log(
       pad(String(index + 1), 3) +
         pad(truncate(opportunity.output.itemName, 31), 32) +
         pad(truncate(opportunity.method ?? '-', 21), 22) +
-        pad(
-          skill === undefined
-            ? '-'
-            : truncate(
-                `${skill.name}${skill.level === null ? '' : ` ${skill.level}`}`,
-                15,
-              ),
-          16,
-        ) +
+        pad(skillLabel, 16) +
         pad(opportunity.ticks === null ? '?' : String(opportunity.ticks), 6) +
         pad(formatGp(opportunity.spend), 14) +
         pad(formatGp(opportunity.netRevenue), 14) +

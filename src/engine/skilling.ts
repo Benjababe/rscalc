@@ -609,12 +609,15 @@ export function rankEvActivities(
             options.secondsPerTile ?? 0.6,
             options.handoverSeconds ?? DEFAULT_BANK_HANDOVER_SECONDS,
           );
-    const effectiveSeconds =
-      seconds === null
-        ? null
-        : tripSeconds === null || loadSize === null
+    // if/else rather than a nested ternary: the loader's own time, plus the bank trip
+    // spread over a load when both halves are known.
+    let effectiveSeconds: number | null = null;
+    if (seconds !== null) {
+      effectiveSeconds =
+        tripSeconds === null || loadSize === null
           ? seconds
           : seconds + tripSeconds / loadSize;
+    }
 
     const timeActions4h =
       effectiveSeconds === null

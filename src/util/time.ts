@@ -22,6 +22,8 @@ export function formatLocalTime(
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
 
+  // Same reason as `profit.ts`: an explicit object beats a conditional empty spread.
+  const zone = options.timeZone === undefined ? {} : { timeZone: options.timeZone };
   return date.toLocaleString(options.locale, {
     year: "numeric",
     month: "short",
@@ -29,7 +31,7 @@ export function formatLocalTime(
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
-    ...(options.timeZone !== undefined ? { timeZone: options.timeZone } : {}),
+    ...zone,
   });
 }
 

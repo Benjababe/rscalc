@@ -207,9 +207,27 @@ export async function fetchBankTitles(): Promise<string[]> {
   return [...new Set(titles)];
 }
 
+/**
+ * The integer parameters this reader understands, each with a **literal** pattern.
+ *
+ * A pattern built from a parameter name is the one shape here that could be talked
+ * into matching something else — Semgrep flags the dynamic form for ReDoS — and there
+ * are only five parameters, so the literal table is both safer and shorter.
+ */
+const INT_PARAMETERS = {
+  mapID: /\|\s*mapID\s*=\s*(-?\d+)/i,
+  x: /\|\s*x\s*=\s*(-?\d+)/i,
+  y: /\|\s*y\s*=\s*(-?\d+)/i,
+  rectX: /\|\s*rectX\s*=\s*(-?\d+)/i,
+  rectY: /\|\s*rectY\s*=\s*(-?\d+)/i,
+} satisfies Record<string, RegExp>;
+
 /** Read one integer named parameter out of a `{{Map|...}}` body. */
-function readInt(body: string, key: string): number | null {
-  const match = body.match(new RegExp(`\\|\\s*${key}\\s*=\\s*(-?\\d+)`, 'i'));
+function readInt(
+  body: string,
+  key: keyof typeof INT_PARAMETERS,
+): number | null {
+  const match = INT_PARAMETERS[key].exec(body);
   return match === null ? null : Number(match[1]);
 }
 

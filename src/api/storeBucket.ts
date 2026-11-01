@@ -112,40 +112,55 @@ function asText(value: unknown): string | null {
   return null;
 }
 
+/** The elements stripped from rendered wiki HTML, each with literal patterns. */
+interface ElementPattern {
+  /** Opening tag carrying the class to remove. */
+  opening: RegExp;
+  /** Any opening or closing tag of the same name, for depth counting. */
+  tag: RegExp;
+}
+
 /**
- * Remove elements with a given class, balancing nested tags of the same name.
- *
- * The wiki's floor-number template renders both the UK and US floor conventions
- * (CSS hides one). A flat regex cannot remove the hidden one because `<span>`
- * nests inside `<span>`, so this walks the tags instead.
+ * The floor-number template renders both the UK and US conventions and hides one
+ * with CSS. Two literals rather than a pattern built from a tag name: a dynamic
+ * `RegExp` is the one shape here that a future caller could turn into a backtracking
+ * hazard (Semgrep flags the dynamic form for exactly that reason), and there are only
+ * two elements to strip.
  */
-function removeElementByClass(
-  html: string,
-  tagName: string,
-  className: string,
-): string {
-  const opening = new RegExp(
-    `<${tagName}\\b[^>]*class="[^"]*\\b${className}\\b[^"]*"[^>]*>`,
-    'i',
-  );
+const STRIPPED_ELEMENTS: readonly ElementPattern[] = [
+  {
+    opening: /<span\b[^>]*class="[^"]*\bfloornumber-us\b[^"]*"[^>]*>/i,
+    tag: /<\/?span\b[^>]*>/gi,
+  },
+  {
+    opening: /<sup\b[^>]*class="[^"]*\bfloornumber-help\b[^"]*"[^>]*>/i,
+    tag: /<\/?sup\b[^>]*>/gi,
+  },
+];
+
+/**
+ * Remove one element type, balancing nested tags of the same name.
+ *
+ * A flat regex cannot remove the hidden floor convention because `<span>` nests inside
+ * `<span>`, so this walks the tags instead. `matchAll` clones the pattern, so its
+ * `lastIndex` cannot leak between calls.
+ */
+function removeElement(html: string, pattern: ElementPattern): string {
   let text = html;
 
   for (;;) {
-    const match = opening.exec(text);
+    const match = pattern.opening.exec(text);
     if (match === null) return text;
 
     const start = match.index;
-    const openingLength = (match[0] ?? '').length;
-    const tags = new RegExp(`<\\/?${tagName}\\b[^>]*>`, 'gi');
-    tags.lastIndex = start + openingLength;
-
+    const afterOpening = start + (match[0] ?? '').length;
     let depth = 1;
     let end = -1;
-    let tagMatch: RegExpExecArray | null;
-    while ((tagMatch = tags.exec(text)) !== null) {
+
+    for (const tagMatch of text.slice(afterOpening).matchAll(pattern.tag)) {
       depth += (tagMatch[0] ?? '').startsWith('</') ? -1 : 1;
       if (depth === 0) {
-        end = tagMatch.index + (tagMatch[0] ?? '').length;
+        end = afterOpening + (tagMatch.index ?? 0) + (tagMatch[0] ?? '').length;
         break;
       }
     }
@@ -166,8 +181,8 @@ function removeElementByClass(
  * own locale).
  */
 export function cleanHtmlText(raw: string): string {
-  let text = removeElementByClass(raw, 'span', 'floornumber-us');
-  text = removeElementByClass(text, 'sup', 'floornumber-help');
+  let text = raw;
+  for (const pattern of STRIPPED_ELEMENTS) text = removeElement(text, pattern);
   text = text.replace(
     /<span[^>]*user-select\s*:\s*none[^>]*>[\s\S]*?<\/span>/gi,
     '',

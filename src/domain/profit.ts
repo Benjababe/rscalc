@@ -48,9 +48,11 @@ export function evaluate(
   const taxPerUnit = geTax(sellPrice);
   const netSellPerUnit = netProceeds(sellPrice);
 
-  const plan = planPurchase(row, netSellPerUnit, {
-    ...(options.maxUnits !== undefined ? { maxUnits: options.maxUnits } : {}),
-  });
+  // An explicit empty options object rather than a conditional spread: the spread
+  // form hides whether the field is absent or merely undefined.
+  const planOptions =
+    options.maxUnits === undefined ? {} : { maxUnits: options.maxUnits };
+  const plan = planPurchase(row, netSellPerUnit, planOptions);
   if (plan.units <= 0 || plan.profit <= 0) return null;
   if (plan.totalCost <= 0) return null;
 
