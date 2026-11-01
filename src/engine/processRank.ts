@@ -31,6 +31,8 @@
  *  - https://oldschool.runescape.wiki/w/Grand_Exchange/Buying_limits
  */
 
+import { minigameOverlay } from '../domain/minigame.js';
+import type { MinigameRate } from '../domain/minigame.js';
 import { geTax } from '../domain/tax.js';
 import {
   actions4hForRate,
@@ -106,6 +108,12 @@ export interface ProcessRankOptions {
   maxActionsPerHour?: number;
   /** Cap the returned list. */
   limit?: number;
+  /**
+   * Minigame throughput and fees. A recipe whose facility matches uses the
+   * minigame's published actions/hour instead of its bucket tick count, and pays
+   * the minigame's fee per action. See `src/domain/minigame.ts`.
+   */
+  minigameRates?: readonly MinigameRate[];
 }
 
 /** The GE price a mode pays for an input. Null when the quote has no usable price. */
@@ -346,16 +354,32 @@ export function rankProcess(
     const marketActions4h = Math.min(inputActions, outputActions);
     if (marketActions4h < 1) continue;
 
+    // A minigame replaces the bucket's tick count (the process time of one item)
+    // with its published throughput, and charges its own fee. Everything else —
+    // materials, tax, market caps — is unchanged.
+    const overlay =
+      options.minigameRates === undefined
+        ? null
+        : minigameOverlay(
+            options.minigameRates,
+            recipe.facilities,
+            recipe.output.name,
+          );
+
     const grossRevenue = outputPrice * recipe.output.quantity;
     // Tax is charged per item sold, not on the whole stack at once. The 2% is
     // capped per item, so multiplying the per-unit tax is the correct sum.
     const tax = geTax(outputPrice) * recipe.output.quantity;
     const netRevenue = grossRevenue - tax;
-    const spend = itemCost + feeGp;
+    const totalFee = feeGp + (overlay?.feePerAction ?? 0);
+    const spend = itemCost + totalFee;
     const profit = netRevenue - spend;
     if (profit < minProfit) continue;
 
-    const seconds = secondsPerAction(recipe.ticks);
+    const seconds =
+      overlay === null
+        ? secondsPerAction(recipe.ticks)
+        : 3600 / overlay.actionsPerHour;
     const rateUsed = capActionsPerHour(
       actionsPerHour(seconds),
       maxActionsPerHour,
@@ -393,7 +417,9 @@ export function rankProcess(
       source: wikiUrl(recipe.page),
 
       itemCost,
-      feeGp,
+      // The recipe's own coin fee plus any minigame fee, so `profit = net - spend`
+      // stays true of the fields the page shows side by side.
+      feeGp: totalFee,
       spend,
       grossRevenue,
       tax,
@@ -401,7 +427,9 @@ export function rankProcess(
       profit,
       marginPct: spend > 0 ? (profit / spend) * 100 : 0,
 
-      ticks: recipe.ticks,
+      // With a minigame overlay the rate is the published throughput, not the
+      // bucket's per-item process time, so the tick count would be a lie next to it.
+      ticks: overlay === null ? recipe.ticks : null,
       secondsPerAction: seconds,
       marketActions4h,
       timeActions4h,

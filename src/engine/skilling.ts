@@ -50,6 +50,7 @@ import {
   secondsPerAction,
 } from '../domain/processTime.js';
 import { analyseDistribution, priceDistribution } from '../domain/ev.js';
+import type { MinigameRate } from '../domain/minigame.js';
 import type { EvDrop } from '../domain/ev.js';
 import type { ThievingSource } from '../api/wikiThieving.js';
 import { DEFAULT_BANK_HANDOVER_SECONDS, DEFAULT_UNITS_PER_LOAD } from '../domain/budget.js';
@@ -171,6 +172,12 @@ export interface SkillActivityOptions {
   gatherBankTilesByItem?: ReadonlyMap<string, number | null>;
   /** Stackability per item; unknown counts as non-stackable. */
   stackableByItem?: ReadonlyMap<string, boolean | null>;
+  /**
+   * Minigame throughput and fees, forwarded to `rankProcess`. A recipe run inside a
+   * minigame takes the minigame's published actions/hour and pays its fee instead
+   * of the bucket's per-item tick count (see `src/domain/minigame.ts`).
+   */
+  minigameRates?: readonly MinigameRate[];
   /**
    * Curated upgrade recipes, keyed `skill|output` (lower-cased). A match moves the
    * row from `transform` to `upgrade` so a one-off item conversion is not ranked
@@ -708,6 +715,7 @@ export function rankSkillActivities(
     skills: [options.skill],
     minProfit: NO_PROFIT_FLOOR,
     maxActionsPerHour,
+    minigameRates: options.minigameRates,
     // Cooking is handled by the no-burn gate below instead of a blanket drop.
     excludedSkills: options.skill === 'Cooking' ? [] : undefined,
   });

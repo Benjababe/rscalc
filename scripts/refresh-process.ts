@@ -23,6 +23,8 @@ import { fileURLToPath } from 'url';
 
 import { fetch24h, fetchLatest, fetchMapping } from '../src/api/prices.js';
 import { fetchRecipes } from '../src/api/wikiRecipes.js';
+import { overlayKeys } from '../src/domain/minigame.js';
+import { MINIGAME_RATES } from './minigameSources.js';
 import { rankProcess } from '../src/engine/processRank.js';
 import { formatLocalTime } from '../src/util/time.js';
 import {
@@ -122,6 +124,33 @@ async function main(): Promise<void> {
         : ' — fetched now'),
   );
 
+  // Drift check: a curated minigame rate that matches no recipe is stale (the wiki
+  // renamed a bar, or the bucket moved the facility). Say so instead of quietly
+  // pricing nothing, the same way `scripts/skillUpgrades.ts` is checked.
+  const curated = overlayKeys(MINIGAME_RATES);
+  const matched = new Set<string>();
+  for (const recipe of recipes.recipes) {
+    if (recipe.facilities === null) continue;
+    for (const key of curated) {
+      const [facility, item] = key.split('|');
+      if (
+        recipe.facilities.toLowerCase() === facility &&
+        recipe.output.name.toLowerCase() === item
+      ) {
+        matched.add(key);
+      }
+    }
+  }
+  const staleRates = [...curated].filter((key) => !matched.has(key));
+  if (staleRates.length > 0) {
+    log(
+      `  WARNING: ${staleRates.length} curated minigame rate(s) matched no recipe: ` +
+        `${staleRates.join(', ')} — check scripts/minigameSources.ts.`,
+    );
+  } else {
+    log(`  ${matched.size} minigame rate(s) matched a recipe (scripts/minigameSources.ts)`);
+  }
+
   log('fetching item metadata and GE prices...');
   const mapping = await fetchMapping();
   const latest = await fetchLatest();
@@ -194,10 +223,16 @@ async function main(): Promise<void> {
   // The artifact always carries every deterministic, fully priced recipe in
   // both modes. Filters, gold and sorting belong to the browser.
   const pessimistic = ProcessRankingSchema.parse(
-    rankProcess(recipes.recipes, market, { mode: 'pessimistic' }),
+    rankProcess(recipes.recipes, market, {
+      mode: 'pessimistic',
+      minigameRates: MINIGAME_RATES,
+    }),
   );
   const patient = ProcessRankingSchema.parse(
-    rankProcess(recipes.recipes, market, { mode: 'patient' }),
+    rankProcess(recipes.recipes, market, {
+      mode: 'patient',
+      minigameRates: MINIGAME_RATES,
+    }),
   );
 
   const payload = ProcessPayloadSchema.parse({
@@ -216,6 +251,7 @@ async function main(): Promise<void> {
       membersOnly: cli.members,
       ...(cli.skills.length > 0 ? { skills: cli.skills } : {}),
       minProfit: cli.minProfit,
+      minigameRates: MINIGAME_RATES,
       maxActionsPerHour: cli.actionsPerHour,
       limit: cli.limit,
     }),

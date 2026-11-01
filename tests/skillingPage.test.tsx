@@ -226,6 +226,46 @@ describe('skilling page', () => {
     expect(rows().some((row) => row.textContent?.includes('your rate'))).toBe(false);
   });
 
+  it('names the facility, so a minigame row is identifiable and searchable', () => {
+    render(<SkillingPage />);
+
+    fireEvent.change(screen.getByRole('searchbox'), {
+      target: { value: 'blast furnace' },
+    });
+
+    const names = activityNames();
+    expect(names.length).toBeGreaterThan(0);
+    // Every hit is a smithing bar priced at the Blast Furnace, and says so.
+    for (const row of rows()) {
+      expect(row.textContent).toContain('at Blast Furnace');
+      expect(row.textContent).toContain('Smithing');
+    }
+    expect(names.some((name) => name.startsWith('Steel bar'))).toBe(true);
+  });
+
+  it('lists every skill with its row count, including a cost-only one', () => {
+    render(<SkillingPage />);
+
+    const skillSelect = screen.getByRole<HTMLSelectElement>('combobox', {
+      name: 'Skill filter',
+    });
+    const options = [...skillSelect.options].map((option) => option.textContent ?? '');
+
+    // Sailing prices no income at all — every row is a training cost — so without a
+    // count it looks absent from a list sorted by gp/hour.
+    const sailing = options.find((label) => label.startsWith('Sailing ('));
+    expect(sailing).toBeTruthy();
+    expect(sailing).not.toBe('Sailing (0)');
+    expect(options.some((label) => label.startsWith('Smithing ('))).toBe(true);
+
+    fireEvent.change(skillSelect, { target: { value: 'Sailing' } });
+    expect(rows().length).toBeGreaterThan(0);
+    for (const row of rows()) {
+      expect(row.textContent).toContain('Sailing');
+      expect(within(row).getByText('Cost')).toBeTruthy();
+    }
+  });
+
   it('states what could not be priced', () => {
     render(<SkillingPage />);
 

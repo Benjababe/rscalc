@@ -461,6 +461,29 @@ problem is not a cost. Tests pin both branches.
   is a per-trap **ceiling**, not throughput (no spawn-density or competition model),
   so it is recorded on the source and never converted into gp/hour — doing that read
   1.01M/h for red chinchompas.
+- **A minigame is an overlay on the bucket's recipes, not a new recipe**
+  (`src/domain/minigame.ts`, `scripts/minigameSources.ts`, §8.20). Its recipes already
+  carry the right materials (the Blast Furnace rows halve the coal), but the bucket's
+  tick count is the per-item *process* time, and at a minigame the work is
+  concurrent — the published throughput is 2,900–3,400 bars/hour where the ticks imply
+  545. So the overlay replaces the rate with the **lower bound** of the published
+  range, adds the minigame's fee as `ceil(feePerHour / actionsPerHour)` per action,
+  and sets `ticks` to null. It lives in `rankProcess`, so `#/processing` and
+  `#/skilling` cannot disagree about a bar, and `refresh-process.ts` warns when a
+  curated `facility|item` key matches no recipe.
+- **Sailing is a cost skill, and that is measured.** Its income is shipwreck
+  salvage, whose loot tables mix fixed drops with **ranged quantities** (`Bronze nails
+  1-5`, `Coins 1-200`: 5–8 of 22–24 lines) and publish no weights, and `Sort-salvage`
+  has **no published interval** — so salvage is refused rather than averaged
+  (`docs/skilling-plan.md` §8.13b). Sailing's 124 rows are all `Cost`; the skilling
+  page's skill filter prints a per-skill row count so a cost-only skill cannot read as
+  absent from a list sorted by gp/hour.
+- **A minigame needs both halves to be priced.** Zalcano publishes a loot table whose
+  every quantity is a range with no weights (`Blood rune 64-480`) and no
+  kills-per-hour, so it is refused rather than averaged; Wintertodt, Tempoross,
+  Guardians of the Rift, Volcanic Mine, Tithe Farm, Mahogany Homes and Giants' Foundry
+  are refused in `scripts/minigameSources.ts`, each with the published number it is
+  missing. Do not fill either half in with an estimate.
 - **Template parameters are split on top-level pipes** (`src/api/wikiParams.ts`), not
   on newlines: the same template is written inline on some pages and multi-line on
   others, and a newline split silently reads only the first parameter — which looks

@@ -179,9 +179,18 @@ export function SkillingPage(): JSX.Element {
   );
   const deferredQuery = useDeferredValue(normaliseQuery(query));
 
+  // Counted per mode: the two modes price slightly different sets, and the label
+  // must not claim rows the current view does not have.
   const skills = useMemo(
-    () => DATA.skills.map((entry) => entry.skill),
-    [],
+    () =>
+      DATA.skills.map((entry) => ({
+        skill: entry.skill,
+        count: (mode === "pessimistic"
+          ? entry.pessimistic
+          : entry.patient
+        ).opportunities.length,
+      })),
+    [mode],
   );
 
   const all = useMemo(() => rowsFor(DATA, mode), [mode]);
@@ -199,7 +208,11 @@ export function SkillingPage(): JSX.Element {
           return false;
         }
       }
-      const haystack = `${row.activity.outputName} ${row.skill} ${row.activity.inputs
+      // The facility and method are searchable: "blast furnace" has to find the
+      // minigame rows, and they are ordinary transforms with no give-away name.
+      const haystack = `${row.activity.outputName} ${row.skill} ${
+        row.activity.facility ?? ""
+      } ${row.activity.method ?? ""} ${row.activity.inputs
         .map((item) => item.itemName)
         .join(" ")}`;
       return matchesQuery(deferredQuery, [haystack]);
@@ -455,9 +468,9 @@ export function SkillingPage(): JSX.Element {
             aria-label="Skill filter"
           >
             <option value="all">All skills</option>
-            {skills.map((skill) => (
-              <option key={skill} value={skill}>
-                {skill}
+            {skills.map((entry) => (
+              <option key={entry.skill} value={entry.skill}>
+                {entry.skill} ({entry.count.toLocaleString()})
               </option>
             ))}
           </select>
@@ -694,6 +707,18 @@ function ActivityCell(props: { row: Row }): JSX.Element {
       )}
       {activity.feeGp > 0 && (
         <span className="cell-note">+{formatGp(activity.feeGp)} gp fee</span>
+      )}
+      {activity.facility !== null && activity.facility !== "" && (
+        <span
+          className="cell-note"
+          title={
+            "Where this action happens. For a minigame the rate is the minigame's " +
+            "published throughput and the fee is its published charge, not the " +
+            "recipe's per-item tick count — see docs/skilling-plan.md §8.20."
+          }
+        >
+          at {activity.facility}
+        </span>
       )}
     </>
   );

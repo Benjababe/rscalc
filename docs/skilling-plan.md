@@ -1,8 +1,10 @@
 # Skilling activities — scan plan
 
-Status: **phases 1–3 scanned, plus the expected-value families (§8.17–§8.19).**
-2,114 priced activities across the 19 skills in `SKILLING_SKILLS`; the remainder
-and the reason for every gap are in §8. Phase 4 (minigames) is queued — see §5.
+Status: **phases 1–3 scanned, the expected-value families (§8.17–§8.19), and the
+first minigame (§8.20).** 2,114 priced activities across the 19 skills in
+`SKILLING_SKILLS`; the remainder and the reason for every gap are in §8. The rest
+of Phase 4 is queued or refused in §5, each with the published number it would
+need.
 
 The page answers: **for this skill, what can I do, what does one action earn or
 cost at today's GE prices, and — only where the wiki publishes a time — what is
@@ -219,35 +221,35 @@ Do not pad it with a player-entered rate.
 | 18 | Agility | **✅ scanned — see §8.16** | 1 recipe, unpriced at both ends |
 | 19 | Slayer | **✅ scanned — see §8.16** | 13 recipes, all house trophies |
 
-### Phase 4 — minigames and skilling bosses (queued; `kind: ev`)
+### Phase 4 — minigames and skilling bosses (**Blast Furnace priced, §8.20**)
 
-Nothing here is scanned yet. They are listed as work rather than as a parked
-question because the row shape already exists: Thieving stalls added
-`kind: 'ev'` and the `distribution` field (§8.17), so a minigame is
-the same arithmetic — a round's loot priced at
-`Σ chance × quantity × value` — pointed at a different table. What each one
-lacks is **sourced data**: under §4 a row needs an action time, and under §3.1 an
-expectation needs a published distribution. A minigame publishes neither as a
-recipe tick, so both halves have to be read from its own pages.
-
-Two shapes, and the second is the honest one for most of them:
+The first minigame is priced, and it needed a **third** shape rather than the two
+this section first guessed. Thieving stalls had already added `kind: 'ev'` and the
+`distribution` field (§8.17), so a points→loot minigame is the same arithmetic. The
+Blast Furnace turned out to be neither that nor a plain transform: its recipes are
+already in the bucket with the correct half-coal materials, but the bucket's tick
+count is the *process* time of one bar, and the dwarven workers smelt them
+concurrently. So the minigame contributes an **overlay** on recipes that already
+exist — published actions/hour in place of the tick count, and its fee added per
+action (`src/domain/minigame.ts`, `scripts/minigameSources.ts`).
 
 | Shape | How it prices | What must be sourced first |
 | --- | --- | --- |
-| **Fixed fee − fixed materials** | Same maths as `train`/`transform`; deterministic | The minigame's fee and its round duration |
-| **Points → loot table** | `kind: 'ev'` over the reward table | Points (or rounds) per hour **and** the published reward distribution |
+| **Overlay on bucket recipes** | published actions/hour replaces the ticks; fee per action | the minigame's fee per hour and its published throughput per output |
+| **Fixed fee − fixed materials** | the `train`/`transform` maths | the fee and the round duration |
+| **Points → loot table** | `kind: 'ev'` over the reward table | points (or rounds) per hour **and** the published reward distribution |
 
-| # | Minigame | Skill | Shape | Blocker |
+| # | Minigame | Skill | Shape | Status |
 | --- | --- | --- | --- | --- |
-| 20 | Blast Furnace | Smithing | fee − materials | coffer fee and bars-per-hour; its two Keldagrim shops are already exempted from the city's quest requirement (`scripts/shopAccessRules.ts`), so shop access is not the blocker here |
-| 21 | Mahogany Homes | Construction | fee − planks | contract fee per house and contract duration |
-| 22 | Giants' Foundry | Smithing | fee − materials | commission and round duration |
-| 23 | Wintertodt | Firemaking | points → loot | points per round and the supply-crate table |
-| 24 | Tempoross | Fishing / Cooking | points → loot | points per round and the reward pool table |
-| 25 | Guardians of the Rift | Runecraft | points → loot | points per round and the rune reward table |
-| 26 | Zalcano | Mining / Smithing | damage → loot | damage-share loot table and kills or rounds per hour |
-| 27 | Volcanic Mine | Mining | points → loot | point rewards and a round duration |
-| 28 | Tithe Farm | Farming | points → loot | seed rewards and points per hour |
+| 20 | Blast Furnace | Smithing | overlay | **✅ priced — see §8.20** |
+| 21 | Mahogany Homes | Construction | fee − planks | queued: no published contracts/hour |
+| 22 | Giants' Foundry | Smithing | fee − materials | queued: no published rounds/hour |
+| 23 | Wintertodt | Firemaking | points → loot | refused: no fixed-quantity crate table, no rounds/hour |
+| 24 | Tempoross | Fishing / Cooking | points → loot | refused: same |
+| 25 | Guardians of the Rift | Runecraft | points → loot | refused: rewards cost abyssal pearls, and neither half is published |
+| 26 | Zalcano | Mining / Smithing | damage → loot | **refused:** every drop quantity is a published range with no weights, and no kills/hour |
+| 27 | Volcanic Mine | Mining | points → loot | refused: no published points/hour |
+| 28 | Tithe Farm | Farming | points → loot | refused: no published points/hour |
 
 Rules that apply the moment one is scanned, none of them new:
 
@@ -711,6 +713,41 @@ parts are Sailing *and* Construction). That is correct for a per-skill listing a
 wrong for a leaderboard, so `buildEarnings` now deduplicates within the skilling
 family as well as against processing: one action, one margin, counted once.
 
+### 8.13b Sailing's salvage: checked line by line, still refused
+
+§8.13 left Sailing as a cost-only skill with one open question: salvage is its
+income, so can it be priced? The answer is no, and the reason is now measured rather
+than assumed.
+
+The loot lives on the **salvage item** pages (`Small salvage`, `Fishy salvage`,
+`Barracuda salvage`, `Large salvage`), each with a `{{Sailing info}}` block and a
+`{{DropsLineSkill}}` table whose rarities do add up to one roll:
+
+| Page | Lines | Ranged quantities |
+| --- | --- | --- |
+| `Small salvage` | 22 | **8** |
+| `Fishy salvage` | 24 | **6** |
+| `Barracuda salvage` | 22 | **5** |
+| `Large salvage` | 23 | **8** |
+
+Every table mixes fixed drops with ranged ones — `Bronze nails 1-5`, `Air rune 1-10`,
+`Bronze cannonball 2-7`, `Coins 1-200` — and the wiki publishes no weights for those
+ranges. That is the same refusal `ev.ts` makes of `Potato seed 1-4` and of Zalcano
+(§8.20): a range without weights has no expectation, and averaging it would invent a
+distribution. Refusing the whole table is deliberate; pricing the fixed remainder
+would silently delete the largest outcomes.
+
+There is also **no published sort time**. `Sort-salvage` is an option on the
+`Salvaging station` scenery, whose page publishes coordinates and an examine line but
+no interval, and `Sorting` is a transcript with no table. So even a clean reward
+table would have no rate — the same "per attempt, no hour" shape fishing has (§8.19),
+except that fishing at least has the distribution.
+
+**What would unblock it:** per-quantity weights (or a published average) for the
+ranged lines, plus a sourced sort interval. Until then Sailing stays honestly a cost
+skill, and the page says so: its 124 rows are all `Cost`, and the skill filter shows
+the count next to the name so a cost-only skill cannot look absent.
+
 ### 8.14 Phase 2 complete: Mining, Woodcutting, Fishing, Hunter, Thieving
 
 All five are scanned. Together they priced **7 rows**, which is the point of this
@@ -1087,6 +1124,59 @@ how many table lines an expectation leaves out.
 Sandbox note for the next reader: `data/skilling.json` is now 7.9 MB raw and the
 `#/skilling` + `#/earn` chunk is 3.67 MB (390 kB gzip). The slimmer `earn` projection
 described in §9 is now the largest single win available on the site.
+
+### 8.20 The Blast Furnace: an overlay, not a recipe
+
+`#/processing` already priced nine Blast Furnace bars, because the bucket carries the
+Blast Furnace variant of each bar recipe — **half the coal** of a normal furnace
+(steel is 1 coal + 1 iron ore, not 2). What it priced was wrong in two ways, and the
+second was invisible:
+
+- **The rate.** The bucket's `ticks` is the per-item process time. At the Blast
+  Furnace the dwarven workers smelt bars **concurrently**, so the wiki's own table
+  gives steel 2,900–3,400 bars/hour where the bucket's 11 ticks imply 545. The page
+  was understating by a factor of five.
+- **The fee.** Nothing charged it. Themed worlds take 72,000 gp/hour into the coffer
+  (1,200/minute, 12 gp per tick).
+
+So a minigame is not a new recipe and not an EV table: it is an **overlay** on
+recipes that already exist (`src/domain/minigame.ts`), applied inside `rankProcess`
+so `#/processing` and `#/skilling` cannot disagree about a bar.
+
+| Reading | Value | Why |
+| --- | --- | --- |
+| Throughput | lower bound of the published range | 2,900 not 3,400: the same pessimistic reading the gathering model takes of a respawn table |
+| Coal-bag columns | not used | they are faster and gear-dependent; the "Default" column is the plain case |
+| Gold-gauntlets / cape / hybrid rows | not priced | they describe a different method, not this bar |
+| Fee per action | `ceil(72,000 / actionsPerHour)` | the fee is per tick, so it is fractional per bar; rounding up keeps the row conservative and keeps money integer |
+| `ticks` | `null` | the rate no longer comes from the tick count, and a stale tick next to a published rate would be a lie |
+
+Steel bar at today's prices: 298 gp profit per bar after a 25 gp fee, 2,900 bars/hour,
+**864,200 gp/hour** — a row the site previously reported as 175,570.
+
+The overlay also makes a stale curation visible: `refresh-process.ts` checks every
+curated `facility|item` key against the bucket and warns when one matches no recipe,
+so a renamed bar cannot silently stop being priced.
+
+#### Zalcano and the rest: refused, with the missing number named
+
+**Zalcano** is the clearest refusal on the whole page. Every line of its drop table is
+a **ranged quantity** — `Blood rune 64-480`, `Silver ore 86-800`, `Runite ore 3-31` —
+and the article publishes no weights for those ranges, so there is no expectation to
+compute; the midpoint would be an invented distribution, which is the same refusal
+`ev.ts` makes of `Potato seed 1-4`. Its loot is also a damage-contribution share with
+no published kills-per-hour, so even a clean table would have no rate.
+
+The rest are refused for the same reason in either half, and `scripts/minigameSources.ts`
+lists each with its own sentence: Wintertodt and Tempoross (no fixed-quantity crate
+table, no rounds/hour), Guardians of the Rift (rewards cost abyssal pearls, and neither
+pearls-per-round nor the pearl price is published), Volcanic Mine and Tithe Farm (point
+rewards, no points/hour), Mahogany Homes and Giants' Foundry (contract fees, no
+contracts/hour).
+
+That is a deliberate outcome, not an unfinished one: under §4 a figure is sourced or
+it is absent, and a minigame row needs **both** halves — a published reward and a
+published rate.
 
 ### 8.11 The instant default, and why the page must own it
 

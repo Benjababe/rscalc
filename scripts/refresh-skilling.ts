@@ -48,6 +48,7 @@ import { PICKPOCKET_PAGES } from './pickpocketSources.js';
 import { fishingSourcePages } from './fishingSources.js';
 import { hunterSourcePages } from './hunterSources.js';
 import { SKILL_UPGRADES, upgradeKeys } from './skillUpgrades.js';
+import { MINIGAME_RATES } from './minigameSources.js';
 import { SKILLING_SKILLS, rankSkillActivities } from '../src/engine/skilling.js';
 import type { SkillingSkill } from '../src/engine/skilling.js';
 import { formatLocalTime } from '../src/util/time.js';
@@ -445,6 +446,7 @@ async function main(): Promise<void> {
       skill,
       mode: 'pessimistic',
       maxActionsPerHour: cli.actionsPerHour,
+      minigameRates: MINIGAME_RATES,
       burnLevels: burnLevels,
       upgradeKeys: upgradeKeySet,
       gatheringNodes: gatheringNodes.filter((node) => node.skill === skill),
@@ -460,6 +462,7 @@ async function main(): Promise<void> {
       skill,
       mode: 'patient',
       maxActionsPerHour: cli.actionsPerHour,
+      minigameRates: MINIGAME_RATES,
       burnLevels: burnLevels,
       upgradeKeys: upgradeKeySet,
       gatheringNodes: gatheringNodes.filter((node) => node.skill === skill),
