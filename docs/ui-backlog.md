@@ -34,10 +34,10 @@ change (S ≈ under an hour, M ≈ half a day, L ≈ a day or more).
 |2.3 UI-level tests|**done** — jsdom render tests for page + controls|
 |3.1 Light theme|open — optional|
 |3.2 Keyboard shortcut to focus search|**done** — `/` and Ctrl/Cmd+K|
-|3.3 Sticky toolbar|open — optional|
+|3.3 Sticky toolbar|**dropped** — built, reviewed, removed|
 
-**Open:** 3.1 and 3.3 (optional).
-All of §1 and §2 has landed; only the optional §3 items remain.
+**Open:** 3.1 (optional). 3.3 was built and then dropped by request.
+Everything else, including all of §1 and §2, has landed.
 
 ---
 
@@ -274,11 +274,20 @@ Small, but the search is now the primary control.
   insert the character, and that `/` typed inside a number input, a `select` or
   the search box itself is untouched.
 
-### 3.3 Sticky toolbar
+### 3.3 Sticky toolbar — dropped
 
-The toolbar scrolls away while the table keeps a sticky header. Pinning the
-chip row (collapsed to one line once scrolled) would keep filters reachable
-while browsing a long result set.
+The toolbar scrolled away while the table kept a sticky header, so a filter
+change after scrolling down meant scrolling back up.
+
+- **Built, reviewed and removed.** `position: sticky` plus a `useStuck` hook
+  worked: the toolbar pinned at `top: 0`, dropped the source timestamps, and
+  pulled the chip row onto one line (117px → 107px while pinned).
+- **Why it went anyway:** it was not wanted. The table already has its own
+  scroll container with a sticky header, so the page only scrolls a little
+  beyond the toolbar, and the extra pinned band covered table rows for that
+  small gain. This is a product decision, not a technical one — the code was
+  removed and the page is back to a normal scrolling toolbar.
+- **Do not re-add** without a request, the same way mobile is out of scope.
 
 ---
 
@@ -293,4 +302,4 @@ If these are taken in order, two coherent commits cover the cheap wins:
 3. **Page deduplication** — 2.1. **Landed**, verified by hashing the rendered
    text of all three pages in both modes before and after.
 
-Remaining: the optional §3 items.
+Remaining: 3.1, the optional light theme. (3.3 was dropped by request.)
