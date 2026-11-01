@@ -369,7 +369,7 @@ recipe, and sell the result back to the GE.
 ### M13 — GP-earning leaderboard ✅
 The site is a gp-earning site, not a shop-arbitrage tool: `#/earn` is the
 landing page and the three calculators are its detail pages.
-- `src/domain/earnings.ts` joins all three artifacts into one list, re-planning
+- `src/domain/earnings.ts` joins all four artifacts into one list, re-planning
 each row at the player's gold with the same pure planners the detail pages use.
 It must never read `Opportunity.gpPerHour`: that field is a documented
 placeholder equal to `gpPer4h`, so using it would overstate a shop run fourfold.
@@ -381,6 +381,10 @@ same mode and search text.
 distance with banking needed, unknown GE distance for a flip, no published tick
 time for a recipe. No-4h-market rows and rows the gold cannot fund are counted
 separately, and the page states all three.
+- The fourth family is **skilling** (`data/skilling.json`, Q8): re-planned at the
+player's gold like a recipe, with `train` rows excluded (they sell nothing) and a
+row whose `recipeId` is already in `data/process.json` dropped as a duplicate and
+counted, so one action is never ranked twice.
 - Ranking is total and deterministic: gp/hour, then profit, then kind, then name,
 then id. The method filter (`shop-run`, `shop-dump`, `processing`), members-only
 and hide-locked behave as on the detail pages.

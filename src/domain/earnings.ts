@@ -9,7 +9,10 @@
  *  - **shop dump** — buy on the GE, sell it to an NPC shop
  *    (`data/shop-sinks.json`, `planShopSink`);
  *  - **processing** — buy inputs, transform them with a deterministic recipe,
- *    sell the output (`data/process.json`).
+ *    sell the output (`data/process.json`);
+ *  - **skilling** — the same idea across every scanned skill
+ *    (`data/skilling.json`), including the rows the processing artifact does not
+ *    carry because they are unprofitable there or belong to another skill.
  *
  * This module answers the one question that spans all three: **at this much
  * gold, what earns the most per hour, what do I need up front, and how long
@@ -42,16 +45,18 @@ import type {
   ProcessOpportunity,
   ShopAccessEntry,
   ShopSinkOpportunity,
+  SkillActivity,
 } from '../types.js';
 
-/** The three money-making families the site can price. */
-export type EarnKind = 'shop-run' | 'shop-dump' | 'processing';
+/** The four money-making families the site can price. */
+export type EarnKind = 'shop-run' | 'shop-dump' | 'processing' | 'skilling';
 
 /** Player-facing name of each family. */
 export const EARN_KIND_LABELS: Record<EarnKind, string> = {
   'shop-run': 'Shop run',
   'shop-dump': 'Sell to shop',
   processing: 'Processing',
+  skilling: 'Skilling',
 };
 
 /**
@@ -62,11 +67,13 @@ export const EARN_KIND_TITLES: Record<EarnKind, string> = {
   'shop-run': 'Buy stock from an NPC shop and sell it on the Grand Exchange',
   'shop-dump': 'Buy on the Grand Exchange and sell it to an NPC shop',
   processing: 'Buy inputs on the GE, transform them, and sell the output',
+  skilling:
+    'Train a skill on GE-bought inputs and sell the product: crafting, smithing, cooking and the rest',
 };
 
 /** Which detail page explains a row, and with what search text. */
 export interface EarnTarget {
-  page: 'shop-to-ge' | 'ge-to-shop' | 'processing';
+  page: 'shop-to-ge' | 'ge-to-shop' | 'processing' | 'skilling';
   /** Prefills that page's search box, so the row is easy to find again. */
   query: string;
 }
@@ -103,6 +110,17 @@ export interface EarnMethod {
   target: EarnTarget;
 }
 
+/**
+ * One skilling activity plus the skill it was scanned under.
+ *
+ * `data/skilling.json` groups rows per skill, and a few recipes are reachable
+ * from more than one skill, so the pair is the identity, not the recipe alone.
+ */
+export interface SkillActivityRow {
+  skill: string;
+  activity: SkillActivity;
+}
+
 export interface EarnInput {
   /** Shop -> GE rows from `data/opportunities.json` for one price mode. */
   shopRuns: readonly Opportunity[];
@@ -110,6 +128,14 @@ export interface EarnInput {
   shopDumps: readonly ShopSinkOpportunity[];
   /** Deterministic recipes from `data/process.json` for the same mode. */
   recipes: readonly ProcessOpportunity[];
+  /**
+   * Priced skilling activities from `data/skilling.json` for the same mode.
+   *
+   * Cost-to-train rows sell nothing, so they are not candidates here; rows whose
+   * recipe already has a processing row are dropped as duplicates (see
+   * `duplicated` in the result), because one action must not be ranked twice.
+   */
+  skilling?: readonly SkillActivityRow[];
 }
 
 export interface EarnOptions {
@@ -134,6 +160,12 @@ export interface EarnResult {
   unexecutable: number;
   /** Rows the current gold cannot execute at all. */
   unaffordable: number;
+  /**
+   * Skilling rows skipped because `data/process.json` already ranks the same
+   * recipe. Counted so the coverage line can say why the two families do not
+   * simply add up.
+   */
+  duplicated: number;
 }
 
 /** Seconds in the GE's 4-hour buy-limit / volume window. */
@@ -381,6 +413,76 @@ export function buildEarnings(
     });
   }
 
+  // ----------------------------------------------------------------- skilling
+  //
+  // Skilling rows are planned exactly like recipes: the market and the recipe's
+  // own speed cap the actions, the player's gold caps them again, and the hourly
+  // rate is unchanged by a smaller plan. Two exclusions are specific to this
+  // family and are counted rather than silent:
+  //
+  //  - `train` rows sell nothing (house furniture), so they cannot earn;
+  //  - a row whose recipe is already in `input.recipes` is the *same action* the
+  //    processing page ranks, so it is dropped as a duplicate.
+  const processingIds = new Set(
+    input.recipes.map((recipe) => recipe.recipeId),
+  );
+  let duplicated = 0;
+
+  for (const entry of input.skilling ?? []) {
+    const opp = entry.activity;
+    if (opp.kind === 'train') continue;
+    if (processingIds.has(opp.recipeId)) {
+      duplicated += 1;
+      continue;
+    }
+    if (opp.gpPerHour === null || opp.gpPerHour <= 0) {
+      unranked += 1;
+      continue;
+    }
+    if (opp.actions4h <= 0) continue;
+
+    const affordable =
+      goldGp > 0 ? Math.floor(goldGp / Math.max(1, opp.spend)) : opp.actions4h;
+    const actions = Math.min(opp.actions4h, affordable);
+    if (actions <= 0) {
+      if (goldGp > 0) unaffordable += 1;
+      continue;
+    }
+
+    const profit = actions * opp.profit;
+    if (profit <= 0) continue;
+
+    const requirements = opp.skills.map((skill) =>
+      skill.level === null ? skill.name : `${skill.name} ${skill.level}`,
+    );
+    // Cooking's row is only deterministic at or above this level, so it belongs
+    // in the requirements: it is the level at which the margin stops being a
+    // gamble.
+    if (opp.noBurnLevel !== null) {
+      requirements.push(`Cooking ${opp.noBurnLevel} to not burn`);
+    }
+
+    methods.push({
+      id: `skilling:${entry.skill}:${opp.recipeId}`,
+      kind: 'skilling',
+      name: opp.outputName,
+      where:
+        opp.inputs
+          .map((item) => `${item.itemName} ×${item.quantity}`)
+          .join(', ') || 'nothing',
+      detail: opp.facility ?? opp.method,
+      members: opp.members,
+      gpPerHour: opp.gpPerHour,
+      capitalGp: actions * opp.spend,
+      profitGp: profit,
+      timeSeconds: (actions / opp.actions4h) * FOUR_HOURS_SECONDS,
+      requirements,
+      requirementSource: opp.source,
+      locked: false,
+      target: { page: 'skilling', query: opp.outputName },
+    });
+  }
+
   // Total and deterministic: gp/hour, then the size of the run, then identity.
   methods.sort((a, b) => {
     if (b.gpPerHour !== a.gpPerHour) return b.gpPerHour - a.gpPerHour;
@@ -390,5 +492,5 @@ export function buildEarnings(
     return a.id.localeCompare(b.id);
   });
 
-  return { methods, unranked, unexecutable, unaffordable };
+  return { methods, unranked, unexecutable, unaffordable, duplicated };
 }

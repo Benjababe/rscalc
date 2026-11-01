@@ -21,12 +21,18 @@ import {
   EARN_KIND_LABELS,
   EARN_KIND_TITLES,
 } from "../../src/domain/earnings";
-import type { EarnMethod, EarnResult } from "../../src/domain/earnings";
+import type {
+  EarnMethod,
+  EarnResult,
+  SkillActivityRow,
+} from "../../src/domain/earnings";
 import type {
   ProcessPayload,
   Ranking,
   SellMode,
   ShopSinkRanking,
+  SkillActivity,
+  SkillActivityCatalog,
 } from "../../src/types";
 import { wikiUrl } from "../../src/util/wiki";
 import { ACCESS_MAP } from "./access";
@@ -47,6 +53,7 @@ import { Results, Stat, Th } from "./ui";
 import opportunitiesPayload from "../../data/opportunities.json";
 import sinksPayload from "../../data/shop-sinks.json";
 import processPayload from "../../data/process.json";
+import skillingPayload from "../../data/skilling.json";
 
 interface OpportunitiesData {
   generatedAt: string;
@@ -68,6 +75,44 @@ const OPPORTUNITIES = opportunitiesPayload as unknown as OpportunitiesData;
 const SINKS = sinksPayload as unknown as SinksData;
 const PROCESS = processPayload as unknown as ProcessPayload;
 
+/**
+ * SAFETY: the artifact is written by `scripts/refresh-skilling.ts`, which refuses
+ * to write a payload that fails `SkillingPayloadSchema`, so the shape here is the
+ * one that schema validated.
+ */
+const SKILLING = skillingPayload as unknown as SkillingData;
+
+interface SkillingData {
+  pessimistic: { opportunities: SkillActivity[] };
+  patient: { opportunities: SkillActivity[] };
+  skills: SkillActivityCatalog[];
+}
+
+/**
+ * Flatten the per-skill artifact into one list for the leaderboard, carrying the
+ * skill each row was scanned under (a few recipes are reachable from more than
+ * one skill, so the recipe id alone is not an identity).
+ */
+function skillingRows(mode: SellMode): SkillActivityRow[] {
+  const rows: SkillActivityRow[] = [];
+  for (const catalog of SKILLING.skills) {
+    const ranking =
+      mode === "pessimistic" ? catalog.pessimistic : catalog.patient;
+    for (const activity of ranking.opportunities) {
+      rows.push({ skill: catalog.skill, activity });
+    }
+  }
+  return rows;
+}
+
+/** Where a row's detail link goes, for the tooltip. */
+const TARGET_LABEL: Record<EarnMethod["target"]["page"], string> = {
+  "shop-to-ge": "Shop → GE",
+  "ge-to-shop": "GE → shop",
+  processing: "Processing",
+  skilling: "Skilling",
+};
+
 const MODE_LABEL: Record<SellMode, string> = {
   pessimistic: "Instant (GE low)",
   patient: "Patient (GE high)",
@@ -75,7 +120,7 @@ const MODE_LABEL: Record<SellMode, string> = {
 
 const MODES = ["pessimistic", "patient"] as const;
 
-const KINDS = ["all", "shop-run", "shop-dump", "processing"] as const;
+const KINDS = ["all", "shop-run", "shop-dump", "processing", "skilling"] as const;
 type KindFilter = (typeof KINDS)[number];
 
 const KIND_LABEL: Record<KindFilter, string> = {
@@ -83,6 +128,7 @@ const KIND_LABEL: Record<KindFilter, string> = {
   "shop-run": EARN_KIND_LABELS["shop-run"],
   "shop-dump": EARN_KIND_LABELS["shop-dump"],
   processing: EARN_KIND_LABELS.processing,
+  skilling: EARN_KIND_LABELS.skilling,
 };
 
 const SORT_KEYS = [
@@ -156,6 +202,7 @@ export function EarnPage(): JSX.Element {
           shopRuns: OPPORTUNITIES[mode].opportunities,
           shopDumps: SINKS[mode].opportunities,
           recipes: PROCESS[mode].opportunities,
+          skilling: skillingRows(mode),
         },
         { goldGp: gold, hopSeconds, maxWorlds, secondsPerTile, access: ACCESS_MAP },
       ),
@@ -513,6 +560,11 @@ function coverage(result: EarnResult, gold: number): string {
       `${result.unaffordable.toLocaleString()} cannot be funded with ${formatGp(gold)} gp`,
     );
   }
+  if (result.duplicated > 0) {
+    parts.push(
+      `${result.duplicated.toLocaleString()} skilling rows duplicate a processing recipe and are ranked once`,
+    );
+  }
   if (parts.length === 0) return "Every priced method is ranked at this gold.";
   return `${joinClauses(parts)}. Nothing is estimated to fill the gap.`;
 }
@@ -546,7 +598,7 @@ function Row({
         <a
           className="name wiki-link"
           href={href}
-          title={`Open in ${row.target.page === "shop-to-ge" ? "Shop → GE" : row.target.page === "ge-to-shop" ? "GE → shop" : "Processing"}`}
+          title={`Open in ${TARGET_LABEL[row.target.page]}`}
         >
           {row.name}
         </a>
@@ -561,7 +613,7 @@ function Row({
         </span>
       </td>
       <td className="shop">
-        {row.kind === "processing" ? (
+        {row.kind === "processing" || row.kind === "skilling" ? (
           <span title={row.detail ?? undefined}>{row.where}</span>
         ) : (
           <a

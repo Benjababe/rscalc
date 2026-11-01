@@ -243,8 +243,15 @@ Do not pad it with a player-entered rate.
 - **Q7 — granularity cap.** Every variant or the profitable subset? Some skills
   have hundreds of near-identical item combos; is a curated top-N per skill
   acceptable, with the cut documented?
-- **Q8 — leaderboard.** Does `#/skilling` stay a standalone page, or do its rows
-  feed `earnings.ts` in a later commit?
+- **Q8 — leaderboard. ANSWERED: skilling populates `#/earn`.** `earnings.ts` gains
+  a fourth family (`skilling`) and re-plans each row at the player's gold exactly
+  like a recipe. Three rules keep the merged ranking honest:
+  - **cost-to-train rows never enter it** — they sell nothing, so they cannot earn;
+  - a row whose `recipeId` is already in `data/process.json` is **dropped as a
+    duplicate** and counted, because one action must not be ranked twice;
+  - a row with no published rate is `unranked`, like a recipe without ticks.
+  Cooking rows carry their no-burn level in `requirements` (`Cooking 90 to not
+  burn`), so the leaderboard says why a monkfish row is only safe at 90.
 - **Q9 — farming shape.** Per-patch profit, or a whole herb-run cycle (patches ×
   expected yield × growth time)?
 - **Q10 — default view. ANSWERED: instant (`pessimistic`) by default.** The page
@@ -623,10 +630,12 @@ carry their kind badge (`Make` / `Upgrade` / `Cost`) and, for cooking, the level
 which the food stops burning. The coverage strip reports activities by kind,
 profitable count, and the number of bucket recipes that could not be priced.
 
-The artifact is code-split with the page (3.0 MB, 350 kB gzip). That is larger than
-the other data chunks and is the one thing about this page worth revisiting: either
-ship a slimmer projection (the UI does not need per-input `volume4h`, `geBuyLimit`
-or the 4h action arithmetic) or split per skill.
+The artifact is code-split, but since Q8 it is shared with `#/earn`, so the front
+page now pulls it too: 3.0 MB raw / ~350 kB gzip on top of the other three
+artifacts. That is the biggest open cost on the site. The fix is a slimmer
+projection — `buildEarnings` reads roughly a third of each row (no per-input
+`volume4h`, `geBuyLimit`, `marketActions4h` or `timeActions4h`), so a derived
+`earn` view of the artifact would cut most of it.
 
 ### Next
 

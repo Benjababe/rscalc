@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  type SkillActivityRow,
   buildEarnings,
   sellableAcrossWorlds,
   shopRowFromOpportunity,
   shopRowFromSink,
 } from '../src/domain/earnings.js';
-import type { ShopAccessEntry } from '../src/types.js';
+import type { ShopAccessEntry, SkillActivity } from '../src/types.js';
 import type {
   Opportunity,
   ProcessOpportunity,
@@ -163,11 +164,32 @@ function recipe(overrides: Partial<ProcessOpportunity> = {}): ProcessOpportunity
   };
 }
 
+/** The same blood rune, as `data/skilling.json` records it. */
+function activity(
+  overrides: Partial<SkillActivity> = {},
+): SkillActivity {
+  return {
+    ...recipe(),
+    kind: 'transform',
+    outputName: 'Blood rune',
+    noBurnLevel: null,
+    ...overrides,
+  };
+}
+
+function skillRow(
+  overrides: Partial<SkillActivity> = {},
+  skill = 'Runecraft',
+): SkillActivityRow {
+  return { skill, activity: activity(overrides) };
+}
+
 function earnings(
   input: {
     shopRuns?: readonly Opportunity[];
     shopDumps?: readonly ShopSinkOpportunity[];
     recipes?: readonly ProcessOpportunity[];
+    skilling?: readonly SkillActivityRow[];
   },
   options: Parameters<typeof buildEarnings>[1] = {},
 ) {
@@ -176,6 +198,7 @@ function earnings(
       shopRuns: input.shopRuns ?? [],
       shopDumps: input.shopDumps ?? [],
       recipes: input.recipes ?? [],
+      skilling: input.skilling ?? [],
     },
     options,
   );
@@ -410,7 +433,85 @@ describe('buildEarnings: the leaderboard', () => {
       unranked: 0,
       unexecutable: 0,
       unaffordable: 0,
+      duplicated: 0,
     });
+  });
+});
+
+describe('buildEarnings: skilling rows', () => {
+  it('ranks a profitable activity and links it to the skilling page', () => {
+    const result = earnings({ skilling: [skillRow()] });
+
+    expect(result.methods).toHaveLength(1);
+    const row = result.methods[0];
+    if (row === undefined) throw new Error('expected a skilling row');
+    expect(row.kind).toBe('skilling');
+    expect(row.name).toBe('Blood rune');
+    expect(row.where).toBe('Pure essence ×1');
+    expect(row.gpPerHour).toBe(1_956_000);
+    expect(row.target).toEqual({ page: 'skilling', query: 'Blood rune' });
+    expect(result.duplicated).toBe(0);
+  });
+
+  it('never ranks a cost-to-train row, because it sells nothing', () => {
+    const result = earnings({
+      skilling: [skillRow({ kind: 'train', profit: -500, gpPerHour: -1000 })],
+    });
+
+    expect(result.methods).toHaveLength(0);
+    // Not "unranked" and not "unexecutable": it is not a way to earn at all.
+    expect(result.unranked).toBe(0);
+    expect(result.unexecutable).toBe(0);
+  });
+
+  it('drops a row whose recipe the processing family already ranks', () => {
+    const result = earnings({
+      recipes: [recipe()],
+      skilling: [skillRow()],
+    });
+
+    expect(result.methods).toHaveLength(1);
+    expect(result.methods[0]?.kind).toBe('processing');
+    expect(result.duplicated).toBe(1);
+  });
+
+  it('counts a row with no published rate as unranked', () => {
+    const result = earnings({
+      skilling: [skillRow({ gpPerHour: null, secondsPerAction: null, ticks: null })],
+    });
+
+    expect(result.methods).toHaveLength(0);
+    expect(result.unranked).toBe(1);
+  });
+
+  it('sizes the plan to the player gold', () => {
+    // One action costs 2 gp, so 1 gp funds nothing.
+    const poor = earnings({ skilling: [skillRow()] }, { goldGp: 1 });
+    expect(poor.methods).toHaveLength(0);
+    expect(poor.unaffordable).toBe(1);
+
+    // 20 gp funds ten actions of the 24,000 the market allows.
+    const rich = earnings({ skilling: [skillRow()] }, { goldGp: 20 });
+    const row = rich.methods[0];
+    if (row === undefined) throw new Error('expected a funded row');
+    expect(row.capitalGp).toBe(20);
+    expect(row.profitGp).toBe(10 * 326);
+  });
+
+  it('treats the no-burn level as a requirement for cooking', () => {
+    const result = earnings({
+      skilling: [
+        skillRow({
+          outputName: 'Monkfish',
+          noBurnLevel: 90,
+          skills: [{ name: 'Cooking', level: 62 }],
+        }),
+      ],
+    });
+
+    const row = result.methods[0];
+    if (row === undefined) throw new Error('expected a cooking row');
+    expect(row.requirements).toEqual(['Cooking 62', 'Cooking 90 to not burn']);
   });
 });
 
