@@ -44,6 +44,8 @@ interface Cli {
   minProfit: number;
   skills: string[];
   actionsPerHour: number;
+  /** Re-read the recipe bucket instead of using the week-long cache. */
+  freshRecipes: boolean;
 }
 
 function nonNegativeNumber(value: string, flag: string): number {
@@ -62,10 +64,12 @@ function parseArgs(argv: string[]): Cli {
     minProfit: 1,
     skills: [],
     actionsPerHour: 0,
+    freshRecipes: false,
   };
 
   for (const arg of argv) {
     if (arg === '--members') cli.members = true;
+    else if (arg === '--fresh-recipes') cli.freshRecipes = true;
     else if (arg.startsWith('--mode=')) {
       const value = arg.slice('--mode='.length);
       if (value !== 'pessimistic' && value !== 'patient') {
@@ -105,10 +109,17 @@ async function main(): Promise<void> {
   const cli = parseArgs(process.argv.slice(2));
 
   log('reading the wiki recipe bucket...');
-  const recipes = await fetchRecipes();
+  const recipes = await fetchRecipes(
+    cli.freshRecipes ? { maxAgeMs: 0 } : {},
+  );
   log(
     `  ${recipes.recipes.length.toLocaleString()} recipes from ${recipes.pages} pages` +
-      ` (${recipes.skipped} malformed recipe rows skipped)`,
+      ` (${recipes.skipped} malformed recipe rows skipped)` +
+      // The bucket is cached for a week, so say when the cached copy is being used:
+      // a stale copy is fine, but it must not be invisible.
+      (recipes.fromCache
+        ? ` — cached, fetched ${formatLocalTime(new Date(recipes.fetchedAt).toISOString())}`
+        : ' — fetched now'),
   );
 
   log('fetching item metadata and GE prices...');

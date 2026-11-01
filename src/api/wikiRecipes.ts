@@ -44,7 +44,21 @@ export const RECIPE_BUCKET_URL = `${WIKI}/w/Special:Bucket?bucket=recipe`;
 const PAGE_SIZE = 500;
 /** Hard stop so a pagination bug can never loop forever. */
 const MAX_ROWS = 20_000;
-const TTL_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * How long a fetched recipe bucket stays usable: one week.
+ *
+ * The bucket only changes when someone edits `Template:Recipe` / `Module:Recipe`
+ * on the wiki — a new item, a rebalanced recipe — which is a handful of times a
+ * month, not an hourly event. A day-long TTL meant `pnpm process` and
+ * `pnpm skilling` (which both read it) re-downloaded 16 pages of 500 rows every
+ * time a day had passed, for a payload that had not moved.
+ *
+ * A week is the deliberate compromise between "one-time" and "self-healing":
+ * stale data is at most seven days old, and `--fresh-recipes` forces a re-fetch
+ * for the case that actually matters (a recipe the player is waiting on).
+ */
+export const RECIPE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** One item in a recipe: an input material or the output. */
 export interface RawRecipeItem {
@@ -390,29 +404,45 @@ export interface RecipeFetchResult {
   pages: number;
   /** Rows that looked like recipes but failed validation. */
   skipped: number;
+  /** True when every page was served from the on-disk cache. */
+  fromCache: boolean;
+}
+
+export interface RecipeFetchOptions {
+  /**
+   * Override the cache lifetime, in ms. `0` re-reads the bucket from the wiki and
+   * refreshes the cache (`--fresh-recipes`).
+   */
+  maxAgeMs?: number;
 }
 
 /**
  * Fetch and parse the whole recipe bucket, following pagination.
  *
- * TTL 24h. The bucket is large (about 7,900 rows / 16 pages at the last check),
- * so the caller should run it from a refresh script rather than the UI. All
- * requests go through `http.ts` and therefore the global 1 req/s limiter.
+ * Cached for a week (`RECIPE_CACHE_TTL_MS`): the bucket is about 7,900 rows over
+ * 16 pages, so it is worth not re-reading, and it changes only when the wiki's
+ * recipe template does. Pass `maxAgeMs: 0` to force a fresh read. All requests go
+ * through `http.ts` and therefore the global 1 req/s limiter.
  */
-export async function fetchRecipes(): Promise<RecipeFetchResult> {
+export async function fetchRecipes(
+  options: RecipeFetchOptions = {},
+): Promise<RecipeFetchResult> {
+  const ttlMs = options.maxAgeMs ?? RECIPE_CACHE_TTL_MS;
   const all: RawRecipe[] = [];
   let skipped = 0;
   let pages = 0;
   let fetchedAt = Date.now();
+  let fromCache = true;
 
   for (let offset = 0; offset < MAX_ROWS; offset += PAGE_SIZE) {
     const url = `${RECIPE_BUCKET_URL}&limit=${PAGE_SIZE}&offset=${offset}`;
-    const { body, fetchedAt: at } = await fetchText(url, {
-      ttlMs: TTL_MS,
+    const { body, fetchedAt: at, fromCache: cached } = await fetchText(url, {
+      ttlMs,
       headers: { Accept: 'text/html' },
     });
     fetchedAt = at;
     pages += 1;
+    if (!cached) fromCache = false;
 
     const parsed = parseRecipeBucket(body);
     all.push(...parsed.recipes);
@@ -429,5 +459,6 @@ export async function fetchRecipes(): Promise<RecipeFetchResult> {
     fetchedAt,
     pages,
     skipped,
+    fromCache,
   };
 }

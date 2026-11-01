@@ -142,7 +142,7 @@ columns: `page_name`, `page_name_sub`, `uses_material`, `uses_tool`,
 
 | Property | Value |
 |---|---|
-| TTL | 24h |
+| TTL | **7 days** (`RECIPE_CACHE_TTL_MS`) — the bucket changes only when `Template:Recipe` / `Module:Recipe` does, so a daily refresh was re-downloading 16 pages for an unchanged payload. `--fresh-recipes` forces a re-read. |
 | Pagination | 500 rows/page, 7,855 rows / 16 pages at the last check |
 | Parsing | HTML table by **header name**, then zod on `production_json` |
 | Source of truth | <https://oldschool.runescape.wiki/w/Module:Recipe> |

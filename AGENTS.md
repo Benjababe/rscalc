@@ -32,7 +32,10 @@ outcome for this project.
   remove or genericise it. Set `RSCALC_CONTACT` so the contact is real.
 - **Global outbound rate limit: 1 req/s.** All outbound calls go through
   `src/api/http.ts`. Cache TTLs: latest 60s; mapping 24h; 24h averages 1h;
-  timeseries 1h; storeline 24h; map bucket 24h; item/bank page wikitext 24h.
+  timeseries 1h; storeline 24h; map bucket 24h; item/bank page wikitext 24h;
+  **recipe bucket 7d** (`RECIPE_CACHE_TTL_MS` — it changes only when the wiki's
+  recipe template does, so a daily refresh must not re-read 16 pages; pass
+  `--fresh-recipes` to `pnpm process` / `pnpm skilling` to force it).
   Honor `429` + `Retry-After` with exponential backoff.
 - **Never commit secrets.** `.env` is gitignored. The core product requires
   **zero API keys** — see `docs/data-sources.md`.
@@ -133,7 +136,9 @@ scripts/shopAccessRules.ts curated, cited shop access rules and exceptions
 scripts/smoke.ts           connectivity + schema check
 web/                       Vite + React UI (reads static data only)
 web/src/DataTable.tsx      the one results table: columns in, table + native
-                           Columns picker + pager + empty state out
+                           Columns picker + pager + empty state out; every page
+                           (earn, shop-to-ge, ge-to-shop, processing, skilling)
+                           declares its columns and nothing else
 web/src/Earn.tsx           the front page: every family in one ranked table,
                            with the method filter and the coverage line
 web/src/Skilling.tsx       #/skilling: every priced activity of a skill in both
@@ -186,7 +191,9 @@ pnpm report --shop="Lundail's Arena-side Rune Shop" --gold=100000
                     # one shop's multi-item basket
 pnpm sinks --write  # data/shop-sinks.json (both buy modes)
 pnpm process        # data/process.json (recipe bucket + prices; both modes)
+pnpm process --fresh-recipes   # re-read the recipe bucket instead of the week cache
 pnpm skilling       # data/skilling.json (scanned skills; losses included)
+pnpm skilling --fresh-recipes  # same, for the skilling artifact
 pnpm skilling --skill=crafting --limit=30 --actions-per-hour=1200
 pnpm skilling --skill=cooking --cooking-level=90   # only foods safe at 90
 pnpm build          # UI bundle

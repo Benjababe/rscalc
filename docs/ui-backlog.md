@@ -36,8 +36,8 @@ change (S ≈ under an hour, M ≈ half a day, L ≈ a day or more).
 |3.2 Keyboard shortcut to focus search|**done** — `/` and Ctrl/Cmd+K|
 |3.3 Sticky toolbar|**dropped** — built, reviewed, removed|
 
-**Open:** 4.1 (see below). Every other item has landed except 3.3, which was
-built and dropped by request.
+**Open:** nothing. Every item has landed except 3.3, which was built and dropped
+by request.
 
 ### 4.1 One table component with a native column toggle
 
@@ -55,14 +55,20 @@ built and dropped by request.
   than in each page's toolbar. Visibility is persisted per `tableId`; a
   mode-switching table passes `allColumns` so hiding a column in one mode keeps it
   hidden in the other; a `required` column can never be hidden.
-- **Landed:** `#/skilling` (gained the toggle, which it never had), `#/processing`
-  and `#/ge-to-shop` (their own picker buttons removed). `tests/dataTable.test.tsx`
-  pins the rank numbering, the sortable headers, the native picker, per-`tableId`
-  persistence, the required column and the empty state.
-- **Open:** `#/shop-to-ge` and `#/earn` still use the old pattern. Their column sets
-  are mode-dependent, so the migration is a `makeColumns()` builder plus
-  `columnsForMode()` / `allColumns()` helpers (the shape `#/ge-to-shop` now uses);
-  nothing in `DataTable` blocks them.
+- **Landed on all five pages.** `#/skilling` and `#/earn` gained a toggle they never
+  had; `#/processing`, `#/ge-to-shop` and `#/shop-to-ge` lost their own picker
+  buttons. `ColumnPicker` and `useColumnVisibility` are now referenced only from
+  `DataTable`, so the per-page pattern is gone rather than merely optional.
+- **Mode-dependent pages:** `#/shop-to-ge` builds its columns with
+  `makeColumns(onSelectShop)` keyed by a `ShopColumnKey` union, then
+  `columnsForMode()` renders the budget or shop set and `allColumns()` feeds the
+  picker's union — that is what keeps a column hidden in one view hidden in the
+  other, and `tests/shopToGePage.test.tsx` pins the round trip.
+- **Tests:** `tests/dataTable.test.tsx` pins the rank numbering, the sortable
+  headers, the picker living in the table's own bar, hiding/unhiding, per-`tableId`
+  persistence, `allColumns` listing columns the current mode does not render, and the
+  empty state. The two migrated pages also assert the picker's placement and a
+  hidden column surviving a mode switch.
 
 ---
 

@@ -69,6 +69,8 @@ interface Cli {
   limit: number;
   /** Player's Cooking level; 0 means "not given", so no rows are gated out. */
   cookingLevel: number;
+  /** Re-read the recipe bucket instead of using the week-long cache. */
+  freshRecipes: boolean;
 }
 
 function log(message: string): void {
@@ -89,10 +91,13 @@ function parseArgs(argv: string[]): Cli {
     actionsPerHour: 0,
     limit: 12,
     cookingLevel: 0,
+    freshRecipes: false,
   };
 
   for (const arg of argv) {
-    if (arg.startsWith('--skill=')) {
+    if (arg === '--fresh-recipes') {
+      cli.freshRecipes = true;
+    } else if (arg.startsWith('--skill=')) {
       const wanted = arg
         .slice('--skill='.length)
         .split(',')
@@ -208,10 +213,15 @@ async function main(): Promise<void> {
   const cli = parseArgs(process.argv.slice(2));
 
   log('fetching recipe bucket...');
-  const recipes = await fetchRecipes();
+  const recipes = await fetchRecipes(
+    cli.freshRecipes ? { maxAgeMs: 0 } : {},
+  );
   log(
     `  ${recipes.recipes.length.toLocaleString()} recipes from ${recipes.pages} pages` +
-      ` (${recipes.skipped} malformed rows skipped)`,
+      ` (${recipes.skipped} malformed rows skipped)` +
+      (recipes.fromCache
+        ? ` — cached, fetched ${formatLocalTime(new Date(recipes.fetchedAt).toISOString())}`
+        : ' — fetched now'),
   );
 
   log('fetching item metadata and GE prices...');

@@ -114,6 +114,19 @@ describe('Earn page', () => {
     expect(rows().length).toBeLessThan(100);
   });
 
+  it('gains a column toggle from the shared table', async () => {
+    render(<EarnPage />);
+    await waitFor(() => expect(rows().length).toBe(100));
+
+    const headersBefore = screen.getAllByRole('columnheader').length;
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Capital' }));
+
+    await waitFor(() =>
+      expect(screen.getAllByRole('columnheader')).toHaveLength(headersBefore - 1),
+    );
+    expect(screen.queryByRole('columnheader', { name: 'Capital' })).toBeNull();
+  });
+
   it('re-sorts on a header click and reports aria-sort', async () => {
     render(<EarnPage />);
     await waitFor(() => expect(rows().length).toBe(100));

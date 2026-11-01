@@ -47,7 +47,8 @@ import {
   useShareableView,
 } from "./viewState";
 import { useBudgetSettings, useTravelSettings } from "./settings";import { sortByMeasure, useSort } from "./sorting";
-import { Results, Stat, Th } from "./ui";
+import { DataTable, type DataColumn } from "./DataTable";
+import { Stat } from "./ui";
 
 import opportunitiesPayload from "../../data/opportunities.json";
 import sinksPayload from "../../data/shop-sinks.json";
@@ -137,17 +138,142 @@ const SORT_KEYS = [
 ] as const;
 type SortKey = (typeof SORT_KEYS)[number];
 
-const COLUMNS = [
-  { key: "rank", width: 44 },
-  { key: "method", width: 220 },
-  { key: "kind", width: 112 },
-  { key: "where", width: 260 },
-  { key: "gpPerHour", width: 116 },
-  { key: "capital", width: 110 },
-  { key: "profit", width: 110 },
-  { key: "time", width: 100 },
-  { key: "needs", width: 190 },
-] as const;
+/**
+ * The leaderboard columns: label, width, sort key and cell. `DataTable` owns
+ * visibility, the Columns picker and the sortable headers, so this list is the only
+ * place a column is described.
+ */
+function makeColumns(mode: SellMode): readonly DataColumn<EarnMethod>[] {
+  return [
+  {
+    key: "method",
+    label: "Method",
+    width: 220,
+    required: true,
+    sortKey: "name",
+    title: "The item you buy low or produce; click to sort",
+    cellClassName: "item",
+    cell: (row) => (
+      <>
+        <a
+          className="name wiki-link"
+          href={buildViewHash(row.target.page, {
+            mode,
+            q: row.target.query,
+          })}
+          title={`Open in ${TARGET_LABEL[row.target.page]}`}
+        >
+          {row.name}
+        </a>
+        {row.members && <span className="badge">P2P</span>}
+      </>
+    ),
+  },
+  {
+    key: "kind",
+    label: "Type",
+    width: 112,
+    cell: (row) => (
+      <span
+        className={`kind-badge kind-${row.kind}`}
+        title={EARN_KIND_TITLES[row.kind]}
+      >
+        {EARN_KIND_LABELS[row.kind]}
+      </span>
+    ),
+  },
+  {
+    key: "where",
+    label: "Where",
+    width: 260,
+    cellClassName: "shop",
+    cell: (row) => (
+      <>
+        {row.kind === "processing" || row.kind === "skilling" ? (
+          <span title={row.detail ?? undefined}>{row.where}</span>
+        ) : (
+          <a
+            className="wiki-link"
+            href={wikiUrl(row.where)}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {row.where}
+          </a>
+        )}
+        {row.detail !== null && row.detail !== row.where && (
+          <span className="cell-note">{row.detail}</span>
+        )}
+      </>
+    ),
+  },
+  {
+    key: "gpPerHour",
+    label: "gp / hour",
+    width: 116,
+    sortKey: "gpPerHour",
+    align: "right",
+    title:
+      "Profit per hour while executing the sized plan, using the same time model as the detail page",
+    cellClassName: "right mono strong",
+    cell: (row) => formatGp(Math.round(row.gpPerHour)),
+  },
+  {
+    key: "capital",
+    label: "Capital",
+    width: 110,
+    sortKey: "capitalGp",
+    align: "right",
+    title:
+      "Coins tied up for the whole plan: shop stock, GE purchases, or inputs plus fees",
+    cellClassName: "right mono",
+    cell: (row) => formatGp(Math.round(row.capitalGp)),
+  },
+  {
+    key: "profit",
+    label: "Profit",
+    width: 110,
+    sortKey: "profitGp",
+    align: "right",
+    title: "Profit across the whole plan, after the GE tax where one applies",
+    cellClassName: "right mono pos",
+    cell: (row) => formatGp(Math.round(row.profitGp)),
+  },
+  {
+    key: "time",
+    label: "Time",
+    width: 100,
+    sortKey: "timeSeconds",
+    align: "right",
+    title:
+      "Seconds the plan takes: travel and world hops against the GE's own throughput",
+    cellClassName: "right mono dim",
+    cell: (row) => formatDuration(row.timeSeconds),
+  },
+  {
+    key: "needs",
+    label: "Needs",
+    width: 190,
+    cellClassName: "needs",
+    cell: (row) =>
+      row.requirements.length === 0 ? (
+        <span className="dim">—</span>
+      ) : row.requirementSource === null ? (
+        row.requirements.join(" · ")
+      ) : (
+        <a
+          className="wiki-link"
+          href={row.requirementSource}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={`${row.requirements.join(" · ")} (wiki source)`}
+        >
+          {row.requirements.join(" · ")}
+        </a>
+      ),
+  },
+  ];
+}
 
 export function EarnPage(): JSX.Element {
   // A shared link carries the view; gold and travel assumptions stay in the
@@ -250,6 +376,10 @@ export function EarnPage(): JSX.Element {
   }, [earnings, deferredQuery, kind, membersOnly, hideLocked, sortKey, descending]);
 
   const paged = usePagedRows(rows);
+
+  // The method link carries the page's current mode into the detail page, so the
+  // column list is built here rather than at module scope.
+  const columns = useMemo(() => makeColumns(mode), [mode]);
 
   const summary = useMemo(() => {
     const best = rows[0];
@@ -402,88 +532,24 @@ export function EarnPage(): JSX.Element {
         {coverage(earnings, gold)}
       </p>
 
-      <Results
+      <DataTable<EarnMethod>
+        tableId="earn"
         label="Money-making methods"
-        paged={paged}
+        caption={`Money-making methods, ranked by ${sortKey}`}
         noun="methods"
+        columns={columns}
+        paged={paged}
+        sort={{
+          key: sortKey,
+          descending,
+          toggle: (key) => toggleSort(key as SortKey),
+        }}
+        rowKey={(row) => row.id}
+        rank
         busy={filtering}
         emptyText="No method earns at this gold with these filters. Try clearing the method filter, lowering your gold, or raising Max worlds."
         onClearFilters={clearFilters}
-      >
-        <table className="results-table">
-          <caption className="visually-hidden">
-            Money-making methods, ranked by gp per hour
-          </caption>
-          <colgroup>
-            {COLUMNS.map((column) => (
-              <col
-                key={column.key}
-                className={column.key === "rank" ? "num-col" : undefined}
-                style={{ width: column.width }}
-              />
-            ))}
-          </colgroup>
-          <thead>
-            <tr>
-              <th scope="col" className="num-col">
-                #
-              </th>
-              <Th
-                label="Method"
-                onClick={() => toggleSort("name")}
-                active={sortKey === "name"}
-                desc={descending}
-                title="The item you buy low or produce; click to sort"
-              />
-              <th scope="col">Type</th>
-              <th scope="col">Where</th>
-              <Th
-                label="gp / hour"
-                onClick={() => toggleSort("gpPerHour")}
-                active={sortKey === "gpPerHour"}
-                desc={descending}
-                title="Profit per hour while executing the sized plan, using the same time model as the detail page"
-                right
-              />
-              <Th
-                label="Capital"
-                onClick={() => toggleSort("capitalGp")}
-                active={sortKey === "capitalGp"}
-                desc={descending}
-                title="Coins tied up for the whole plan: shop stock, GE purchases, or inputs plus fees"
-                right
-              />
-              <Th
-                label="Profit"
-                onClick={() => toggleSort("profitGp")}
-                active={sortKey === "profitGp"}
-                desc={descending}
-                title="Profit across the whole plan, after the GE tax where one applies"
-                right
-              />
-              <Th
-                label="Time"
-                onClick={() => toggleSort("timeSeconds")}
-                active={sortKey === "timeSeconds"}
-                desc={descending}
-                title="Seconds the plan takes: travel and world hops against the GE's own throughput"
-                right
-              />
-              <th scope="col">Needs</th>
-            </tr>
-          </thead>
-          <tbody>
-            {paged.pageRows.map((row, index) => (
-              <Row
-                key={row.id}
-                row={row}
-                rank={paged.start + index}
-                mode={mode}
-              />
-            ))}
-          </tbody>
-        </table>
-      </Results>
+      />
 
       <footer className="footer">
         <details className="caveats">
@@ -570,83 +636,4 @@ function coverage(result: EarnResult, gold: number): string {
 function joinClauses(parts: string[]): string {
   if (parts.length <= 1) return parts[0] ?? "";
   return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1] ?? ""}`;
-}
-
-function Row({
-  row,
-  rank,
-  mode,
-}: {
-  row: EarnMethod;
-  rank: number;
-  mode: SellMode;
-}): JSX.Element {
-  // The same view the leaderboard used, handed to the detail page so the row is
-  // easy to find again.
-  const href = buildViewHash(row.target.page, {
-    mode,
-    q: row.target.query,
-  });
-
-  return (
-    <tr>
-      <td className="num-col">{rank}</td>
-      <td className="item">
-        <a
-          className="name wiki-link"
-          href={href}
-          title={`Open in ${TARGET_LABEL[row.target.page]}`}
-        >
-          {row.name}
-        </a>
-        {row.members && <span className="badge">P2P</span>}
-      </td>
-      <td>
-        <span
-          className={`kind-badge kind-${row.kind}`}
-          title={EARN_KIND_TITLES[row.kind]}
-        >
-          {EARN_KIND_LABELS[row.kind]}
-        </span>
-      </td>
-      <td className="shop">
-        {row.kind === "processing" || row.kind === "skilling" ? (
-          <span title={row.detail ?? undefined}>{row.where}</span>
-        ) : (
-          <a
-            className="wiki-link"
-            href={wikiUrl(row.where)}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {row.where}
-          </a>
-        )}
-        {row.detail !== null && row.detail !== row.where && (
-          <span className="cell-note">{row.detail}</span>
-        )}
-      </td>
-      <td className="right mono strong">{formatGp(Math.round(row.gpPerHour))}</td>
-      <td className="right mono">{formatGp(Math.round(row.capitalGp))}</td>
-      <td className="right mono pos">{formatGp(Math.round(row.profitGp))}</td>
-      <td className="right mono dim">{formatDuration(row.timeSeconds)}</td>
-      <td className="needs">
-        {row.requirements.length === 0 ? (
-          <span className="dim">—</span>
-        ) : row.requirementSource === null ? (
-          row.requirements.join(" · ")
-        ) : (
-          <a
-            className="wiki-link"
-            href={row.requirementSource}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={`${row.requirements.join(" · ")} (wiki source)`}
-          >
-            {row.requirements.join(" · ")}
-          </a>
-        )}
-      </td>
-    </tr>
-  );
 }

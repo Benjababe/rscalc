@@ -12,7 +12,23 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
+import { readFileSync } from 'node:fs';
+
+import { z } from 'zod';
+
+import { RankingSchema } from '../src/types.js';
 import { ShopToGePage } from '../web/src/ShopToGe.js';
+
+/**
+ * The artifact's two rankings, validated the same way the refresh script validates
+ * them, so the row total can be asserted without hard-coding a number that moves
+ * whenever the market data is refreshed. `JSON.parse` is `any`, so it goes straight
+ * into zod rather than being read by hand.
+ */
+const ARTIFACT = z
+  .object({ pessimistic: RankingSchema, patient: RankingSchema })
+  .parse(JSON.parse(readFileSync('data/opportunities.json', 'utf8')));
+const RANKING = ARTIFACT.pessimistic;
 
 /** Rows currently in the table body. */
 function rows(): HTMLElement[] {
@@ -45,9 +61,16 @@ describe('Shop -> GE page', () => {
 
     await waitFor(() => expect(rows().length).toBeGreaterThan(0));
 
-    // One page of results, with the range spelled out above the table.
+    // One page of results, with the range spelled out above the table. The total
+    // comes from the artifact rather than a literal: the snapshot moves whenever
+    // the market data is refreshed, and a hard-coded count fails for no real reason.
     expect(rows().length).toBe(100);
-    expect(screen.getByText(/of 1,909 opportunities/)).toBeTruthy();
+    const total = RANKING.opportunities.length;
+    // Read the count line directly: a `new RegExp` built from a number is avoidable
+    // noise, and the element is stable.
+    expect(document.querySelector('.result-count')?.textContent).toContain(
+      `of ${total.toLocaleString()} opportunities`,
+    );
     expect(rowNames()[0]).toBeTruthy();
   });
 
@@ -131,6 +154,54 @@ describe('Shop -> GE page', () => {
       expect(screen.getAllByRole('columnheader')).toHaveLength(headersBefore - 1),
     );
     expect(screen.queryByRole('columnheader', { name: 'Tax' })).toBeNull();
+  });
+
+  it('keeps the column picker in the table bar, not the filter toolbar', async () => {
+    render(<ShopToGePage />);
+    await waitFor(() => expect(rows().length).toBe(100));
+
+    const summary = screen.getByText('Columns');
+    expect(summary.closest('.result-bar')).not.toBeNull();
+    expect(summary.closest('.toolbar')).toBeNull();
+  });
+
+  it('remembers a hidden column across a table whose columns change by mode', async () => {
+    // The budget view and the shop view show different columns. Hiding one in the
+    // budget view must survive a trip through the shop view and back, which is what
+    // the table's `allColumns` union is for.
+    render(<ShopToGePage />);
+    await waitFor(() => expect(rows().length).toBe(100));
+
+    // Entering gold turns on the gold-sized view (the switch is disabled at 0 gp).
+    fireEvent.click(screen.getByRole('button', { name: '10m' }));
+    await waitFor(() =>
+      expect(screen.queryByRole('columnheader', { name: 'Buy' })).toBeTruthy(),
+    );
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Buy' }));
+    await waitFor(() =>
+      expect(screen.queryByRole('columnheader', { name: 'Buy' })).toBeNull(),
+    );
+
+    const budgetSwitch = screen.getByRole<HTMLInputElement>('checkbox', {
+      name: 'Size buys to gold',
+    });
+    // Shop view: the budget columns are gone and the per-visit ones appear.
+    fireEvent.click(budgetSwitch);
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('columnheader', { name: /Qty . visit/ }),
+      ).toBeTruthy(),
+    );
+
+    // Back to the budget view: the hidden column is still hidden.
+    fireEvent.click(budgetSwitch);
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('columnheader', { name: 'Qty / visit' }),
+      ).toBeNull(),
+    );
+    expect(screen.queryByRole('columnheader', { name: 'Buy' })).toBeNull();
   });
 
   it('pages through the results without repeating a row', async () => {
