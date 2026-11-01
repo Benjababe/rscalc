@@ -1,17 +1,125 @@
+/*
+ * Every colour in this file comes from here, so the light palette below only has
+ * to redefine variables. Values are grouped by role: surfaces, lines, text,
+ * accent (fill vs. text), status, and the few translucencies used for hovers,
+ * rings and shadows.
+ */
 :root {
+  color-scheme: dark;
+
+  /* surfaces */
   --bg: #14161a;
   --panel: #1b1e24;
   --panel-2: #22262e;
+  --raise: #1e222a;
+  --track: #15181d;
+  --field: #1a1d23;
+  --field-focus: #23272f;
+  --row-hover: #1f232b;
+
+  /* lines */
   --line: #2c313b;
+  --line-strong: #3d4451;
+  --row-line: #23272f;
+  --separator: #4a515e;
+  --highlight: rgba(255, 255, 255, 0.03);
+  --highlight-strong: rgba(255, 255, 255, 0.05);
+
+  /* text */
   --text: #e6e8ec;
+  --text-soft: #cfd4dc;
   --dim: #98a0ae;
+  --placeholder: #6f7788;
+
+  /* accent: --accent fills, --accent-text is the readable version on a surface */
   --accent: #ffd24a;
+  --accent-text: #ffd24a;
+  --on-accent: #17181c;
+  --accent-soft: rgba(255, 210, 74, 0.1);
+  --accent-edge: rgba(255, 210, 74, 0.45);
+  --accent-ring: rgba(255, 210, 74, 0.13);
+
+  /* links */
   --link: #ffffff;
   --link-hover: #ffd24a;
+  --link-underline: rgba(255, 255, 255, 0.55);
+  --underline: rgba(255, 255, 255, 0.35);
+  --underline-soft: rgba(255, 255, 255, 0.25);
+
+  /* status */
   --pos: #5ddb8b;
-  --neg: #ff6b6b;
+  --badge-bg: #3a2f4a;
+  --badge-ink: #c9a6ff;
+  --warn-bg: #2f2612;
+  --warn-line: #5a4a12;
+  --warn-hover: #3a2f16;
+
+  /* depth */
+  --shadow: rgba(0, 0, 0, 0.22);
+  --shadow-strong: rgba(0, 0, 0, 0.45);
+  --scroll-thumb: #3d4451;
+  --scroll-thumb-hover: #596273;
+
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   font-synthesis: none;
+}
+
+/*
+ * Light palette, selected by the header toggle via `data-theme="light"` on
+ * `<html>` (see `theme.ts`). Deliberately not a `prefers-color-scheme` query: the
+ * site opens dark whatever the operating system says, and the player decides.
+ *
+ * The accent stays gold for fills, but the readable variant has to go dark —
+ * gold text on white fails every contrast threshold.
+ */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #f5f6f8;
+  --panel: #ffffff;
+  --panel-2: #eef1f5;
+  --raise: #f0f3f7;
+  --track: #e3e7ed;
+  --field: #fafbfc;
+  --field-focus: #ffffff;
+  --row-hover: #f3f5f9;
+
+  --line: #d5dae1;
+  --line-strong: #b4bcc7;
+  --row-line: #eceff3;
+  --separator: #aab2bd;
+  --highlight: rgba(255, 255, 255, 0.6);
+  --highlight-strong: rgba(20, 22, 26, 0.06);
+
+  --text: #14161a;
+  --text-soft: #3a414d;
+  --dim: #59616e;
+  --placeholder: #66707e;
+
+  --accent: #f0c419;
+  --accent-text: #7a5b00;
+  --on-accent: #201a00;
+  --accent-soft: rgba(176, 138, 0, 0.12);
+  --accent-edge: rgba(140, 110, 0, 0.45);
+  --accent-ring: rgba(176, 138, 0, 0.22);
+
+  --link: #1b4fa8;
+  --link-hover: #12386f;
+  --link-underline: rgba(27, 79, 168, 0.45);
+  --underline: rgba(20, 22, 26, 0.3);
+  --underline-soft: rgba(20, 22, 26, 0.2);
+
+  --pos: #0d7a3c;
+  --badge-bg: #efe6ff;
+  --badge-ink: #5b2fa8;
+  --warn-bg: #fdf3d3;
+  --warn-line: #d0ae35;
+  --warn-hover: #fbe9b3;
+
+  --shadow: rgba(16, 24, 40, 0.1);
+  --shadow-strong: rgba(16, 24, 40, 0.18);
+  --scroll-thumb: #c3cad4;
+  --scroll-thumb-hover: #a8b1be;
 }
 
 * {
@@ -74,21 +182,21 @@ body {
 .asof .label:last-of-type::before {
   content: "\00b7";
   margin-right: 8px;
-  color: #4a515e;
+  color: var(--separator);
 }
 
 .asof strong {
-  color: var(--accent);
+  color: var(--accent-text);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 
 /* the snapshot is old enough that the numbers may have moved */
 .stale-flag {
-  background: rgba(255, 210, 74, 0.12);
-  border: 1px solid rgba(255, 210, 74, 0.45);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-edge);
   border-radius: 999px;
-  color: var(--accent);
+  color: var(--accent-text);
   padding: 1px 9px;
   font-size: 10px;
   text-transform: uppercase;
@@ -115,14 +223,50 @@ body {
 
 .page-tab:hover {
   color: var(--text);
-  border-color: #3d4451;
+  border-color: var(--line-strong);
 }
 
 .page-tab.active {
   background: var(--accent);
   border-color: var(--accent);
-  color: #1a1a1a;
+  color: var(--on-accent);
   font-weight: 600;
+}
+
+/* the theme switch sits beside the page tabs */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--dim);
+  cursor: pointer;
+  transition: color 140ms ease, border-color 140ms ease;
+}
+
+/* The icon is inline SVG rather than a glyph, so it needs no baseline nudging. */
+.theme-toggle svg {
+  display: block;
+}
+
+.theme-toggle:hover {
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .page {
@@ -164,14 +308,14 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  background: linear-gradient(180deg, #1e222a, var(--panel));
+  background: linear-gradient(180deg, var(--raise), var(--panel));
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 12px 14px;
   margin-bottom: 14px;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.03),
-    0 10px 26px rgba(0, 0, 0, 0.22);
+    inset 0 1px 0 var(--highlight),
+    0 10px 26px var(--shadow);
 }
 
 .toolbar-row {
@@ -184,7 +328,7 @@ body {
 .toolbar-row.chips {
   gap: 8px;
   padding-top: 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid var(--highlight-strong);
 }
 
 .toolbar-spacer {
@@ -197,7 +341,7 @@ body {
   flex: 0 0 auto;
   gap: 2px;
   padding: 3px;
-  background: #15181d;
+  background: var(--track);
   border: 1px solid var(--line);
   border-radius: 999px;
 }
@@ -221,7 +365,7 @@ body {
 
 .mode.active {
   background: var(--accent);
-  color: #17181c;
+  color: var(--on-accent);
   font-weight: 600;
 }
 
@@ -257,18 +401,18 @@ body {
 }
 
 .search::placeholder {
-  color: #6f7788;
+  color: var(--placeholder);
 }
 
 .search:hover {
-  border-color: #3d4451;
+  border-color: var(--line-strong);
 }
 
 .search:focus {
   outline: none;
   border-color: var(--accent);
-  background-color: #23272f;
-  box-shadow: 0 0 0 3px rgba(255, 210, 74, 0.13);
+  background-color: var(--field-focus);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 /* the "/" affordance: the shortcut is useless if nobody knows it */
@@ -283,7 +427,7 @@ body {
   min-width: 20px;
   height: 20px;
   padding: 0 4px;
-  background: #1a1d23;
+  background: var(--field);
   border: 1px solid var(--line);
   border-radius: 5px;
   color: var(--dim);
@@ -315,7 +459,7 @@ body {
   height: 16px;
   flex: 0 0 16px;
   margin: 0;
-  border: 1px solid #3d4451;
+  border: 1px solid var(--line-strong);
   border-radius: 4px;
   background: var(--panel);
   cursor: pointer;
@@ -327,7 +471,7 @@ body {
 }
 
 .toggle input[type="checkbox"]:not(:disabled):hover {
-  border-color: #4c5566;
+  border-color: var(--line-strong);
 }
 
 .toggle input[type="checkbox"]:checked {
@@ -355,7 +499,7 @@ body {
 
 .num {
   width: 68px;
-  background: #1a1d23;
+  background: var(--field);
   border: 1px solid var(--line);
   border-radius: 8px;
   color: var(--text);
@@ -366,13 +510,13 @@ body {
 }
 
 .num:hover {
-  border-color: #3d4451;
+  border-color: var(--line-strong);
 }
 
 .num:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(255, 210, 74, 0.13);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 /* filter chips (direct children of the chip row only, so column options and
@@ -389,18 +533,18 @@ body {
 }
 
 .toolbar-row > .toggle:hover {
-  border-color: #3d4451;
+  border-color: var(--line-strong);
   color: var(--text);
 }
 
 .toolbar-row > .toggle:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(255, 210, 74, 0.13);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 .toolbar-row > .toggle:has(input[type="checkbox"]:checked) {
-  background: rgba(255, 210, 74, 0.1);
-  border-color: rgba(255, 210, 74, 0.45);
+  background: var(--accent-soft);
+  border-color: var(--accent-edge);
   color: var(--text);
 }
 
@@ -433,7 +577,7 @@ body {
 }
 
 .chip-clear:hover {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .chip-clear:focus-visible {
@@ -443,7 +587,7 @@ body {
 
 /* processing page */
 .select {
-  background: #1a1d23;
+  background: var(--field);
   border: 1px solid var(--line);
   border-radius: 8px;
   color: var(--text);
@@ -454,7 +598,7 @@ body {
 }
 
 .select:hover {
-  border-color: #3d4451;
+  border-color: var(--line-strong);
 }
 
 /* column picker */
@@ -489,7 +633,7 @@ body {
 .column-toggle:hover,
 .column-picker[open] .column-toggle {
   color: var(--text);
-  border-color: #3d4451;
+  border-color: var(--line-strong);
 }
 
 /* copies the URL, which carries the current filters */
@@ -508,7 +652,7 @@ body {
 }
 
 .copy-link:hover {
-  border-color: #3d4451;
+  border-color: var(--line-strong);
   color: var(--text);
 }
 
@@ -526,10 +670,10 @@ body {
   max-height: 340px;
   overflow-y: auto;
   background: var(--panel-2);
-  border: 1px solid #3d4451;
+  border: 1px solid var(--line-strong);
   border-radius: 12px;
   padding: 8px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 16px 40px var(--shadow-strong);
 }
 
 .column-option {
@@ -581,7 +725,7 @@ body {
 
 .breakdown-total {
   cursor: help;
-  border-bottom: 1px dotted rgba(255, 255, 255, 0.35);
+  border-bottom: 1px dotted var(--underline);
 }
 
 .input-line .wiki-link {
@@ -602,7 +746,7 @@ body {
 
 .cell-note .wiki-link {
   font-weight: 400;
-  border-bottom-color: rgba(255, 255, 255, 0.25);
+  border-bottom-color: var(--underline-soft);
 }
 
 .recipe-link {
@@ -634,7 +778,7 @@ body {
   position: absolute;
   inset: 0 0 auto;
   height: 2px;
-  background: linear-gradient(90deg, rgba(255, 210, 74, 0.6), transparent 70%);
+  background: linear-gradient(90deg, var(--accent-edge), transparent 70%);
   opacity: 0.45;
 }
 
@@ -648,7 +792,7 @@ body {
 }
 
 .stat.accent strong {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 /* result bar and empty state, both outside the scrolling table */
@@ -702,7 +846,7 @@ body {
 }
 
 .page-btn:hover:not(:disabled) {
-  border-color: #3d4451;
+  border-color: var(--line-strong);
   color: var(--text);
 }
 
@@ -717,9 +861,9 @@ body {
 }
 
 .page-btn.current {
-  background: rgba(255, 210, 74, 0.12);
-  border-color: rgba(255, 210, 74, 0.45);
-  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: var(--accent-edge);
+  color: var(--accent-text);
   font-weight: 600;
 }
 
@@ -768,7 +912,7 @@ body {
   max-height: 74vh;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
-  scrollbar-color: #3d4451 var(--panel-2);
+  scrollbar-color: var(--scroll-thumb) var(--panel-2);
 }
 
 .tablewrap::-webkit-scrollbar,
@@ -784,14 +928,14 @@ body {
 
 .tablewrap::-webkit-scrollbar-thumb,
 .basket-tablewrap::-webkit-scrollbar-thumb {
-  background: #3d4451;
+  background: var(--scroll-thumb);
   border: 2px solid var(--panel-2);
   border-radius: 10px;
 }
 
 .tablewrap::-webkit-scrollbar-thumb:hover,
 .basket-tablewrap::-webkit-scrollbar-thumb:hover {
-  background: #596273;
+  background: var(--scroll-thumb-hover);
 }
 
 .tablewrap::-webkit-scrollbar-corner,
@@ -856,17 +1000,17 @@ thead th.sortable button {
 
 .arrow {
   margin-left: 4px;
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 tbody td {
   padding: 9px 12px;
-  border-bottom: 1px solid #23272f;
+  border-bottom: 1px solid var(--row-line);
   vertical-align: middle;
 }
 
 tbody tr:hover {
-  background: #1f232b;
+  background: var(--row-hover);
 }
 
 .right {
@@ -899,7 +1043,7 @@ tbody tr:hover {
 }
 
 .strong {
-  color: var(--accent);
+  color: var(--accent-text);
   font-weight: 600;
 }
 
@@ -914,8 +1058,8 @@ tbody tr:hover {
 
 .badge {
   margin-left: 7px;
-  background: #3a2f4a;
-  color: #c9a6ff;
+  background: var(--badge-bg);
+  color: var(--badge-ink);
   font-size: 10px;
   padding: 1px 5px;
   border-radius: 4px;
@@ -923,7 +1067,7 @@ tbody tr:hover {
 }
 
 .shop {
-  color: #cfd4dc;
+  color: var(--text-soft);
 }
 
 .shop-actions {
@@ -944,7 +1088,7 @@ tbody tr:hover {
   color: var(--link);
   font-weight: 700;
   text-decoration: none;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.55);
+  border-bottom: 1px solid var(--link-underline);
 }
 
 .wiki-link:hover {
@@ -1054,13 +1198,13 @@ tbody tr:hover {
 
 .preset:hover {
   color: var(--text);
-  border-color: #3d4451;
+  border-color: var(--line-strong);
 }
 
 .preset.active {
   background: var(--accent);
   border-color: var(--accent);
-  color: #1a1a1a;
+  color: var(--on-accent);
   font-weight: 600;
 }
 
@@ -1092,7 +1236,7 @@ thead th[title] {
 }
 
 .caveats summary:hover {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .caveats p {
@@ -1197,15 +1341,15 @@ thead th[title] {
 }
 
 .shop-basket:hover {
-  color: var(--accent);
+  color: var(--accent-text);
   border-color: var(--accent);
 }
 
 .access-badge {
   margin-left: 6px;
-  background: #2f2612;
-  border: 1px solid #5a4a12;
-  color: var(--accent);
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-line);
+  color: var(--accent-text);
   border-radius: 4px;
   padding: 1px 5px;
   font-size: 10px;
@@ -1218,7 +1362,7 @@ thead th[title] {
 
 .access-badge:hover {
   border-color: var(--accent);
-  background: #3a2f16;
+  background: var(--warn-hover);
 }
 
 .basket-panel {
@@ -1287,7 +1431,7 @@ thead th[title] {
 }
 
 .basket-stat.accent strong {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .basket-tablewrap {
@@ -1297,7 +1441,7 @@ thead th[title] {
   max-height: 40vh;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
-  scrollbar-color: #3d4451 var(--panel-2);
+  scrollbar-color: var(--scroll-thumb) var(--panel-2);
 }
 
 .basket-table {
@@ -1335,8 +1479,8 @@ thead th[title] {
 }
 
 .flag.warn {
-  color: var(--accent);
-  border-color: #5a4a12;
+  color: var(--accent-text);
+  border-color: var(--warn-line);
 }
 
 .basket-note {
@@ -1369,6 +1513,7 @@ thead th[title] {
  */
 @media (prefers-reduced-motion: reduce) {
   .mode,
+  .theme-toggle,
   .search,
   .search-hint,
   .copy-link,

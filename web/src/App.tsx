@@ -1,5 +1,8 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 
+import { ThemeToggle } from "./ThemeToggle";
+import { useTheme } from "./theme";
+
 import {
   DEFAULT_PAGE,
   PAGE_LABELS,
@@ -25,6 +28,7 @@ const ProcessingPage = lazy(() =>
  * independently. Routing is a hash so the build stays a static bundle.
  */
 export function App(): JSX.Element {
+  const { theme, toggle: toggleTheme } = useTheme();
   const [page, setPage] = useState<Page>(() =>
     typeof window === "undefined" ? DEFAULT_PAGE : parsePageHash(window.location.hash),
   );
@@ -53,19 +57,22 @@ export function App(): JSX.Element {
             calls.
           </p>
         </div>
-        <nav className="pages" aria-label="Calculator direction">
-          {PAGES.map((candidate) => (
-            <button
-              key={candidate}
-              type="button"
-              className={candidate === page ? "page-tab active" : "page-tab"}
-              onClick={() => navigate(candidate)}
-              aria-current={candidate === page ? "page" : undefined}
-            >
-              {PAGE_LABELS[candidate]}
-            </button>
-          ))}
-        </nav>
+        <div className="header-actions">
+          <nav className="pages" aria-label="Calculator direction">
+            {PAGES.map((candidate) => (
+              <button
+                key={candidate}
+                type="button"
+                className={candidate === page ? "page-tab active" : "page-tab"}
+                onClick={() => navigate(candidate)}
+                aria-current={candidate === page ? "page" : undefined}
+              >
+                {PAGE_LABELS[candidate]}
+              </button>
+            ))}
+          </nav>
+          <ThemeToggle theme={theme} onToggle={toggleTheme} />
+        </div>
       </header>
 
       <Suspense

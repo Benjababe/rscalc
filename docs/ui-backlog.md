@@ -32,12 +32,12 @@ change (S ≈ under an hour, M ≈ half a day, L ≈ a day or more).
 |2.1 Remove duplicated page orchestration|**done** — `FilterToolbar`, `BudgetPanel`, `settings`, `sorting`, `matching`|
 |2.2 Throttle re-planning|**done** — deferred query + memoised stats|
 |2.3 UI-level tests|**done** — jsdom render tests for page + controls|
-|3.1 Light theme|open — optional|
+|3.1 Light theme|**done** — header toggle, opens dark, remembered|
 |3.2 Keyboard shortcut to focus search|**done** — `/` and Ctrl/Cmd+K|
 |3.3 Sticky toolbar|**dropped** — built, reviewed, removed|
 
-**Open:** 3.1 (optional). 3.3 was built and then dropped by request.
-Everything else, including all of §1 and §2, has landed.
+**Open:** nothing. Every item has landed except 3.3, which was built and
+dropped by request.
 
 ---
 
@@ -247,11 +247,41 @@ Everything else, including all of §1 and §2, has landed.
 
 ### 3.1 Light theme
 
-The palette is a single dark set of custom properties in `:root`
-(`--bg`, `--panel`, `--panel-2`, `--line`, `--text`, `--dim`, `--accent`).
-A `prefers-color-scheme: light` block that only redefines those variables is
-tractable; the hardcoded greys introduced in the toolbar work (`#1e222a`,
-`#15181d`, `#1d2128`, `#3d4451`) would need to become variables first.
+- **Done, as a switch rather than an OS preference.** A button in the header
+  (`web/src/ThemeToggle.tsx`) flips between dark and light; `web/src/theme.ts`
+  owns the state, the `data-theme` attribute and the `localStorage` entry
+  (`rscalc.theme`). The icons are inline SVG (solid crescent for dark, outlined
+  sun for light, both `currentColor`) rather than the ☾/☀ glyphs, which render at
+  a different weight and baseline in every font stack and are swapped for emoji on
+  some platforms. **The site always opens dark** unless the player has chosen
+  otherwise, so this is keyed off `:root[data-theme="light"]` and deliberately
+  not off `prefers-color-scheme` — that would have let a light-preferring OS
+  override the stated default. `tests/theme.test.ts` asserts no such media query
+  exists.
+- **Tokenised first.** Every colour in `web/src/styles.css` is now a token (39 of
+  them, grouped by role), because the earlier toolbar work had left ~28 literals
+  behind (`#3d4451` borders, `#1a1d23` fields, `#1f232b` row hover, the gold
+  `rgba()` rings). Gold needed splitting: it works as a fill in both themes, but
+  gold *text* on white fails every threshold, so `--accent-text` goes dark in
+  light mode and a test enforces that it is never used for a background or
+  border.
+- **Contrast measured** in light mode: body text 18.1:1, dim 6.3:1, accent-text
+  6.3:1, links 7.7:1, positive 5.4:1, badge 7.2:1, text on the gold fill 10.4:1,
+  placeholder 4.8:1 (the first value came out at 3.0:1 and was darkened).
+- **Dark is unchanged** — checked element by element, not assumed: computed
+  colours of 20 selectors matched the pre-refactor values exactly.
+- **Verified in the browser:** a fresh visit is dark with the moon glyph and
+  `aria-pressed="false"`; clicking switches `data-theme` to `light`, the palette
+  and `<meta name="theme-color">` follow, and the choice survives a reload;
+  clicking again returns to dark.
+- **A trap worth recording:** the literal→token sweep also rewrote the token
+  *definitions* (25 became self-referential, e.g. `--badge-bg: var(--badge-bg)`),
+  and a naive `color: var(--accent)` replacement also hit `border-color:` and
+  `background-color:`. Both fail as "invalid at computed-value time" — the
+  element silently loses its colour instead of erroring. `tests/theme.test.ts`
+  pins the invariants: identical token sets in both themes, no token keeping its
+  dark value, no colour literal outside the token blocks, no unused or undefined
+  token, and `--accent-text` used only as a text colour.
 
 ### 3.2 Keyboard shortcut to focus search
 
@@ -298,8 +328,8 @@ If these are taken in order, two coherent commits cover the cheap wins:
 1. **Table chrome and accessibility** — 1.1, 1.3, 1.7, 1.8, plus the metadata
    in 1.6. Mechanical, no behaviour change, easy to review. **Landed.**
 2. **Shareable state and input ergonomics** — 1.2, 1.4, 1.5. Adds URL state and
-   input parsing; wants its own tests. (1.4 and 1.5 landed; 1.2 is still open.)
+   input parsing; wants its own tests. **Landed.**
 3. **Page deduplication** — 2.1. **Landed**, verified by hashing the rendered
    text of all three pages in both modes before and after.
 
-Remaining: 3.1, the optional light theme. (3.3 was dropped by request.)
+Nothing remains open. (3.3 was built and dropped by request.)
