@@ -30,7 +30,8 @@ change (S ≈ under an hour, M ≈ half a day, L ≈ a day or more).
 |1.7 Empty-state exit|**done** — clear-filters in the chip row and the empty panel|
 |1.8 `prefers-reduced-motion`|**done** — `web/src/styles.css`|
 |2.1 Remove duplicated page orchestration|**done** — `FilterToolbar`, `BudgetPanel`, `settings`, `sorting`, `matching`|
-|2.2 Throttle re-planning · 2.3 UI tests · §3|open|
+|2.2 Throttle re-planning|**done** — deferred query + memoised stats|
+|2.3 UI tests · §3|open|
 
 ---
 
@@ -163,15 +164,38 @@ change (S ≈ under an hour, M ≈ half a day, L ≈ a day or more).
 ### 2.2 Throttle re-planning while typing
 
 - **Where:** the `useMemo` that runs `planWithBudget` over every filtered row in
-  `ShopToGe.tsx` / `GeToShop.tsx` / `Processing.tsx`.
-- **Measured on a desktop-class machine** (Shop → GE, 2,151 rows): 17–75ms per
-  keystroke, 75ms per mode switch. Tolerable on a fast machine, but the cost
-  lands on every character and grows with the result set, so a slow laptop or a
-  larger snapshot turns typing into a stutter.
-- **Change:** `useDeferredValue` (or a ~150ms debounce) on the search string,
-  and memoise the derived stats — the median-margin stat currently copies and
-  sorts the whole row array on every render.
-- **Impact: medium · Effort: S–M.**
+  `ShopToGe.tsx` / `GeToShop.tsx` / `Processing.tsx`, and the stat cards below it.
+- **Done, and what it actually bought.** Two things changed:
+
+  1. The stat cards are memoised on `rows`. They re-scanned (and, for the median
+     margin, copied and sorted) the whole result set on every render, including
+     renders where the rows had not changed at all — opening a basket, toggling a
+     column, flipping the budget/shop view.
+  2. The search string feeds the planner through `useDeferredValue`, so the input
+     updates immediately and the planning render is interruptible.
+
+- **Measured** (same harness before and after, Shop → GE, 1,909 rows; synchronous
+  cost of a keystroke):
+
+  | case | before | after |
+  |---|---|---|
+  | clear the box (re-plans 1,909 rows) | 12.8–15.1ms | 0.2–0.4ms |
+  | first characters of a query | 14.6 / 12.9ms | 9.3 / 8.7ms |
+  | burst of five characters, until settled | ~325ms (30ms gaps) | ~327ms |
+  | mode switch | 30–33ms | 25–33ms |
+
+- **Honest conclusion:** the deferral moves planning off the keystroke path; it
+  does not reduce total work. A burst of typing still costs the same wall-clock
+  time to settle, because React flushes the pending render inside the next
+  keystroke. What improves is that no single character blocks the input for
+  ~13ms, which matters on a slower machine or a bigger snapshot.
+- **Rejected:** a 150ms debounce was implemented and measured first. It reduced
+  the number of computations but made the user-visible settle worse — ~470ms
+  versus ~325ms at 30ms keystroke gaps, ~885ms versus ~800ms at 120ms — because
+  every query pays the 150ms wait. With planning already this cheap, the latency
+  is not worth a throughput gain nobody can see.
+- **Verified:** all six rendered snapshots (three pages × both modes) hash
+  identically to before, so no number changed.
 
 ### 2.3 UI-level tests
 
@@ -221,4 +245,4 @@ If these are taken in order, two coherent commits cover the cheap wins:
 3. **Page deduplication** — 2.1. **Landed**, verified by hashing the rendered
    text of all three pages in both modes before and after.
 
-Remaining: 1.2, then 2.2 and 2.3.
+Remaining: 1.2 and 2.3.

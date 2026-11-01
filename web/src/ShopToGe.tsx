@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import type { Opportunity, Ranking, SellMode } from "../../src/types";
 import { planWithBudget, type BudgetPlan } from "../../src/domain/budget";
 import { wikiUrl } from "../../src/util/wiki";
@@ -152,6 +152,10 @@ export function ShopToGePage(): JSX.Element {
     setSecondsPerTile,
   } = useTravelSettings();
   const { sortKey, descending, toggle: toggleSort } = useSort<SortKey>("gpPerHour");
+  // Typing must stay responsive: the input updates immediately, and the rows
+  // (which plan a budget each) recompute in a deferred, interruptible render.
+  const deferredQuery = useDeferredValue(query);
+  const filtering = query !== deferredQuery;
   const {
     visible,
     toggle: toggleColumn,
@@ -163,7 +167,7 @@ export function ShopToGePage(): JSX.Element {
   const currentColumns = columnsForMode(budgetMode);
 
   const rows = useMemo<RowData[]>(() => {
-    const needle = normaliseQuery(query);
+    const needle = normaliseQuery(deferredQuery);
 
     const filtered = ranking.opportunities.filter((opp) => {
       if (membersOnly && !opp.members) return false;
@@ -244,7 +248,7 @@ export function ShopToGePage(): JSX.Element {
     return sortByMeasure(withPlans, measure, descending);
   }, [
     ranking,
-    query,
+    deferredQuery,
     membersOnly,
     hideLocked,
     minVolume,
@@ -259,29 +263,40 @@ export function ShopToGePage(): JSX.Element {
 
   const paged = usePagedRows(rows);
 
-  const bestPlanRow = rows.reduce<RowData | undefined>((best, row) => {
-    const gp = row.plan?.gpPerHour;
-    if (gp == null) return best;
-    if (best === undefined) return row;
-    return gp > (best.plan?.gpPerHour ?? Number.NEGATIVE_INFINITY)
-      ? row
-      : best;
-  }, undefined);
-  const bestSummary = budgetPlanSummary(bestPlanRow);
+  // Derived from the rows only: without this, every keystroke that re-renders
+  // the page also re-scanned and re-sorted the whole result set for the stats.
+  const summary = useMemo(() => {
+    const bestPlanRow = rows.reduce<RowData | undefined>((best, row) => {
+      const gp = row.plan?.gpPerHour;
+      if (gp == null) return best;
+      if (best === undefined) return row;
+      return gp > (best.plan?.gpPerHour ?? Number.NEGATIVE_INFINITY)
+        ? row
+        : best;
+    }, undefined);
 
-  const bestGp4hRow = rows.reduce<RowData | undefined>((best, row) => {
-    if (best === undefined || row.gpPer4h > best.gpPer4h) return row;
-    return best;
-  }, undefined);
+    const bestGp4hRow = rows.reduce<RowData | undefined>((best, row) => {
+      if (best === undefined || row.gpPer4h > best.gpPer4h) return row;
+      return best;
+    }, undefined);
 
-  const medianMargin =
-    rows.length > 0
-      ? ([...rows].map((r) => r.margin).sort((a, b) => a - b)[
-          Math.floor(rows.length / 2)
-        ] ?? 0)
-      : null;
+    const medianMargin =
+      rows.length > 0
+        ? ([...rows].map((r) => r.margin).sort((a, b) => a - b)[
+            Math.floor(rows.length / 2)
+          ] ?? 0)
+        : null;
 
-  const shopCount = new Set(rows.map((row) => row.shopPage)).size;
+    return {
+      bestPlanRow,
+      bestSummary: budgetPlanSummary(bestPlanRow),
+      bestGp4hRow,
+      medianMargin,
+      shopCount: new Set(rows.map((row) => row.shopPage)).size,
+    };
+  }, [rows]);
+  const { bestPlanRow, bestSummary, bestGp4hRow, medianMargin, shopCount } =
+    summary;
 
   /** Reset every filter, leaving the mode, sort and budget settings alone. */
   const clearFilters = (): void => {
@@ -482,6 +497,7 @@ export function ShopToGePage(): JSX.Element {
         label="Shop to Grand Exchange opportunities"
         paged={paged}
         noun="opportunities"
+        busy={filtering}
         emptyText="No opportunities match these filters."
         onClearFilters={clearFilters}
       >

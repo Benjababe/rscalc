@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 
 import { planShopSink, type ShopSinkPlan } from "../../src/domain/shopSink";
 import type {
@@ -100,6 +100,10 @@ export function GeToShopPage(): JSX.Element {
     setSecondsPerTile,
   } = useTravelSettings();
   const { sortKey, descending, toggle: toggleSort } = useSort<SortKey>("gpPerHour");
+  // The input updates immediately; the planned rows catch up in a deferred,
+  // interruptible render so typing never waits for 600 flips to be re-planned.
+  const deferredQuery = useDeferredValue(query);
+  const filtering = query !== deferredQuery;
   const {
     visible,
     toggle: toggleColumn,
@@ -110,7 +114,7 @@ export function GeToShopPage(): JSX.Element {
   const ranking = DATA[mode];
 
   const rows = useMemo<RowData[]>(() => {
-    const needle = normaliseQuery(query);
+    const needle = normaliseQuery(deferredQuery);
 
     const planned: RowData[] = [];
     for (const opp of ranking.opportunities) {
@@ -185,7 +189,7 @@ export function GeToShopPage(): JSX.Element {
     });
   }, [
     ranking,
-    query,
+    deferredQuery,
     membersOnly,
     hideLocked,
     minProfit,
@@ -200,6 +204,31 @@ export function GeToShopPage(): JSX.Element {
 
   const paged = usePagedRows(rows);
 
+  // Derived from the rows only, so a keystroke that re-renders the page does not
+  // re-scan the whole result set for the stat cards. Must stay above the
+  // empty-snapshot return below: hooks cannot run conditionally.
+  const summary = useMemo(() => {
+    const bestRate = rows.reduce<RowData | undefined>((best, row) => {
+      if (row.plan.gpPerHour === null) return best;
+      if (best === undefined) return row;
+      return row.plan.gpPerHour > (best.plan.gpPerHour ?? Number.NEGATIVE_INFINITY)
+        ? row
+        : best;
+    }, undefined);
+
+    const bestProfit = rows.reduce<RowData | undefined>(
+      (best, row) =>
+        best === undefined || row.plan.profit > best.plan.profit ? row : best,
+      undefined,
+    );
+
+    return {
+      bestRate,
+      bestProfit,
+      shopCount: new Set(rows.map((entry) => entry.opp.shopPage)).size,
+    };
+  }, [rows]);
+
   if (ranking.opportunities.length === 0) {
     return (
       <div className="page">
@@ -212,21 +241,7 @@ export function GeToShopPage(): JSX.Element {
     );
   }
 
-  const bestRate = rows.reduce<RowData | undefined>((best, row) => {
-    if (row.plan.gpPerHour === null) return best;
-    if (best === undefined) return row;
-    return row.plan.gpPerHour > (best.plan.gpPerHour ?? Number.NEGATIVE_INFINITY)
-      ? row
-      : best;
-  }, undefined);
-
-  const bestProfit = rows.reduce<RowData | undefined>(
-    (best, row) =>
-      best === undefined || row.plan.profit > best.plan.profit ? row : best,
-    undefined,
-  );
-
-  const shopCount = new Set(rows.map((entry) => entry.opp.shopPage)).size;
+  const { bestRate, bestProfit, shopCount } = summary;
 
   /** Reset every filter, leaving the mode, sort and budget settings alone. */
   const clearFilters = (): void => {
@@ -385,6 +400,7 @@ export function GeToShopPage(): JSX.Element {
         label="Grand Exchange to shop flips"
         paged={paged}
         noun="flips"
+        busy={filtering}
         emptyText="No flips match these filters. Try raising gold or clearing the minimum profit."
         onClearFilters={clearFilters}
       >

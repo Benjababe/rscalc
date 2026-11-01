@@ -89,6 +89,8 @@ export function Results(props: {
   paged: PagedRows<unknown>;
   emptyText: ReactNode;
   onClearFilters: () => void;
+  /** The table is showing a previous filter while the new one computes. */
+  busy?: boolean;
   children: ReactNode;
 }): JSX.Element {
   const total = props.paged.total;
@@ -130,6 +132,7 @@ export function Results(props: {
             role="region"
             tabIndex={0}
             aria-label={props.label}
+            aria-busy={props.busy === true}
           >
             {props.children}
           </div>

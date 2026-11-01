@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 
 import {
   actions4hForRate,
@@ -115,6 +115,10 @@ export function ProcessingPage(): JSX.Element {
   const [actionsPerHourCap, setActionsPerHourCap] = useState(0);
   const { gold, setGold } = useBudgetSettings();
   const { sortKey, descending, toggle: toggleSort } = useSort<SortKey>("gpPerHour");
+  // The input updates immediately; the planned rows catch up in a deferred,
+  // interruptible render so typing never waits for every recipe to be re-priced.
+  const deferredQuery = useDeferredValue(query);
+  const filtering = query !== deferredQuery;
   const {
     visible,
     toggle: toggleColumn,
@@ -132,7 +136,7 @@ export function ProcessingPage(): JSX.Element {
   }, []);
 
   const rows = useMemo<RowData[]>(() => {
-    const needle = normaliseQuery(query);
+    const needle = normaliseQuery(deferredQuery);
     const planned: RowData[] = [];
 
     for (const opp of ranking.opportunities) {
@@ -258,7 +262,7 @@ export function ProcessingPage(): JSX.Element {
     return sortByMeasure(planned, measure, descending, tieBreak);
   }, [
     ranking,
-    query,
+    deferredQuery,
     membersOnly,
     skill,
     minProfit,
@@ -269,6 +273,33 @@ export function ProcessingPage(): JSX.Element {
   ]);
 
   const paged = usePagedRows(rows);
+
+  // Derived from the rows only, so a keystroke that re-renders the page does not
+  // re-scan the whole result set for the stat cards. Must stay above the
+  // empty-snapshot return below: hooks cannot run conditionally.
+  const summary = useMemo(() => {
+    const bestRate = rows.reduce<RowData | undefined>((best, row) => {
+      if (row.gpPerHour === null) return best;
+      if (best === undefined) return row;
+      return row.gpPerHour > (best.gpPerHour ?? Number.NEGATIVE_INFINITY)
+        ? row
+        : best;
+    }, undefined);
+
+    const bestProfitPerAction = rows.reduce<RowData | undefined>(
+      (best, row) =>
+        best === undefined || row.opp.profit > best.opp.profit ? row : best,
+      undefined,
+    );
+
+    const bestProfit4h = rows.reduce<RowData | undefined>(
+      (best, row) =>
+        best === undefined || row.profit > best.profit ? row : best,
+      undefined,
+    );
+
+    return { bestRate, bestProfitPerAction, bestProfit4h };
+  }, [rows]);
 
   if (DATA.pessimistic.count === 0 && DATA.patient.count === 0) {
     return (
@@ -281,25 +312,7 @@ export function ProcessingPage(): JSX.Element {
     );
   }
 
-  const bestRate = rows.reduce<RowData | undefined>((best, row) => {
-    if (row.gpPerHour === null) return best;
-    if (best === undefined) return row;
-    return row.gpPerHour > (best.gpPerHour ?? Number.NEGATIVE_INFINITY)
-      ? row
-      : best;
-  }, undefined);
-
-  const bestProfitPerAction = rows.reduce<RowData | undefined>(
-    (best, row) =>
-      best === undefined || row.opp.profit > best.opp.profit ? row : best,
-    undefined,
-  );
-
-  const bestProfit4h = rows.reduce<RowData | undefined>(
-    (best, row) =>
-      best === undefined || row.profit > best.profit ? row : best,
-    undefined,
-  );
+  const { bestRate, bestProfitPerAction, bestProfit4h } = summary;
 
   /** Reset every filter, leaving the mode, sort and budget settings alone. */
   const clearFilters = (): void => {
@@ -483,6 +496,7 @@ export function ProcessingPage(): JSX.Element {
         label="Deterministic processing recipes"
         paged={paged}
         noun="recipes"
+        busy={filtering}
         emptyText="No recipes match these filters. Try clearing the minimum profit or raising your gold."
         onClearFilters={clearFilters}
       >
