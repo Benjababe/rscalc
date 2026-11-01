@@ -117,6 +117,13 @@ export interface SkillActivityOptions {
   cookingLevel?: number;
   /** Curated no-burn levels; required to price Cooking at all. */
   burnLevels?: BurnIndex;
+  /**
+   * Curated upgrade recipes, keyed `skill|output` (lower-cased). A match moves the
+   * row from `transform` to `upgrade` so a one-off item conversion is not ranked
+   * against a repeatable action. Injected rather than imported so `src/` stays
+   * free of `scripts/`; the curated list lives in `scripts/skillUpgrades.ts`.
+   */
+  upgradeKeys?: ReadonlySet<string>;
 }
 
 export interface SkillActivityResult {
@@ -303,9 +310,12 @@ export function rankSkillActivities(
     excludedSkills: options.skill === 'Cooking' ? [] : undefined,
   });
 
+  const upgrades = options.upgradeKeys ?? new Set<string>();
   const activities: SkillActivity[] = priced.opportunities.map((row) => ({
     ...row,
-    kind: 'transform',
+    kind: upgrades.has(`${options.skill}|${row.output.itemName}`.toLowerCase())
+      ? 'upgrade'
+      : 'transform',
     outputName: row.output.itemName,
     noBurnLevel: null,
   }));
@@ -356,9 +366,11 @@ export function rankSkillActivities(
 
   let profitable = 0;
   let unknownRate = 0;
+  let upgradeCount = 0;
   for (const activity of activities) {
     if (activity.profit > 0) profitable += 1;
     if (activity.gpPerHour === null) unknownRate += 1;
+    if (activity.kind === 'upgrade') upgradeCount += 1;
   }
 
   return {
@@ -376,6 +388,7 @@ export function rankSkillActivities(
       lossMaking: activities.length - profitable,
       unknownRate,
       trainOnly,
+      upgrades: upgradeCount,
       unpriced: mine.length - activities.length,
     },
   };

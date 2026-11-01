@@ -131,6 +131,7 @@ describe('rankSkillActivities', () => {
       lossMaking: 1,
       unknownRate: 0,
       trainOnly: 0,
+      upgrades: 0,
       unpriced: 0,
     });
     expect(NO_PROFIT_FLOOR).toBeLessThan(0);
@@ -260,6 +261,41 @@ const BURN = toBurnIndex([
   { item: 'Monkfish', level: 90, source: 'range' },
   { item: 'Shark', level: null, source: 'range' },
 ]);
+
+describe('upgrade rows', () => {
+  it('moves a curated conversion out of the transform ranking', () => {
+    const result = rankSkillActivities([LOSS], MARKET, {
+      skill: 'Crafting',
+      mode: 'pessimistic',
+      upgradeKeys: new Set(['crafting|ruby ring']),
+    });
+
+    const row = result.ranking.opportunities[0];
+    expect(row?.kind).toBe('upgrade');
+    expect(row?.output).not.toBeNull();
+    expect(result.coverage.upgrades).toBe(1);
+  });
+
+  it('leaves the same row as a transform without the curated key', () => {
+    const result = rankSkillActivities([LOSS], MARKET, {
+      skill: 'Crafting',
+      mode: 'pessimistic',
+    });
+
+    expect(result.ranking.opportunities[0]?.kind).toBe('transform');
+    expect(result.coverage.upgrades).toBe(0);
+  });
+
+  it('matches on skill as well as output name', () => {
+    const result = rankSkillActivities([LOSS], MARKET, {
+      skill: 'Crafting',
+      mode: 'pessimistic',
+      upgradeKeys: new Set(['smithing|ruby ring']),
+    });
+
+    expect(result.ranking.opportunities[0]?.kind).toBe('transform');
+  });
+});
 
 describe('cooking rows', () => {
   const market = () => ({
@@ -417,6 +453,9 @@ describe('committed skilling artifact', () => {
       expect(coverage.trainOnly).toBe(
         rows.filter((row) => row.kind === 'train').length,
       );
+      expect(coverage.upgrades).toBe(
+        rows.filter((row) => row.kind === 'upgrade').length,
+      );
       for (const row of rows) {
         // Only Cooking can be burn-gated, and a priced cooking row must say at
         // which level it is deterministic.
@@ -425,8 +464,10 @@ describe('committed skilling artifact', () => {
         } else {
           expect(row.noBurnLevel).toBeNull();
         }
-        // A train row sells nothing: no output, no revenue, cost only.
+        // A train row sells nothing: no output, no revenue, cost only. An
+        // upgrade always sells, so it always has an output.
         expect(row.output === null).toBe(row.kind === 'train');
+        if (row.kind === 'upgrade') expect(row.output).not.toBeNull();
         if (row.kind === 'train') {
           expect(row.profit).toBe(-row.spend);
           expect(row.gpPer4h).toBeLessThanOrEqual(0);

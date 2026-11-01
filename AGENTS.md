@@ -403,6 +403,12 @@ unpriced count is stated, never closed with an estimate.
 `kind: 'train'` row: `output: null`, `profit = -spend`, i.e. the cost of one
 action. A tradeable output that merely has no 4h volume stays unpriced — a market
 problem is not a cost. Tests pin both branches.
+- A recipe that **re-works a finished item into a better version of itself**
+(anguish -> rupture, ranger boots -> pegasian boots) is `kind: 'upgrade'`, from the
+curated, cited list in `scripts/skillUpgrades.ts`. It is still a sale, but eight
+conversions a day at 144M of capital must not be ranked against a repeatable
+action. Curated because no threshold rule reproduces the boundary; the script warns
+when a key matches no recipe, so the list cannot rot silently.
 - Time follows the plan's rule: a sourced action time gives gp/hour, a
 deterministic per-action profit with no clock keeps `gpPerHour = null` (`—`),
 and an activity whose profit only exists as a rate is skipped and counted.
@@ -413,7 +419,10 @@ value** and labelled `EV`; without a published distribution the row stays out.
   re-framed by the same engine. The unpriced remainder is untradeable legs, no 4h
   liquidity, unmapped combined-item names, a chance note, or a Cooking food with
   no published no-burn level: counted, never estimated. Tanning hides is out
-  (no xp, no recipe); alch and shop sale as output channels are still open (Q6).
+  (no xp, no recipe).
+- `#/skilling` opens in **instant** mode (Q10) and prices **GE buy -> GE sell
+  only** (Q6): no high-alch and no shop-sale channel. Both are deliberate, both
+  cost coverage, and the page must say so rather than imply a losing row is dead.
 - **Cooking is gated, not guessed.** A cooked food burns and destroys the input,
   so a Cooking row carries `noBurnLevel` (the level at which it stops burning, from
   the wiki's burn table) and is only meaningful at or above it. The artifact keeps

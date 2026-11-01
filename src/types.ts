@@ -489,8 +489,11 @@ export type ProcessPayload = z.infer<typeof ProcessPayloadSchema>;
  * GE. `train` sells nothing — the output is house furniture or another object
  * that cannot be traded, so the row is the **cost** of one action and the only
  * question it can answer is "what does training this skill cost per hour?".
+ * `upgrade` re-works one finished item into a better version of itself (anguish ->
+ * rupture): still a sale, but a one-off with 8 conversions a day and 144M of
+ * capital, so it must not be ranked against repeatable actions.
  */
-export const SkillActivityKindSchema = z.enum(['transform', 'train']);
+export const SkillActivityKindSchema = z.enum(['transform', 'train', 'upgrade']);
 export type SkillActivityKind = z.infer<typeof SkillActivityKindSchema>;
 
 /**
@@ -544,6 +547,8 @@ export const SkillCoverageSchema = z.object({
   unknownRate: z.number().int().nonnegative(),
   /** Rows whose output cannot be sold, so the row is a training cost. */
   trainOnly: z.number().int().nonnegative(),
+  /** Rows that re-work a finished item instead of building one. */
+  upgrades: z.number().int().nonnegative(),
   unpriced: z.number().int().nonnegative(),
 });
 export type SkillCoverage = z.infer<typeof SkillCoverageSchema>;

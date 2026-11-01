@@ -162,7 +162,7 @@ estimates are for sanity-checking the output, not targets.
 | 4 | Herblore | **✅ scanned — see §8.8** |
 | 5 | Runecraft | **✅ scanned — see §8.5** |
 | 6 | Construction | **✅ scanned — see §8.6** (needed a new `train` row kind) |
-| 7 | Magic | **✅ scanned — see §8.9** (high-alch as an output channel is still Q6) |
+| 7 | Magic | **✅ scanned — see §8.9** |
 | 8 | Cooking | **✅ scanned — see §8.10.** Priced only above each food's published no-burn level, with the player's level as the gate. |
 
 ### Phase 2 — gathering and collection (new sources)
@@ -234,9 +234,12 @@ Do not pad it with a player-entered rate.
 - **Q5 — overlap with `#/processing`.** ~300 of the Phase 1 rows are the same
   actions. Duplicate them under Skilling, or make Skilling the superset and
   leave Processing as the GE-flip view?
-- **Q6 — alternative output channels.** Some output is worth more to a shop or
-  as a high-alch than on the GE. Include alch (nature rune cost, fire staff) and
-  shop-sale as per-row channels, or GE only?
+- **Q6 — alternative output channels. ANSWERED: GE only.** No high-alch and no
+  shop-sale channel anywhere on the skilling page. Every row is "buy the inputs on
+  the GE, sell the output on the GE, pay the GE tax", which is the same contract
+  `#/processing` already has. Rows where a shop or an alch would pay more are
+  therefore understated *by design*, and the page must not hint otherwise — see
+  §8.1 for the consequence.
 - **Q7 — granularity cap.** Every variant or the profitable subset? Some skills
   have hundreds of near-identical item combos; is a curated top-N per skill
   acceptable, with the cut documented?
@@ -244,8 +247,11 @@ Do not pad it with a player-entered rate.
   feed `earnings.ts` in a later commit?
 - **Q9 — farming shape.** Per-patch profit, or a whole herb-run cycle (patches ×
   expected yield × growth time)?
-- **Q10 — default view.** Show loss-making rows (cost to train) by default, or
-  hide behind a filter? "Profit/loss" suggests they are wanted.
+- **Q10 — default view. ANSWERED: instant (`pessimistic`) by default.** The page
+  opens on instant buy / instant sell, not on rested offers. Loss-making rows are
+  still listed (loss is the answer for most of a skill), but the default mode is
+  the pessimistic one. The patient ranking stays in the artifact for a toggle.
+  §8.11 records what that default does to the numbers, because it is not neutral.
 - **Q11 — Cooking and the chance-based recipes.** The EV decision unblocks
   Cooking and the rows `processRank.ts` currently drops on a `quantitynote` that
   mentions a chance or an average. Do we re-admit those here only, or relax
@@ -300,9 +306,11 @@ below one action on one side of the book).
 - **Tanning hides** is a real gp activity with no Crafting experience and no
   recipe template (an NPC service), so it belongs to neither a skill nor the
   processing page. Left out, noted here.
-- **High-alch and shop sale** are still not output channels (Q6), which matters
-  for Crafting more than for any other skill: d'hide bodies, battlestaves and
-  most jewellery are commonly alched, so a GE-only view understates them.
+- **High-alch and shop sale are deliberately not output channels** (Q6, decided):
+  the page prices GE buy -> GE sell only. That matters for Crafting more than for
+  any other skill, because d'hide bodies, battlestaves and most jewellery are
+  commonly alched. A row that reads as a loss here may be profitable to a player
+  who alchs it, and the page must say so rather than imply the row is dead.
 
 #### Caveats the page must carry
 
@@ -311,9 +319,10 @@ below one action on one side of the book).
   so 190 of 299 Crafting rows lose money. That is a true statement about *that
   execution style*, not about the skill. Patient mode (167 of 301 profitable) is
   the fairer read for a skill where you can batch 27 items and slow-sell.
-- **Item upgrades dominate both tails.** Necklace of rupture (-5,982,866 gp per
-  action) and Amulet of rancour (+682,060 gp per action in patient mode) are
-  one-off conversions of 40M+ items, not repeatable training. They are legitimate
+- **Item upgrades dominate both tails.** Necklace of rupture (millions of gp per
+  action either way — −3.7M on the snapshot in §8.11) and Amulet of rancour
+  (+682,060 gp per action in patient mode) are one-off conversions of 40M+ items,
+  not repeatable training. They are legitimate
   recipes and stay listed, but they are not comparable to spinning flax. A
   `kind` split (transform vs upgrade) is worth adding before the page ships.
 - **Three rows have no published tick count** and therefore no rate:
@@ -467,10 +476,11 @@ item-transmutation spells — `Tan Leather` (Green dragon leather x5 720, Red x5
 860) and `Plank Make` (Camphor plank x2 594, including the 1,750 gp sawmill fee
 the template charges).
 
-**High-alch is not here**, and that is the gap that matters: `High Level
-Alchemy` produces no item, so the bucket cannot express it. Alching is the exit
-for most Crafting and Fletching output, so this stays Q6 — an output channel, not
-a skill.
+**High-alch is not here, by decision.** `High Level Alchemy` produces no item, so
+the bucket cannot express it, and Q6 settled that the page is GE-only: alch and
+shop sale are not output channels. Alching is the exit for most Crafting and
+Fletching output, so a GE-only view understates those rows — the page states that
+once, in its caveats, rather than pricing a second channel it does not model.
 
 For comparison, the best Magic row (1,474,000/h) is a jewellery enchant at 1 tick;
 its rate is honest for the spell but ignores the walk to a bank, which is the same
@@ -525,6 +535,45 @@ you assembled earlier. Biggest losses: Mushroom pie −6,615 per action.
 level. The ticks are the wiki's cooking ticks, so `gp/hour` still ignores the walk
 to a range, like every other row.
 
+### 8.11 The instant default, and why the page must own it
+
+Q10 settled that `#/skilling` opens in **instant** mode (buy at `high`, sell at
+`low`, pay the tax) and Q6 settled that there is **no alch and no shop-sale
+channel**. Both are deliberate and both cost coverage. Here is what the page will
+actually show at the moment of writing, from the artifact as generated:
+
+| Skill | Instant rows | Profitable | Loss-making | Best instant row |
+|---|---|---|---|---|
+| Smithing | 230 | 60 | 170 | Rune plateskirt 1,218 gp (923k/h) |
+| Crafting | 299 | 109 | 190 | Diamond necklace 270 gp (540k/h) |
+| Fletching | 238 | 41 | 197 | Diamond bolt tips 522 gp (626k/h) |
+| Herblore | 140 | 40 | 100 | Sacred oil(4) 2,782 gp (934k/h) |
+| Magic | 146 | 68 | 78 | Ring of recoil 993 gp (1.99M/h) |
+| Runecraft | 51 | 17 | 34 | Blood rune 322 gp (1.93M/h) |
+| Construction | 756 | 2 | 754 | Large teak hull parts 3,516 gp (17.6k/h) |
+| Cooking | 47 | 16 | 31 | Monkfish 63 gp (205k/h) |
+
+Three consequences the page has to carry, none of which are negotiable if the
+numbers are to stay honest:
+
+1. **Instant pricing crosses the spread on every action**, so 84% of Fletching and
+   99.7% of Construction read as losses. That is a true statement about instant
+   execution, not about the skill — the loss column is the *cost of impatience*.
+   It must be labelled that way, not hidden and not "fixed" by defaulting to
+   patient.
+2. **Some rows are genuinely a cost** — Construction builds furniture that cannot
+   be sold (`kind: 'train'`), so its 754 losses are the cost of training, not a
+   failed flip. The table needs the kind, or those rows are nonsense.
+3. **GE-only understates alchable output.** D'hide bodies, battlestaves and most
+   jewellery are alched in practice. A row that reads −1,663 here may be fine for
+   a player who alchs. The page says this once; it does not price a second channel.
+
+The `upgrade` split is what keeps the instant ranking readable: it does not change
+a single number, only which rows are allowed to sit next to each other.
+
+What the default does **not** change: the artifact still carries both modes, so a
+patient toggle is a UI-only change later. Nothing needs regenerating for it.
+
 ## 9. Phase 1 complete (8 of 8 skills)
 
 | Skill | Status | Rows |
@@ -550,10 +599,14 @@ What the eight skills taught, in the order it will bite when the page is built:
    (§8.5), and Cooking cannot be priced at all without a burn table (§8.10). The
    page must be able to say "this is a cost" and "this rate is an upper bound",
    not just print a ranked list.
-2. **The `kind` field is half-built.** `transform | train` exists; `upgrade` — for
-   one-off 40M conversions like Necklace of rupture — does not, and it is what
-   decides how the table sorts (a −5.98M/action conversion cannot sit next to a
-   322 gp blood rune).
+2. **`kind` needed a third value, and now has it.** `upgrade` (curated,
+   `scripts/skillUpgrades.ts`, 22 recipes) moves one-off item conversions out of
+   the `transform` ranking: Necklace of rupture, Masori (f) x3, rancour, the boots
+   crystals, the visage shields, the re-hafted axes. Before it, Crafting's worst
+   transform row was a −3.5M rupture conversion in the same sorted list as a 322 gp
+   blood rune; after it, the worst is Warrior icon at −1,298 gp, which is a real
+   number about a real repeatable action. No value changed — only which rows may
+   sit next to each other.
 3. **Instant pricing makes almost everything look like a loss** (Fletching 85%,
    Construction 99.7%, Crafting 65%). Patient mode is not a nicety; it is the
    only mode that answers "should I do this?" for a skill you repeat.

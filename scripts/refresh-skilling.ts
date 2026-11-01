@@ -29,6 +29,7 @@ import {
   COOKING_BURN_SOURCE,
   COOKING_NO_BURN_LEVELS,
 } from './cookingBurnLevels.js';
+import { SKILL_UPGRADES, upgradeKeys } from './skillUpgrades.js';
 import { SKILLING_SKILLS, rankSkillActivities } from '../src/engine/skilling.js';
 import type { SkillingSkill } from '../src/engine/skilling.js';
 import { formatLocalTime } from '../src/util/time.js';
@@ -162,7 +163,7 @@ function printTable(
   log(
     `\n${catalog.skill} — ${coverage.activities} activities priced ` +
       `(${coverage.profitable} profitable, ${coverage.lossMaking} loss-making, ` +
-      `${coverage.trainOnly} cost-only, ` +
+      `${coverage.trainOnly} cost-only, ${coverage.upgrades} upgrades, ` +
       `${coverage.unpriced} of ${coverage.recipes} bucket recipes unpriced)`,
   );
 
@@ -243,6 +244,11 @@ async function main(): Promise<void> {
   };
   log(`  ${market.itemCount.toLocaleString()} priced items | ${market.pricesAsOf}`);
 
+  const upgradeKeySet = upgradeKeys(SKILL_UPGRADES);
+  log(
+    `  ${upgradeKeySet.size} curated upgrade recipes move out of the transform ` +
+      'ranking (scripts/skillUpgrades.ts)',
+  );
   const burnLevels = toBurnIndex(COOKING_NO_BURN_LEVELS);
   log(
     `  ${burnLevels.size} Cooking foods have a published no-burn level ` +
@@ -262,6 +268,7 @@ async function main(): Promise<void> {
       mode: 'pessimistic',
       maxActionsPerHour: cli.actionsPerHour,
       burnLevels: burnLevels,
+      upgradeKeys: upgradeKeySet,
       cookingLevel: cli.cookingLevel > 0 ? cli.cookingLevel : undefined,
     });
     const patient = rankSkillActivities(recipes.recipes, market, {
@@ -269,6 +276,7 @@ async function main(): Promise<void> {
       mode: 'patient',
       maxActionsPerHour: cli.actionsPerHour,
       burnLevels: burnLevels,
+      upgradeKeys: upgradeKeySet,
       cookingLevel: cli.cookingLevel > 0 ? cli.cookingLevel : undefined,
     });
     // Both modes price the same action set; take the pessimistic coverage so the
@@ -294,6 +302,26 @@ async function main(): Promise<void> {
     `\nwrote data/skilling.json — ${skills.length} skill(s), ` +
       `${skills.reduce((sum, entry) => sum + entry.coverage.activities, 0)} activities`,
   );
+  // Drift check: a curated upgrade key that matched nothing is stale (the bucket
+  // moved the recipe, or the item was renamed). Say so instead of silently
+  // classifying nothing.
+  const matched = new Set<string>();
+  for (const catalog of skills) {
+    for (const row of catalog.pessimistic.opportunities) {
+      if (row.kind === 'upgrade') {
+        matched.add(`${catalog.skill}|${row.outputName}`.toLowerCase());
+      }
+    }
+  }
+  const stale = [...upgradeKeySet].filter((key) => !matched.has(key));
+  if (stale.length > 0) {
+    log(
+      `
+${stale.length} curated upgrade key(s) matched no recipe: ` +
+        `${stale.join(', ')} — check scripts/skillUpgrades.ts against the bucket.`,
+    );
+  }
+
   const shown = new Set<string>(cli.skills);
   for (const catalog of skills) {
     if (shown.has(catalog.skill)) printTable(catalog, 'pessimistic', cli.limit);
