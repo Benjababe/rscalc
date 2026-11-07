@@ -19,7 +19,8 @@
  *    those rows stay hidden until a level is entered — showing them at level 1
  *    would put a gamble at the top of a ranking.
  *
- * Every row is a static snapshot: no network call happens here.
+ * Every row comes from the dataset the shell loaded before rendering, so this
+ * page makes no network calls of its own.
  */
 
 import { useDeferredValue, useMemo, useState } from "react";
@@ -45,21 +46,13 @@ import {
   type ViewState,
 } from "./viewState";
 
-import payload from "../../data/skilling.json";
+import { payload } from "./dataset";
 
 interface SkillingData {
   generatedAt: string;
   pricesAsOf: string;
   skills: SkillActivityCatalog[];
 }
-
-/**
- * SAFETY: the JSON import is typed as a generic object by Vite, and the shape is
- * guaranteed by `SkillingPayloadSchema` (zod) at build time in
- * `scripts/refresh-skilling.ts` — the script refuses to write a payload that does
- * not parse, so this cast cannot widen what the artifact contains.
- */
-const DATA = payload as unknown as SkillingData;
 
 const MODE_LABEL: Record<SellMode, string> = {
   pessimistic: "Instant (GE low)",
@@ -157,6 +150,11 @@ function isCookingRow(row: Row): boolean {
 }
 
 export function SkillingPage(): JSX.Element {
+  // SAFETY: the shape is guaranteed by `SkillingPayloadSchema` (zod) in
+  // `scripts/refresh-skilling.ts`, which refuses to write a payload that does not
+  // parse; the server additionally republishes only files that parsed as JSON.
+  const DATA = payload("skilling") as SkillingData;
+
   const initial = currentViewState();
   const [mode, setMode] = useState<SellMode>(() =>
     pickOne(initial.mode, MODES, DEFAULT_MODE),
@@ -194,10 +192,10 @@ export function SkillingPage(): JSX.Element {
           ).opportunities.length,
         }))
         .sort((a, b) => a.skill.localeCompare(b.skill)),
-    [mode],
+    [mode, DATA],
   );
 
-  const all = useMemo(() => rowsFor(DATA, mode), [mode]);
+  const all = useMemo(() => rowsFor(DATA, mode), [mode, DATA]);
 
   const { visible, hiddenCooking } = useMemo(() => {
     let hidden = 0;
@@ -412,7 +410,7 @@ export function SkillingPage(): JSX.Element {
       0,
     );
     return { transform, upgrade, train, gather, ev, profitable, unpriced };
-  }, [all]);
+  }, [all, DATA]);
 
   const view: ViewState = useMemo(
     () => ({

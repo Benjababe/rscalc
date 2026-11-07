@@ -57,8 +57,23 @@ PROCESSING (patient)
 pnpm install
 pnpm refresh        # catalogue + access + GE prices + all three UI rankings
 pnpm report         # ranked table in the terminal
-pnpm dev            # web UI at http://localhost:5173
+pnpm serve          # server: UI + served data + 4-hourly refresh on :8080
 ```
+
+`pnpm serve` needs `RSCALC_CONTACT` (the wiki User-Agent contact) and, on a fresh
+checkout, `pnpm build` for the UI bundle. Put local settings in a gitignored
+`.env` at the repo root — it is loaded automatically, and the real environment
+wins over it:
+
+```sh
+printf 'RSCALC_CONTACT=me@example.com
+' > .env
+``` It serves the last committed dataset
+immediately and refreshes on its own schedule; see `deploy/README.md` for every
+setting, the systemd unit and the Docker image.
+
+For UI work: `RSCALC_REFRESH=off RSCALC_CONTACT=x pnpm serve` in one terminal and
+`pnpm dev` in another — Vite proxies `/api` to the server.
 
 ### Commands
 
@@ -77,8 +92,9 @@ pnpm dev            # web UI at http://localhost:5173
 | `pnpm sinks` | GE → shop ranking in the terminal |
 | `pnpm sinks --write` | emit `data/shop-sinks.json` for the UI |
 | `pnpm process` | processing ranking + `data/process.json` |
-| `pnpm dev` / `pnpm build` | web UI |
-| `pnpm test` / `pnpm typecheck` | 414 tests / `tsc --noEmit` |
+| `pnpm serve` | server: SPA + dataset API + 4-hourly refresh |
+| `pnpm dev` / `pnpm build` | web UI (dev server proxies `/api` to `pnpm serve`) |
+| `pnpm test` / `pnpm typecheck` | unit, render and server tests / `tsc --noEmit` |
 | `pnpm lint` / `pnpm lint:fix` | ESLint, type-aware; `--fix` applies safe autofixes |
 
 `pnpm report` flags: `--mode=pessimistic|patient`, `--limit=N`, `--members`,
@@ -129,16 +145,20 @@ prices.runescape.wiki/api/v2     ─┴─► catalogue + GE quotes
                               │
                  src/domain/earnings.ts  ← one gp/hour leaderboard
                               │
-      pnpm report / pnpm sinks / pnpm process          web UI (four pages)
+      pnpm report / pnpm sinks / pnpm process   →  pnpm serve  →  web UI (5 pages)
 ```
 
-The browser never calls an external API: it renders static snapshots. The
-**Earn gp** page joins all three artifacts in the browser through
-`src/domain/earnings.ts`, so the leaderboard is always computed by the same
-planners as the detail pages and cannot drift from them. Each page module and
-its data are code-split; the leaderboard is the only page that needs all three
-snapshots (about 500 kB gzipped). Price and build timestamps are rendered in your
-local timezone, with the source date-time in the hover tooltip. Each detail table
+`pnpm serve` publishes those artifacts as a dataset and serves them, so the
+browser fetches current numbers and never calls an external API. A refresh needs
+no rebuild: the running server re-runs the pipeline every four hours (or on
+`POST /api/refresh`) and swaps the served dataset atomically, while the SPA
+bundle stays code-only (about 340 kB, 80 kB gzipped). The **Earn gp** page joins
+all three artifacts in the browser through `src/domain/earnings.ts`, so the
+leaderboard is always computed by the same planners as the detail pages and
+cannot drift from them. Each page module is code-split and loads only the
+artifacts it needs; the leaderboard is the only page that needs all of them.
+Price and build timestamps are rendered in your local timezone, with the source
+date-time in the hover tooltip. Each detail table
 has a **Columns** menu for hiding columns you do not need; the choice is
 remembered per table in this browser.
 

@@ -237,6 +237,12 @@ export const OpportunitySchema = z.object({
   /** Throughput constraints. */
   /** GE 4-hour buy limit. It caps one player's purchases, not market sales. */
   geBuyLimit: z.number().int().nullable(),
+  /**
+   * 24h traded volume on the chosen side of the book, unfloored. The overnight
+   * planner scales it to a rest window: what the market absorbs in 12h is
+   * `volume24h / 2`.
+   */
+  volume24h: z.number(),
   /** Floored 4h slice of the 24h volume on the chosen side of the book. */
   volume4h: z.number(),
   /** Units from one shop visit that can sell in 4h: min(units, volume4h). */

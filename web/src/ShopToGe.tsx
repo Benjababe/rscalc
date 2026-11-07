@@ -4,20 +4,29 @@ import { planWithBudget, type BudgetPlan } from "../../src/domain/budget";
 import { wikiUrl } from "../../src/util/wiki";
 import { AccessBadge } from "./AccessBadge";
 import { accessFor } from "./access";
-import { BudgetPanel, TravelFields } from "./BudgetPanel";
+import { BudgetPanel, OvernightFields, TravelFields } from "./BudgetPanel";
 import { FilterCheck, FilterNumber, FilterToolbar } from "./FilterToolbar";
-import { formatGp } from "./format";
+import { formatDuration, formatGp } from "./format";
 import { matchesQuery, normaliseQuery } from "./matching";
-import { sellableAcrossWorlds, toShopRow } from "./opportunity";
+import { toShopRow } from "./opportunity";
 import { ShopBasketPanel } from "./ShopBasket";
-import { useBudgetSettings, useTravelSettings } from "./settings";
+import {
+  useBudgetSettings,
+  useOvernightSettings,
+  useTravelSettings,
+} from "./settings";
+import {
+  overnightBudgetOptions,
+  shopRunUnits,
+  type OvernightPlanOptions,
+} from "../../src/domain/overnight";
 import { currentViewState, pickOne, useShareableView } from "./viewState";
 import { sortByMeasure, useSort } from "./sorting";
 import { DataTable, type DataColumn } from "./DataTable";
 import { Stat } from "./ui";
 import { usePagedRows } from "./paging";
 
-import payload from "../../data/opportunities.json";
+import { payload } from "./dataset";
 
 /** Every sortable column. Also the allowlist for a shared link. */
 const SORT_KEYS = [
@@ -60,6 +69,7 @@ type ShopColumnKey =
   | "tax"
   | "margin"
   | "volume4h"
+  | "fill"
   | "buy"
   | "spend"
   | "worlds"
@@ -72,6 +82,7 @@ type ShopColumnKey =
 
 function makeColumns(
   onSelectShop: (shopPage: string) => void,
+  overnight: OvernightPlanOptions | undefined,
 ): Record<ShopColumnKey, DataColumn<RowData>> {
   return {
     item: {
@@ -147,8 +158,10 @@ function makeColumns(
         const plan = row.plan;
         if (plan !== undefined && plan.units === 0) {
           const reason =
-            row.volume4h === 0
-              ? "no 4h volume"
+            shopRunUnits(row, overnight) === 0
+              ? overnight === undefined
+                ? "no 4h volume"
+                : "no rest-window volume"
               : plan.marginLimited
                 ? "no margin"
                 : plan.budgetLimited
@@ -205,21 +218,57 @@ function makeColumns(
     },
     volume4h: {
       key: "volume4h",
-      label: "4h volume",
+      label:
+        overnight === undefined
+          ? "4h volume"
+          : overnight.unlimitedBuyers === true
+            ? "Buyers"
+            : "Rest units",
       width: 90,
       sortKey: "volume4h",
       align: "right",
       title:
-        "GE sell-side 24h volume divided by 6, floored to whole units; the 4h sale cap used by the planner",
+        overnight === undefined
+          ? "GE sell-side 24h volume divided by 6, floored to whole units; the 4h sale cap used by the planner"
+          : overnight.unlimitedBuyers === true
+            ? "Unlimited buyers assumed: no buy limit and no volume cap, so the only limits are gold, stock, worlds and the session"
+            : "GE sell-side 24h volume scaled to the rest window and floored; the sale cap used by the planner",
       cellClassName: "right mono",
-      cell: (row) => (
-        <span
-          className={row.volume4h === 0 ? "dim" : undefined}
-          title="GE sell-side 24h volume divided by 6, floored to whole units"
-        >
-          {row.volume4h.toLocaleString()}
-        </span>
-      ),
+      cell: (row) => {
+        const cap = shopRunUnits(row, overnight);
+        return (
+          <span
+            className={cap === 0 ? "dim" : undefined}
+            title={
+              overnight === undefined
+                ? "GE sell-side 24h volume divided by 6, floored to whole units"
+                : overnight.unlimitedBuyers === true
+                  ? "Unlimited buyers assumed: any quantity sells at the quoted price, so nothing caps the run but gold and stock"
+                  : `24h sell-side volume of ${row.volume24h.toLocaleString()} scaled to a ${overnight.restWindowHours ?? 12}h rest window`
+            }
+          >
+            {Number.isFinite(cap) ? cap.toLocaleString() : "∞"}
+          </span>
+        );
+      },
+    },
+    fill: {
+      key: "fill",
+      label: "GE fill",
+      width: 90,
+      align: "right",
+      title:
+        overnight?.unlimitedBuyers === true
+          ? "Unlimited buyers assumed: no fill time is charged, so gp / hour is your shopping time alone. That rate cannot be repeated the same night."
+          : "How long the GE needs to absorb this plan at the 24h traded volume. Your capital is committed for that time, so it counts toward gp / hour; your own shopping time is the session.",
+      cellClassName: "right mono dim",
+      cell: ({ plan }) => {
+        if (plan === undefined) return "—";
+        // A zero fill means the plan assumes the market absorbs everything at
+        // once; report the assumption rather than a misleading "0s".
+        if (overnight?.unlimitedBuyers === true) return "none";
+        return formatDuration(plan.sellSeconds);
+      },
     },
     buy: {
       key: "buy",
@@ -391,12 +440,14 @@ const BUDGET_KEYS: readonly ShopColumnKey[] = [
   "worlds",
   "banks",
   "profit",
+  "fill",
   "gpPerHour",
 ];
 const SHOP_KEYS: readonly ShopColumnKey[] = [
   "qty",
   "sellable",
   "gpPer4h",
+  "fill",
   "gpPerHour",
 ];
 
@@ -415,10 +466,13 @@ function columnsForMode(
 function allColumns(
   columns: Record<ShopColumnKey, DataColumn<RowData>>,
 ): DataColumn<RowData>[] {
+  // The two mode sets overlap on the shared tail (`fill`, `gpPerHour`), so the
+  // union is built from the base plus one copy of each.
   const keys: ShopColumnKey[] = [
     ...SHOP_TO_GE_BASE_KEYS,
-    ...BUDGET_KEYS.filter((key) => key !== "gpPerHour"),
-    ...SHOP_KEYS.filter((key) => key !== "gpPerHour"),
+    ...BUDGET_KEYS.filter((key) => key !== "gpPerHour" && key !== "fill"),
+    ...SHOP_KEYS.filter((key) => key !== "gpPerHour" && key !== "fill"),
+    "fill",
     "gpPerHour",
   ];
   return keys.map((key) => columns[key]);
@@ -427,12 +481,6 @@ function allColumns(
 interface RowData extends Opportunity {
   plan?: BudgetPlan;
 }
-
-/**
- * The bundle is a static snapshot. There are no network calls in this component,
- * by design: `pnpm build:data` produces the JSON and the browser only reads it.
- */
-const DATA = payload as OpportunitiesPayload;
 
 const MODE_LABEL: Record<SellMode, string> = {
   pessimistic: "Instant sell (GE low)",
@@ -450,6 +498,9 @@ const BUDGET_SORTS: ReadonlySet<SortKey> = new Set<SortKey>([
 ]);
 
 export function ShopToGePage(): JSX.Element {
+  // The server published this dataset and the shell loaded it before rendering.
+  const DATA = payload("opportunities") as OpportunitiesPayload;
+
   // A shared link carries the view; gold and column choices stay in storage.
   const [shared] = useState(() => currentViewState());
   const [mode, setMode] = useState<SellMode>(
@@ -461,6 +512,16 @@ export function ShopToGePage(): JSX.Element {
   const [minVolume, setMinVolume] = useState(shared.minVolume ?? 0);
   const [selectedShop, setSelectedShop] = useState<string | null>(null);
   const { gold, setGold, view, setView } = useBudgetSettings();
+  const {
+    overnight,
+    setOvernight,
+    restWindowHours,
+    setRestWindowHours,
+    sessionMinutes,
+    setSessionMinutes,
+    unlimitedBuyers,
+    setUnlimitedBuyers,
+  } = useOvernightSettings(shared);
   const {
     hopSeconds,
     setHopSeconds,
@@ -486,6 +547,10 @@ export function ShopToGePage(): JSX.Element {
     members: membersOnly,
     hideLocked,
     minVolume,
+    overnight,
+    restHours: restWindowHours,
+    sessionMinutes,
+    unlimited: unlimitedBuyers,
   });
 
   const ranking = DATA[mode];
@@ -505,20 +570,28 @@ export function ShopToGePage(): JSX.Element {
       ]);
     });
 
+    // Cap by the GE's throughput across worlds: without a cap the planner will
+    // happily recommend buying an illiquid item whose GE "price" is a stale
+    // trade, yielding fantasy gp/hour. The cap is the 4h slice normally, and
+    // what the offers absorb in the rest window in overnight mode.
+    const overnightOptions: OvernightPlanOptions | undefined = overnight
+      ? { restWindowHours, sessionMinutes, unlimitedBuyers }
+      : undefined;
+
     const withPlans: RowData[] =
       gold > 0
         ? filtered.map((opp) => ({
             ...opp,
-            // Cap by the GE's 4h throughput across worlds: without a cap the
-            // planner will happily recommend buying an illiquid item whose GE
-            // "price" is a stale trade, yielding fantasy gp/hour.
             plan: planWithBudget(toShopRow(opp), opp.netSellPerUnit, gold, {
               hopSeconds,
               maxWorlds,
               bankTiles: opp.bankTiles,
               secondsPerTile,
               stackable: opp.stackable,
-              maxUnits: sellableAcrossWorlds(opp),
+              maxUnits: shopRunUnits(opp, overnightOptions),
+              ...(overnightOptions === undefined
+                ? {}
+                : overnightBudgetOptions(overnightOptions)),
             }),
           }))
         : filtered;
@@ -584,13 +657,26 @@ export function ShopToGePage(): JSX.Element {
     secondsPerTile,
     sortKey,
     descending,
+    overnight,
+    restWindowHours,
+    sessionMinutes,
+    unlimitedBuyers,
   ]);
 
   const paged = usePagedRows(rows);
 
   // The basket button inside the shop cell needs this page's handler, so the column
   // set is built here rather than at module scope.
-  const columnSet = useMemo(() => makeColumns(setSelectedShop), []);
+  const columnSet = useMemo(
+    () =>
+      makeColumns(
+        setSelectedShop,
+        overnight
+          ? { restWindowHours, sessionMinutes, unlimitedBuyers }
+          : undefined,
+      ),
+    [overnight, restWindowHours, sessionMinutes, unlimitedBuyers],
+  );
 
   // Derived from the rows only: without this, every keystroke that re-renders
   // the page also re-scanned and re-sorted the whole result set for the stats.
@@ -616,16 +702,29 @@ export function ShopToGePage(): JSX.Element {
           ] ?? 0)
         : null;
 
+    // Overnight rows the session clock trimmed: the plan is what one sitting can
+    // buy, not what the window would absorb. Counted so the trim is visible.
+    const sessionCapped = rows.filter(
+      (row) => row.plan?.sessionLimited === true,
+    ).length;
+
     return {
       bestPlanRow,
       bestSummary: budgetPlanSummary(bestPlanRow),
       bestGp4hRow,
       medianMargin,
+      sessionCapped,
       shopCount: new Set(rows.map((row) => row.shopPage)).size,
     };
   }, [rows]);
-  const { bestPlanRow, bestSummary, bestGp4hRow, medianMargin, shopCount } =
-    summary;
+  const {
+    bestPlanRow,
+    bestSummary,
+    bestGp4hRow,
+    medianMargin,
+    sessionCapped,
+    shopCount,
+  } = summary;
 
   /** Reset every filter, leaving the mode, sort and budget settings alone. */
   const clearFilters = (): void => {
@@ -678,7 +777,32 @@ export function ShopToGePage(): JSX.Element {
         gold={gold}
         onGold={setGold}
         hint={
-          budgetMode ? (
+          overnight && unlimitedBuyers ? (
+            <>
+              <strong>Overnight · unlimited buyers</strong>: buying for up to{" "}
+              <strong>
+                {sessionMinutes > 0 ? `${sessionMinutes} min` : "no limit"}
+              </strong>{" "}
+              of hops and banking, with <strong>no buy limit and no volume
+              cap</strong> — the plan is bounded only by gold, shop stock, worlds
+              and the session. No fill time is charged, so <strong>gp / hour</strong>{" "}
+              is your shopping time alone; that rate cannot be repeated the same
+              night, and items with no recent trades are included at their last
+              quoted price.
+            </>
+          ) : overnight ? (
+            <>
+              <strong>Overnight</strong>: buying for up to{" "}
+              <strong>
+                {sessionMinutes > 0 ? `${sessionMinutes} min` : "no limit"}
+              </strong>{" "}
+              of hops and banking, selling into a{" "}
+              <strong>{restWindowHours}h</strong> rest window instead of the 4h
+              slice. Units are capped by what the 24h sell-side volume absorbs in
+              that window, and gp / hour counts the fill, because that capital is
+              committed until the offers fill.
+            </>
+          ) : budgetMode ? (
             <>
               Sizing buys for <strong>{formatGp(gold)} gp</strong> ·{" "}
               <strong>{hopSeconds}s</strong> hop ·{" "}
@@ -720,6 +844,17 @@ export function ShopToGePage(): JSX.Element {
           onMaxWorlds={setMaxWorlds}
           secondsPerTile={secondsPerTile}
           onSecondsPerTile={setSecondsPerTile}
+        />
+
+        <OvernightFields
+          overnight={overnight}
+          onOvernight={setOvernight}
+          restWindowHours={restWindowHours}
+          onRestWindowHours={setRestWindowHours}
+          sessionMinutes={sessionMinutes}
+          onSessionMinutes={setSessionMinutes}
+          unlimitedBuyers={unlimitedBuyers}
+          onUnlimitedBuyers={setUnlimitedBuyers}
         />
       </BudgetPanel>
 
@@ -767,6 +902,13 @@ export function ShopToGePage(): JSX.Element {
                   : undefined
               }
             />
+            {overnight && (
+              <Stat
+                label="Session-capped"
+                value={sessionCapped.toLocaleString()}
+                title={`Rows where the ${sessionMinutes > 0 ? `${sessionMinutes} min` : "unlimited"} session, not the rest window, ended the plan`}
+              />
+            )}
           </>
         ) : (
           <>
@@ -810,6 +952,10 @@ export function ShopToGePage(): JSX.Element {
           hopSeconds={hopSeconds}
           maxWorlds={maxWorlds}
           secondsPerTile={secondsPerTile}
+          overnight={overnight}
+          restWindowHours={restWindowHours}
+          sessionMinutes={sessionMinutes}
+          unlimitedBuyers={unlimitedBuyers}
           onClose={() => setSelectedShop(null)}
         />
       )}
@@ -877,10 +1023,55 @@ export function ShopToGePage(): JSX.Element {
               item there together, sharing world hops and bank loads.
             </p>
           )}
+          {overnight && unlimitedBuyers && (
+            <p>
+              <strong>Unlimited buyers</strong> is on, so the rest window does
+              nothing: the plan assumes the GE absorbs any quantity at the quoted
+              price, the <strong>Buyers</strong> column reads ∞, and no fill time
+              is charged. Two consequences are worth saying plainly. Items whose
+              wiki price is a single stale trade are now priced, because the 24h
+              volume was the only guard against them. And <strong>gp / hour</strong>{" "}
+              is profit ÷ shopping time, which is a one-off: the same night cannot
+              absorb a second run, so the figure is not a repeatable rate and
+              should not be compared with the other families&apos;.
+            </p>
+          )}
+          {overnight && !unlimitedBuyers && (
+            <p>
+              <strong>Overnight</strong> is on: the GE offers rest instead of
+              filling inside the 4h buy-limit window. Units are now capped by
+              what the 24h sell-side volume absorbs in a{" "}
+              <strong>{restWindowHours}h</strong> rest window (the{" "}
+              <strong>Rest units</strong> column), and buying stops when the{" "}
+              <strong>
+                {sessionMinutes > 0 ? `${sessionMinutes} min` : "unlimited"}
+              </strong>{" "}
+              session — hops plus bank trips — is used up.{" "}
+              <strong>gp / hour</strong> still counts the fill, because the
+              capital is committed until the offers fill: treating the night as
+              free time would rank a 500 gp item that trades twice a day above
+              everything else on the site. The <strong>GE fill</strong> column is
+              that estimate, and <strong>Buy</strong> is what one rest window
+              absorbs from this shop. A longer window therefore buys a bigger plan,
+              not a higher rate.
+            </p>
+          )}
           <p>
-            <strong>4h volume</strong> is the GE's sell-side 24h volume divided
-            by 6, floored to whole units; the plan's Qty and Sellable never
-            exceed it. Gross margin is net of the 2% GE tax (capped at 5,000,000
+            {overnight ? (
+              <>
+                <strong>4h volume</strong> (the shop view) is the GE&apos;s
+                sell-side 24h volume divided by 6, floored to whole units. The
+                planner uses the {unlimitedBuyers ? "unlimited-buyers assumption" : "rest window"} instead, so a
+                budget plan may exceed it.
+              </>
+            ) : (
+              <>
+                <strong>4h volume</strong> is the GE&apos;s sell-side 24h volume
+                divided by 6, floored to whole units; the plan&apos;s Qty and
+                Sellable never exceed it.
+              </>
+            )}{" "}
+            Gross margin is net of the 2% GE tax (capped at 5,000,000
             gp, items under 50 gp exempt). Shop stock is per-world in reality;
             restock times are not modelled. Items whose wiki page does not state
             stackability are treated as non-stackable, the pessimistic direction.

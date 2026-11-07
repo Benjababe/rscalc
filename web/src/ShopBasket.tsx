@@ -4,11 +4,15 @@ import {
   planShopBasket,
   type ShopBasketItem,
 } from "../../src/domain/basket";
+import {
+  overnightBudgetOptions,
+  shopRunUnits,
+} from "../../src/domain/overnight";
 import type { Opportunity, SellMode } from "../../src/types";
 import { wikiUrl } from "../../src/util/wiki";
 import { accessFor } from "./access";
 import { formatDuration, formatGp } from "./format";
-import { sellableAcrossWorlds, toShopRow } from "./opportunity";
+import { toShopRow } from "./opportunity";
 
 interface ShopBasketPanelProps {
   shopPage: string;
@@ -19,6 +23,15 @@ interface ShopBasketPanelProps {
   hopSeconds: number;
   maxWorlds: number;
   secondsPerTile: number;
+  /**
+   * Overnight mode: the GE offers rest instead of filling inside the 4h window.
+   * Passed as plain values so the basket's memos stay stable across renders.
+   */
+  overnight: boolean;
+  restWindowHours: number;
+  sessionMinutes: number;
+  /** Assume the GE has unlimited buyers: no cap and no fill time. */
+  unlimitedBuyers: boolean;
   onClose: () => void;
 }
 
@@ -38,6 +51,10 @@ export function ShopBasketPanel({
   hopSeconds,
   maxWorlds,
   secondsPerTile,
+  overnight,
+  restWindowHours,
+  sessionMinutes,
+  unlimitedBuyers,
   onClose,
 }: ShopBasketPanelProps): JSX.Element {
   const panelRef = useRef<HTMLElement>(null);
@@ -59,13 +76,24 @@ export function ShopBasketPanel({
         name: opp.itemName,
         row: toShopRow(opp),
         netSellPerUnit: opp.netSellPerUnit,
-        maxUnits: sellableAcrossWorlds(opp),
+        maxUnits: shopRunUnits(
+          opp,
+          overnight
+            ? { restWindowHours, sessionMinutes, unlimitedBuyers }
+            : undefined,
+        ),
         stackable: opp.stackable,
         // The payload's `members` is the shop's flag; a members shop requires a
         // members account, which also gives 8 GE offer slots.
         members: opp.members,
       })),
-    [shopOpportunities],
+    [
+      shopOpportunities,
+      overnight,
+      restWindowHours,
+      sessionMinutes,
+      unlimitedBuyers,
+    ],
   );
 
   const bankTiles =
@@ -80,8 +108,26 @@ export function ShopBasketPanel({
         maxWorlds,
         bankTiles,
         secondsPerTile,
+        ...(overnight
+          ? overnightBudgetOptions({
+              restWindowHours,
+              sessionMinutes,
+              unlimitedBuyers,
+            })
+          : {}),
       }),
-    [items, gold, hopSeconds, maxWorlds, bankTiles, secondsPerTile],
+    [
+      items,
+      gold,
+      hopSeconds,
+      maxWorlds,
+      bankTiles,
+      secondsPerTile,
+      overnight,
+      restWindowHours,
+      sessionMinutes,
+      unlimitedBuyers,
+    ],
   );
 
   const shopName = shopOpportunities[0]?.shopName ?? shopPage;
@@ -118,7 +164,8 @@ export function ShopBasketPanel({
           <p className="basket-sub">
             {location !== null ? `${location} · ` : ""}
             {membersShop ? "members shop" : "free-to-play shop"} ·{" "}
-            {modeLabel} ·{" "}
+            {modeLabel}
+            {overnight ? ` · overnight, ${restWindowHours}h rest` : ""} ·{" "}
             {bankTiles === null
               ? "no bank on this shop's map"
               : `bank: ${nearestBank ?? "bank"} (${Math.round(bankTiles)} tiles)`}
@@ -191,11 +238,16 @@ export function ShopBasketPanel({
             <BasketStat label="Worlds" value={String(plan.worlds)} />
             <BasketStat label="Bank trips" value={String(plan.bankTrips)} />
             <BasketStat
-              label="Sell time"
+              label={overnight ? "Fill (resting)" : "Sell time"}
               value={formatDuration(plan.sellSeconds)}
+              title={
+                overnight
+                  ? `Estimated time for the resting offers to fill at the 24h traded volume, inside a ${restWindowHours}h window. Your capital is committed for it, so it counts toward the plan's clock.`
+                  : undefined
+              }
             />
             <BasketStat
-              label="Total time"
+              label={overnight ? "Your time" : "Total time"}
               value={formatDuration(plan.timeSeconds)}
             />
           </div>
@@ -290,6 +342,19 @@ export function ShopBasketPanel({
             <span className="flag">
               {plan.offerSlots} GE slot{plan.offerSlots === 1 ? "" : "s"}
             </span>
+            {overnight && (
+              <span className="flag">
+                overnight ·{" "}
+                {unlimitedBuyers
+                  ? "unlimited buyers"
+                  : `${restWindowHours}h rest`}{" "}
+                ·{" "}
+                {sessionMinutes > 0 ? `${sessionMinutes} min session` : "no session limit"}
+              </span>
+            )}
+            {plan.sessionLimited && (
+              <span className="flag warn">session limit reached</span>
+            )}
             {plan.budgetLimited && <span className="flag warn">budget limited</span>}
             {plan.worldLimited && (
               <span className="flag warn">world limit reached</span>
@@ -317,8 +382,30 @@ export function ShopBasketPanel({
             ) : (
               <>All purchased goods stack, so no banking is needed.</>
             )}{" "}
-            Sell time schedules each item's 4h fill across {plan.offerSlots}{" "}
-            GE offer{plan.offerSlots === 1 ? "" : "s"}.
+            {overnight && unlimitedBuyers ? (
+              <>
+                <strong>Unlimited buyers</strong> is on: nothing caps the sale and
+                no fill time is charged, so gp / hour is the basket&apos;s buying
+                time alone. The rate is a one-off — the same night cannot absorb a
+                second run — and items with no recent trades are included at their
+                last quoted price.
+              </>
+            ) : overnight ? (
+              <>
+                Each item&apos;s fill is scheduled across {plan.offerSlots} GE
+                offer{plan.offerSlots === 1 ? "" : "s"} over the {restWindowHours}h
+                rest window, and the longer of your buying time and that fill
+                counts toward gp / hour
+                {plan.sessionLimited
+                  ? " — the session clock stopped the basket before the budget did."
+                  : "."}
+              </>
+            ) : (
+              <>
+                Sell time schedules each item&apos;s 4h fill across{" "}
+                {plan.offerSlots} GE offer{plan.offerSlots === 1 ? "" : "s"}.
+              </>
+            )}
           </p>
           <p className="basket-note">
             The allocator takes the next marginal unit with the best profit per

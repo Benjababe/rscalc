@@ -24,6 +24,19 @@
  *    number computed from an invented trip.
  *  - **Selling time is not modelled here.** GE sell offers are placed instantly;
  *    how long they take to fill is a separate question (see the gp/4h column).
+ *
+ * Overnight mode changes the window, not the prices: the unit cap becomes what the
+ * market absorbs in a **rest window** (`sellWindowSeconds`, e.g. 12h) instead of
+ * the 4h buy-limit window, and a **session clock** (`sessionSeconds`) stops the
+ * plan once another world visit or bank trip would not fit, so the answer is
+ * something you can actually buy in one sitting. Both come from the caller.
+ *
+ * The fill is still charged to the clock. It is wall-clock time rather than play
+ * time — you are asleep — but the capital is tied up until the offers fill, so
+ * treating it as free would rank a 500 gp item that trades twice a day above
+ * every repeatable money maker in the game. `buySeconds` reports the part that is
+ * the player's own time; `sellSeconds` reports the fill. What the window buys is
+ * a bigger plan and the thin markets the 4h floor excluded.
  */
 
 import { bankTripSeconds } from './bankTrip.js';
@@ -67,6 +80,14 @@ export const DEFAULT_SECONDS_PER_TILE = 0.6;
  */
 export const DEFAULT_BANK_HANDOVER_SECONDS = 3;
 
+/**
+ * The GE buy-limit and volume window: 4 hours. A throughput cap measured over that
+ * window yields a sell time of `units / cap * 4h`.
+ *
+ * https://oldschool.runescape.wiki/w/Grand_Exchange/Buying_limits
+ */
+export const DEFAULT_SELL_WINDOW_SECONDS = 4 * 3600;
+
 export interface BudgetOptions {
   /** Seconds to travel to the next world and back to the shop. */
   hopSeconds?: number;
@@ -102,6 +123,18 @@ export interface BudgetOptions {
    * `Opportunity.sellablePer4h` already encodes.
    */
   maxUnits?: number;
+  /**
+   * The market window `maxUnits` was measured over, in seconds. The sell time for
+   * `units` is `units / maxUnits * sellWindowSeconds`, so an overnight run passes a
+   * long rest window with the matching cap. Defaults to 4h.
+   */
+  sellWindowSeconds?: number;
+  /**
+   * Longest shopping session to plan for, in seconds. When set, the planner stops
+   * adding a world visit once that visit and its bank trips would overrun the
+   * session, so the plan fits in one sitting. Undefined means no session limit.
+   */
+  sessionSeconds?: number;
 }
 
 export interface BudgetPlan {
@@ -118,6 +151,11 @@ export interface BudgetPlan {
   profit: number;
   /** Seconds spent hopping between worlds to buy. */
   hopSecondsTotal: number;
+  /**
+   * Seconds spent buying in total: world hops plus bank trips. In overnight mode
+   * this is `timeSeconds`, because the sell leg happens while you are away.
+   */
+  buySeconds: number;
   /**
    * Bank trips needed to free inventory space. 0 for stackable items, and 0
    * when everything fits in one load.
@@ -146,6 +184,8 @@ export interface BudgetPlan {
   avgCost: number;
   /** True when you ran out of gold before you ran out of profitable units. */
   budgetLimited: boolean;
+  /** True when the session clock, not gold, stock or margin, ended the plan. */
+  sessionLimited: boolean;
   /** True when the shop's price curve made the next unit unprofitable. */
   marginLimited: boolean;
   /** Units from a single full-stock world visit. */
@@ -161,6 +201,7 @@ const EMPTY: BudgetPlan = {
   worlds: 0,
   profit: 0,
   hopSecondsTotal: 0,
+  buySeconds: 0,
   bankTrips: 0,
   bankSecondsPerTrip: 0,
   bankSecondsTotal: 0,
@@ -170,6 +211,7 @@ const EMPTY: BudgetPlan = {
   gpPerHour: 0,
   avgCost: 0,
   budgetLimited: false,
+  sessionLimited: false,
   marginLimited: false,
   unitsPerWorld: 0,
   costPerWorld: 0,
@@ -200,6 +242,15 @@ export function planWithBudget(
     options.maxUnits !== undefined && Number.isFinite(options.maxUnits)
       ? Math.max(0, Math.floor(options.maxUnits))
       : Number.POSITIVE_INFINITY;
+  const sellWindowSeconds =
+    options.sellWindowSeconds !== undefined &&
+    Number.isFinite(options.sellWindowSeconds)
+      ? Math.max(0, options.sellWindowSeconds)
+      : DEFAULT_SELL_WINDOW_SECONDS;
+  const sessionSeconds =
+    options.sessionSeconds !== undefined && Number.isFinite(options.sessionSeconds)
+      ? Math.max(0, options.sessionSeconds)
+      : null;
 
   if (!(budgetGp > 0) || !(netSellPerUnit > 0) || unitCap <= 0) {
     return { ...EMPTY, leftover: Math.max(0, budgetGp) };
@@ -212,23 +263,66 @@ export function planWithBudget(
     return { ...EMPTY, leftover: budgetGp, marginLimited: true };
   }
 
-  // Worlds fully affordable with the budget, then one partial world.
-  // Also clamped by how many units the GE can actually absorb.
-  const worldsByBudget = Math.floor(budgetGp / perWorld.totalCost);
-  const worldsByCap = Math.floor(unitCap / perWorld.units);
-  const fullWorlds = Math.min(worldsByBudget, maxWorlds, worldsByCap);
+  // The trip length is per shop. A null distance is not zero seconds; it means
+  // the time model cannot answer, so gpPerHour becomes null below.
+  const stacks = options.stackable === true;
+  const bankSecondsPerTrip =
+    bankTiles === null
+      ? 0
+      : bankTripSeconds(bankTiles, secondsPerTile, handoverSeconds);
 
-  let units = fullWorlds * perWorld.units;
-  let totalCost = fullWorlds * perWorld.totalCost;
-  let worlds = fullWorlds;
-  let leftover = budgetGp - totalCost;
+  // Banking is serial with buying, so it adds to the hop time rather than
+  // competing with it. You only bank when you need the next load, so N units
+  // need `ceil(N / load) - 1` trips: a full inventory you are about to sell
+  // does not require a trip back to the shop.
+  //
+  // Unknown stackability (`null`) is charged as non-stackable: overstating the
+  // time (and therefore understating gp/hour) is the safe failure direction.
+  const bankTripsFor = (unitCount: number): number =>
+    stacks || unitCount <= unitsPerLoad
+      ? 0
+      : Math.ceil(unitCount / unitsPerLoad) - 1;
+  const buySecondsFor = (worldCount: number, unitCount: number): number =>
+    worldCount * hopSeconds + bankTripsFor(unitCount) * bankSecondsPerTrip;
+  /** Whether a plan of `unitCount` units over `worldCount` visits fits the session. */
+  const fitsSession = (worldCount: number, unitCount: number): boolean =>
+    sessionSeconds === null ||
+    buySecondsFor(worldCount, unitCount) <= sessionSeconds;
+
+  // World by world, because the session clock is not linear in worlds: a bank
+  // trip for the next load can make the next visit unaffordable in time. Each
+  // world starts at full default stock, so the curve is the same every time.
+  let units = 0;
+  let totalCost = 0;
+  let worlds = 0;
+  let leftover = budgetGp;
   let budgetLimited = false;
-  const remainingCap = Number.isFinite(unitCap) ? unitCap - units : Number.POSITIVE_INFINITY;
+  let sessionLimited = false;
 
-  if (worlds < maxWorlds && leftover > 0 && remainingCap > 0) {
+  const capLeft = (): number =>
+    Number.isFinite(unitCap) ? unitCap - units : Number.POSITIVE_INFINITY;
+  while (worlds < maxWorlds && capLeft() > 0 && leftover > 0) {
+    const remainingCap = capLeft();
+
+    // A world the budget covers whole, when the throughput cap allows it.
+    if (leftover >= perWorld.totalCost && remainingCap >= perWorld.units) {
+      if (!fitsSession(worlds + 1, units + perWorld.units)) {
+        sessionLimited = true;
+        break;
+      }
+      units += perWorld.units;
+      totalCost += perWorld.totalCost;
+      leftover -= perWorld.totalCost;
+      worlds += 1;
+      continue;
+    }
+
+    // Otherwise a partial world: unit by unit from a fresh stock curve, stopping
+    // at the gold left, the throughput cap, the margin and the session clock.
     let stock = row.baseStock;
     let partUnits = 0;
     let partCost = 0;
+    let ranOutOfTime = false;
 
     for (let i = 0; i < perWorld.units; i += 1) {
       if (partUnits >= remainingCap) break;
@@ -236,6 +330,10 @@ export function planWithBudget(
       if (price > netSellPerUnit) break;
       if (partCost + price > leftover) {
         budgetLimited = true;
+        break;
+      }
+      if (!fitsSession(worlds + 1, units + partUnits + 1)) {
+        ranOutOfTime = true;
         break;
       }
       partCost += price;
@@ -246,41 +344,32 @@ export function planWithBudget(
     if (partUnits > 0) {
       units += partUnits;
       totalCost += partCost;
-      worlds += 1;
       leftover -= partCost;
+      worlds += 1;
     }
+    if (ranOutOfTime) sessionLimited = true;
+    // Gold, the cap or the margin now binds; no further world can be bought.
+    break;
   }
 
   const profit = units * netSellPerUnit - totalCost;
 
-  // Banking is serial with buying, so it adds to the hop time rather than
-  // competing with it. You only bank when you need the next load, so N units
-  // need `ceil(N / load) - 1` trips: a full inventory you are about to sell
-  // does not require a trip back to the shop.
-  //
-  // Unknown stackability (`null`) is charged as non-stackable: overstating the
-  // time (and therefore understating gp/hour) is the safe failure direction.
-  const stacks = options.stackable === true;
-  const bankTrips =
-    stacks || units <= unitsPerLoad ? 0 : Math.ceil(units / unitsPerLoad) - 1;
-  // The trip length is per shop. A null distance is not zero seconds; it means
-  // the time model cannot answer, so gpPerHour becomes null below.
-  const bankSecondsPerTrip =
-    bankTiles === null
-      ? 0
-      : bankTripSeconds(bankTiles, secondsPerTile, handoverSeconds);
+  const bankTrips = bankTripsFor(units);
   const bankSecondsTotal = bankTrips * bankSecondsPerTrip;
   const bankTimeKnown = bankTrips === 0 || bankTiles !== null;
 
-  // Time is the *slower* of buying and selling. You cannot bank 13,000 units of
-  // an item in 10 seconds just because one shop visit covered the purchase: an
-  // item whose 4h throughput is 13,000 takes roughly 4 hours to offload.
+  // Buying time is always spent. Selling time is the GE's own throughput: you
+  // cannot bank 13,000 units of an item in 10 seconds just because one shop visit
+  // covered the purchase. An overnight run's offers rest while you are away, but
+  // the fill is still wall-clock time your capital is committed for, so the plan's
+  // clock is the slower of the two; `buySeconds` is the part that is your own time.
   const hopSecondsTotal = worlds * hopSeconds;
+  const buySeconds = hopSecondsTotal + bankSecondsTotal;
   const sellSeconds =
     Number.isFinite(unitCap) && unitCap > 0 && units > 0
-      ? (units / unitCap) * 4 * 3600
+      ? (units / unitCap) * sellWindowSeconds
       : 0;
-  const timeSeconds = Math.max(hopSecondsTotal + bankSecondsTotal, sellSeconds);
+  const timeSeconds = Math.max(buySeconds, sellSeconds);
 
   let gpPerHour: number | null;
   if (units <= 0) {
@@ -298,6 +387,7 @@ export function planWithBudget(
     worlds,
     profit,
     hopSecondsTotal,
+    buySeconds,
     bankTrips,
     bankSecondsPerTrip,
     bankSecondsTotal,
@@ -307,6 +397,7 @@ export function planWithBudget(
     gpPerHour,
     avgCost: units > 0 ? totalCost / units : 0,
     budgetLimited,
+    sessionLimited,
     marginLimited: perWorld.stoppedAtMargin,
     unitsPerWorld: perWorld.units,
     costPerWorld: perWorld.totalCost,

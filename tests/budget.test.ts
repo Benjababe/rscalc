@@ -386,3 +386,145 @@ describe('banking non-stackable items', () => {
     expect(plan.bankTrips).toBe(2);
   });
 });
+
+/**
+ * Overnight mode: sell into a rest window instead of the 4h slice, and stop
+ * buying when the session is up. The fill is still charged, because the capital
+ * is committed until the offers fill.
+ */
+describe('overnight sessions', () => {
+  const TWELVE_HOURS = 12 * 3600;
+
+  it('charges the fill, because the capital is committed until it fills', () => {
+    const plan = planWithBudget(AXE, 500, CLEAR_ONE_WORLD * 2, {
+      hopSeconds: 10,
+      maxUnits: 6,
+      sellWindowSeconds: TWELVE_HOURS,
+    });
+    expect(plan.units).toBe(6);
+    // 6 units against a 6-unit window is the whole 12h rest.
+    expect(plan.sellSeconds).toBeCloseTo(TWELVE_HOURS, 6);
+    // Your own time is still reported separately: two 10s hops.
+    expect(plan.buySeconds).toBe(20);
+    expect(plan.timeSeconds).toBe(TWELVE_HOURS);
+    expect(knownGpPerHour(plan)).toBeCloseTo((plan.profit * 3600) / TWELVE_HOURS, 6);
+  });
+
+  it('scales the plan with the window without inflating the rate', () => {
+    // A 4h window caps at 6 units; a 12h window at 18. Both are the whole
+    // window's throughput, so the hourly rate is the same: longer, not better.
+    const fourHour = planWithBudget(AXE, 500, 1_000_000, {
+      hopSeconds: 10,
+      maxUnits: 6,
+    });
+    const overnight = planWithBudget(AXE, 500, 1_000_000, {
+      hopSeconds: 10,
+      maxUnits: 18,
+      sellWindowSeconds: TWELVE_HOURS,
+    });
+    expect(fourHour.units).toBe(6);
+    expect(overnight.units).toBe(18);
+    expect(overnight.profit).toBe(fourHour.profit * 3);
+    expect(overnight.sellSeconds).toBeCloseTo(TWELVE_HOURS, 6);
+    expect(knownGpPerHour(overnight)).toBeCloseTo(knownGpPerHour(fourHour), 6);
+  });
+
+  it('measures the sell time against the window it was capped from', () => {
+    const third = planWithBudget(AXE, 500, CLEAR_ONE_WORLD, {
+      maxUnits: 9,
+      sellWindowSeconds: TWELVE_HOURS,
+    });
+    expect(third.units).toBe(3);
+    expect(third.sellSeconds).toBeCloseTo(TWELVE_HOURS / 3, 6);
+    expect(third.timeSeconds).toBe(third.sellSeconds);
+  });
+
+  it('stops buying when the session clock is up', () => {
+    const plan = planWithBudget(AXE, 500, 1_000_000, {
+      hopSeconds: 10,
+      sessionSeconds: 25,
+      maxUnits: 1_000_000,
+      sellWindowSeconds: TWELVE_HOURS,
+    });
+    // Two 10s hops fit in 25s; the third would be 30s.
+    expect(plan.worlds).toBe(2);
+    expect(plan.units).toBe(6);
+    expect(plan.sessionLimited).toBe(true);
+    expect(plan.buySeconds).toBe(20);
+    // The cap here is effectively unlimited, so the fill is a rounding error and
+    // the session hops are the clock.
+    expect(plan.sellSeconds).toBeLessThan(1);
+    expect(plan.timeSeconds).toBe(20);
+  });
+
+  it('plans nothing when the session cannot fit one visit', () => {
+    const plan = planWithBudget(AXE, 500, 1_000_000, {
+      hopSeconds: 10,
+      sessionSeconds: 5,
+      maxUnits: 1_000_000,
+    });
+    expect(plan.units).toBe(0);
+    expect(plan.worlds).toBe(0);
+    expect(plan.sessionLimited).toBe(true);
+    expect(plan.gpPerHour).toBe(0);
+  });
+
+  it('trims the last world instead of overrunning the session', () => {
+    // The cap allows a 4th unit, but the second visit does not fit in 15s.
+    const plan = planWithBudget(AXE, 500, 1_000_000, {
+      hopSeconds: 10,
+      maxUnits: 4,
+      sessionSeconds: 15,
+    });
+    expect(plan.units).toBe(3);
+    expect(plan.worlds).toBe(1);
+    expect(plan.sessionLimited).toBe(true);
+  });
+
+  it('buys the partial world that still fits', () => {
+    const plan = planWithBudget(AXE, 500, 1_000_000, {
+      hopSeconds: 10,
+      maxUnits: 4,
+      sessionSeconds: 20,
+    });
+    expect(plan.units).toBe(4);
+    expect(plan.worlds).toBe(2);
+    expect(plan.sessionLimited).toBe(false);
+  });
+
+  it('counts bank trips against the session', () => {
+    // One world is 100 units = 3 bank trips: 10s hop + 30s banking = 40s.
+    const plan = planWithBudget(FLAT, 20, 1_000_000, {
+      stackable: false,
+      hopSeconds: 10,
+      bankTiles: 10,
+      secondsPerTile: 0.5,
+      bankHandoverSeconds: 0,
+      sessionSeconds: 40,
+    });
+    expect(plan.worlds).toBe(1);
+    expect(plan.units).toBe(100);
+    expect(plan.bankTrips).toBe(3);
+    expect(plan.buySeconds).toBe(40);
+    expect(plan.sessionLimited).toBe(true);
+  });
+
+  it('still refuses a number when banking is needed but the bank is unknown', () => {
+    const plan = planWithBudget(FLAT, 20, 1_000_000, {
+      stackable: false,
+      maxWorlds: 1,
+      sessionSeconds: 3600,
+      maxUnits: 1000,
+    });
+    expect(plan.units).toBe(100);
+    expect(plan.bankTimeKnown).toBe(false);
+    expect(plan.gpPerHour).toBeNull();
+  });
+
+  it('keeps the session cap out of the way when it is not passed', () => {
+    const plan = planWithBudget(AXE, 500, CLEAR_ONE_WORLD * 3, { hopSeconds: 10 });
+    expect(plan.worlds).toBe(3);
+    expect(plan.sessionLimited).toBe(false);
+    expect(plan.timeSeconds).toBe(plan.buySeconds);
+  });
+});

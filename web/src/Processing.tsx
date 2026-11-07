@@ -22,7 +22,7 @@ import { sortByMeasure, useSort } from "./sorting";
 import { Stat } from "./ui";
 import { usePagedRows } from "./paging";
 
-import payload from "../../data/process.json";
+import { payload } from "./dataset";
 
 /** Every sortable column. Also the allowlist for a shared link. */
 const SORT_KEYS = [
@@ -392,10 +392,6 @@ const BINDING_LABEL: Record<Binding, string> = {
   "unknown-time": "market cap",
 };
 
-// SAFETY: `data/process.json` is only written by `scripts/refresh-process.ts`,
-// which validates the payload with `ProcessPayloadSchema` before writing it.
-const DATA = payload as unknown as ProcessPayload;
-
 /**
  * Item processing: buy the inputs on the GE, perform a deterministic recipe,
  * sell the output back to the GE. The artifact holds both price modes; all
@@ -406,6 +402,10 @@ const DATA = payload as unknown as ProcessPayload;
  * and chance-based yields. See the caveats under the table.
  */
 export function ProcessingPage(): JSX.Element {
+  // SAFETY: `data/process.json` is only written by `scripts/refresh-process.ts`,
+  // which validates the payload with `ProcessPayloadSchema` before writing it.
+  const DATA = payload("process") as ProcessPayload;
+
   // A shared link carries the view; gold and column choices stay in storage.
   const [shared] = useState(() => currentViewState());
   const [mode, setMode] = useState<SellMode>(
@@ -444,7 +444,9 @@ export function ProcessingPage(): JSX.Element {
       ...DATA.patient.filters.skills,
     ]);
     return [...names].sort((a, b) => a.localeCompare(b));
-  }, []);
+    // `DATA` is the payload object from the loaded dataset: same identity on every
+    // render, so listing it here documents the dependency without causing work.
+  }, [DATA]);
 
   const rows = useMemo<RowData[]>(() => {
     const needle = normaliseQuery(deferredQuery);

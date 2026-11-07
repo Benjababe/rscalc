@@ -7,7 +7,6 @@
  */
 
 export {
-  sellableAcrossWorlds,
   shopRowFromOpportunity as toShopRow,
   shopRowFromSink as toSinkShopRow,
 } from "../../src/domain/earnings";

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-01T13:02:49.134Z",
+  "generatedAt": "2026-11-07T14:11:20.347Z",
   "source": "Curated from OSRS Wiki shop and location pages; see docs/shop-access.md",
   "entries": [
     {
@@ -93,7 +93,7 @@
       "source": "https://oldschool.runescape.wiki/w/Anglers%27_Retreat"
     },
     {
-      "shopPage": "Armour Shop (Jatizso)",
+      "shopPage": "Armour Shop",
       "requirement": "The Fremennik Trials",
       "kind": "quest",
       "source": "https://oldschool.runescape.wiki/w/Jatizso"
@@ -187,6 +187,12 @@
       "requirement": "Song of the Elves (completed)",
       "kind": "quest",
       "source": "https://oldschool.runescape.wiki/w/Prifddinas"
+    },
+    {
+      "shopPage": "Brass Hand Harry",
+      "requirement": "Pandemonium (progressed to the first visit)",
+      "kind": "quest",
+      "source": "https://oldschool.runescape.wiki/w/The_Pandemonium"
     },
     {
       "shopPage": "Cam Torum Blacksmith",

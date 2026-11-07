@@ -448,3 +448,118 @@ describe('planShopBasket', () => {
     expect(a).toEqual(b);
   });
 });
+
+/**
+ * Overnight mode: the per-item caps come from a rest window instead of the 4h
+ * buy-limit window, and the session clock trims the basket. The fill is still
+ * charged, because the capital is committed until the offers fill.
+ */
+describe('planShopBasket overnight', () => {
+  const TWELVE_HOURS = 12 * 3600;
+
+  it('charges the fill even when the offers rest', () => {
+    const items = [
+      basketItem('A', flat(10, 100), 20, { maxUnits: 1000, stackable: true }),
+      basketItem('B', flat(20, 50), 30, { maxUnits: 1000, stackable: true }),
+    ];
+    const plan = planShopBasket(items, 4000, {
+      hopSeconds: 10,
+      sellWindowSeconds: TWELVE_HOURS,
+    });
+    expect(plan.units).toBe(300);
+    expect(plan.worlds).toBe(2);
+    expect(plan.buySeconds).toBe(20);
+    // A is 200 of a 1000-unit window -> a fifth of the rest window, and the
+    // fill is the slower side, so it owns the clock.
+    expect(plan.sellSeconds).toBeCloseTo(TWELVE_HOURS / 5, 6);
+    expect(plan.timeSeconds).toBe(plan.sellSeconds);
+    expect(plan.gpPerHour).toBeCloseTo((plan.profit * 3600) / plan.sellSeconds, 6);
+  });
+
+  it('measures the sell schedule over the rest window', () => {
+    const items = [
+      basketItem('A', flat(10, 100), 20, { maxUnits: 100, stackable: true }),
+    ];
+    const plan = planShopBasket(items, 1000, {
+      hopSeconds: 10,
+      sellWindowSeconds: TWELVE_HOURS,
+    });
+    // A full window's worth fills for the whole window.
+    expect(plan.sellSeconds).toBeCloseTo(TWELVE_HOURS, 6);
+  });
+
+  it('stops when the session cannot fit another world', () => {
+    const items = [
+      basketItem('A', flat(10, 100), 20, { maxUnits: 1000, stackable: true }),
+    ];
+    const plan = planShopBasket(items, 1_000_000, {
+      hopSeconds: 10,
+      maxWorlds: 10,
+      sessionSeconds: 25,
+      sellWindowSeconds: TWELVE_HOURS,
+    });
+    // Two 10s hops fit in 25s; the third would be 30s.
+    expect(plan.worlds).toBe(2);
+    expect(plan.units).toBe(200);
+    expect(plan.sessionLimited).toBe(true);
+    expect(plan.buySeconds).toBe(20);
+  });
+
+  it('counts shared bank trips against the session', () => {
+    const items = [
+      basketItem('A', flat(10, 100), 20, { maxUnits: 1000, stackable: false }),
+    ];
+    const plan = planShopBasket(items, 1_000_000, {
+      hopSeconds: 10,
+      maxWorlds: 10,
+      bankTiles: 10,
+      secondsPerTile: 0.5,
+      bankHandoverSeconds: 0,
+      // One world = 100 units = 3 trips = 30s, plus the 10s hop.
+      sessionSeconds: 40,
+    });
+    expect(plan.worlds).toBe(1);
+    expect(plan.units).toBe(100);
+    expect(plan.bankTrips).toBe(3);
+    expect(plan.buySeconds).toBe(40);
+    expect(plan.sessionLimited).toBe(true);
+  });
+
+  it('shrinks a world that does not fit into the session', () => {
+    // A single world is 100 units needing 3 bank trips (40s); the session only
+    // allows one trip, so the basket must buy what fits instead of nothing.
+    const items = [
+      basketItem('A', flat(10, 100), 20, { maxUnits: 1000, stackable: false }),
+    ];
+    const plan = planShopBasket(items, 1_000_000, {
+      hopSeconds: 10,
+      maxWorlds: 10,
+      bankTiles: 10,
+      secondsPerTile: 0.5,
+      bankHandoverSeconds: 0,
+      // 1 trip -> 27 units in 2 loads; 10s hop + 10s trip = 20s.
+      sessionSeconds: 20,
+    });
+    expect(plan.sessionLimited).toBe(true);
+    expect(plan.worlds).toBe(1);
+    expect(plan.bankTrips).toBe(1);
+    expect(plan.units).toBeGreaterThan(0);
+    expect(plan.units).toBeLessThan(100);
+    expect(plan.buySeconds).toBeLessThanOrEqual(20);
+  });
+
+  it('still refuses a number when banking is needed but the bank is unknown', () => {
+    const plan = planShopBasket(
+      [basketItem('A', flat(10, 100), 20, { maxUnits: 1000, stackable: false })],
+      1_000_000,
+      {
+        hopSeconds: 10,
+        maxWorlds: 1,
+        sessionSeconds: 3600,
+      },
+    );
+    expect(plan.units).toBe(100);
+    expect(plan.bankTimeKnown).toBe(false);
+    expect(plan.gpPerHour).toBeNull();
+  });
+});

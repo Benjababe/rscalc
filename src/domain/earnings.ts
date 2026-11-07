@@ -38,6 +38,11 @@ import {
   DEFAULT_SECONDS_PER_TILE,
   planWithBudget,
 } from './budget.js';
+import {
+  overnightBudgetOptions,
+  shopRunUnits,
+  type OvernightPlanOptions,
+} from './overnight.js';
 import { planShopSink } from './shopSink.js';
 import type { ShopRow } from './shopPrice.js';
 import type {
@@ -149,6 +154,13 @@ export interface EarnOptions {
   secondsPerTile?: number;
   /** Known shop access requirements, keyed by shop page. Absence = unknown. */
   access?: ReadonlyMap<string, ShopAccessEntry>;
+  /**
+   * Overnight shop runs: sell into a long rest window instead of the 4h slice,
+   * and cap the time spent shopping. Off by default, which keeps the 4h window. Only the
+   * shop-run family is affected — a shop dump and a recipe both sell into the
+   * market you are standing in, not into an offer you leave behind.
+   */
+  overnight?: OvernightPlanOptions;
 }
 
 export interface EarnResult {
@@ -274,6 +286,15 @@ export function buildEarnings(
   // treats 0 as an empty plan, so an uncapped run sizes to the GE's 4h slice.
   const budget = goldGp > 0 ? goldGp : Number.POSITIVE_INFINITY;
 
+  // Overnight mode replaces the 4h window with the rest window (or, when the
+  // player assumes unlimited buyers, with no cap at all) and bounds the time spent
+  // shopping. Everything comes from the caller; nothing is defaulted silently into
+  // the plan, and `overnight` being absent is the normal 4h model.
+  const overnightOptions = options.overnight;
+
+  /** Units a shop run may buy: the 4h slice, or what the offers absorb overnight. */
+  const runCap = (opp: Opportunity): number => shopRunUnits(opp, overnightOptions);
+
   const methods: EarnMethod[] = [];
   let unranked = 0;
   let unexecutable = 0;
@@ -291,7 +312,8 @@ export function buildEarnings(
   // ---------------------------------------------------------------- shop runs
   for (const opp of input.shopRuns) {
     // No sell-side volume in the window means nothing can be sold, at any gold.
-    if (sellableAcrossWorlds(opp) <= 0) {
+    const cap = runCap(opp);
+    if (cap <= 0) {
       unexecutable += 1;
       continue;
     }
@@ -300,14 +322,28 @@ export function buildEarnings(
       shopRowFromOpportunity(opp),
       opp.netSellPerUnit,
       budget,
-      {
-        hopSeconds,
-        maxWorlds,
-        bankTiles: opp.bankTiles,
-        secondsPerTile,
-        stackable: opp.stackable,
-        maxUnits: sellableAcrossWorlds(opp),
-      },
+      overnightOptions === undefined
+        ? {
+            hopSeconds,
+            maxWorlds,
+            bankTiles: opp.bankTiles,
+            secondsPerTile,
+            stackable: opp.stackable,
+            maxUnits: cap,
+          }
+        : {
+            hopSeconds,
+            maxWorlds,
+            bankTiles: opp.bankTiles,
+            secondsPerTile,
+            stackable: opp.stackable,
+            maxUnits: cap,
+            // The offers rest over a long window, but the fill is still wall
+            // clock: the capital is committed until they fill. Under the
+            // unlimited-buyers assumption there is no cap to fill against, so
+            // the helper omits the window and the planner charges no fill.
+            ...overnightBudgetOptions(overnightOptions),
+          },
     );
 
     if (plan.units <= 0 || plan.profit <= 0) {

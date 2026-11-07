@@ -9,7 +9,7 @@
  * whether those numbers reach the DOM.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 import { readFileSync } from 'node:fs';
@@ -18,6 +18,8 @@ import { z } from 'zod';
 
 import { RankingSchema } from '../src/types.js';
 import { ShopToGePage } from '../web/src/ShopToGe.js';
+import { PAGE_ARTIFACTS, loadDataset, resetDataset } from '../web/src/dataset.js';
+import { stubDatasetFetch } from './support/datasetFetch.js';
 
 /**
  * The artifact's two rankings, validated the same way the refresh script validates
@@ -46,13 +48,18 @@ function searchBox(): HTMLInputElement {
   return screen.getByRole<HTMLInputElement>('searchbox');
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   window.localStorage.clear();
   window.history.replaceState(null, '', '/');
+  // The page fetches its artifacts from the server now; answer from data/*.json.
+  stubDatasetFetch();
+  await loadDataset(PAGE_ARTIFACTS['shop-to-ge']);
 });
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
+  resetDataset();
 });
 
 describe('Shop -> GE page', () => {
@@ -219,6 +226,121 @@ describe('Shop -> GE page', () => {
     expect(rowNames()[0]).not.toBe(firstPageLast);
     // Row numbering continues across pages rather than restarting at 1.
     expect(rows()[0]?.querySelector('td')?.textContent?.trim()).toBe('101');
+  });
+
+  it('switches the 4h window for the rest window when Overnight is on', async () => {
+    render(<ShopToGePage />);
+    await waitFor(() => expect(rows().length).toBe(100));
+
+    // The default view is the 4h model.
+    expect(screen.queryByRole('columnheader', { name: '4h volume' })).toBeTruthy();
+    expect(
+      screen.queryByRole('columnheader', { name: 'Rest units' }),
+    ).toBeNull();
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Overnight' }));
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('columnheader', { name: 'Rest units' }),
+      ).toBeTruthy(),
+    );
+    expect(screen.queryByRole('columnheader', { name: '4h volume' })).toBeNull();
+    // The hint names both knobs, so the assumption is never implicit.
+    const hint = document.querySelector('.budget .hint')?.textContent ?? '';
+    expect(hint).toContain('Overnight');
+    expect(hint).toContain('60 min');
+    expect(hint).toContain('12h');
+    // The session and rest fields are enabled now.
+    expect(
+      screen.getByRole<HTMLInputElement>('spinbutton', {
+        name: 'Shopping session in minutes',
+      }).disabled,
+    ).toBe(false);
+  });
+
+  it('sizes an overnight run from the rest window, not the 4h slice', async () => {
+    window.localStorage.setItem(
+      'rscalc.budget',
+      JSON.stringify({ gold: 100_000_000, view: 'budget' }),
+    );
+    const name = RANKING.opportunities[0]?.itemName ?? '';
+    window.history.replaceState(
+      null,
+      '',
+      `/#/shop-to-ge?q=${encodeURIComponent(name)}`,
+    );
+
+    render(<ShopToGePage />);
+    await waitFor(() => expect(rows().length).toBeGreaterThan(0));
+
+    // The Buy cell is the unit count followed by a "N/world" note in its own
+    // span; only the leading text node is the quantity.
+    const buyCell = (): number => {
+      // With the rank column: #, item, shop, location, unit cost, sell, tax,
+      // margin, volume/rest units, then Buy.
+      const cell = rows()[0]?.querySelector('td:nth-child(10)');
+      const text = cell?.firstChild?.textContent ?? '0';
+      return Number(text.replace(/[^0-9]/g, ''));
+    };
+    const fourHourUnits = buyCell();
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Overnight' }));
+    await waitFor(() => expect(buyCell()).toBeGreaterThanOrEqual(fourHourUnits));
+
+    // The resting-offer fill is shown, and it is a duration rather than a number
+    // of units, so the row explains where the time went.
+    expect(
+      screen.getByRole('columnheader', { name: /GE fill/ }),
+    ).toBeTruthy();
+  });
+
+  it('drops the rest window and the fill when the buyers are unlimited', async () => {
+    window.localStorage.setItem(
+      'rscalc.budget',
+      JSON.stringify({ gold: 100_000_000, view: 'budget' }),
+    );
+    const item = RANKING.opportunities[0];
+    const name = item?.itemName ?? '';
+    window.history.replaceState(
+      null,
+      '',
+      `/#/shop-to-ge?q=${encodeURIComponent(name)}`,
+    );
+
+    render(<ShopToGePage />);
+    await waitFor(() => expect(rows().length).toBeGreaterThan(0));
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Overnight' }));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('columnheader', { name: 'Rest units' }),
+      ).toBeTruthy(),
+    );
+
+    const restField = (): HTMLInputElement =>
+      screen.getByRole<HTMLInputElement>('spinbutton', {
+        name: 'Rest window in hours',
+      });
+    expect(restField().disabled).toBe(false);
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Unlimited buyers' }));
+
+    // The rest window stops mattering, so it is disabled rather than left
+    // looking like it still does something.
+    await waitFor(() => expect(restField().disabled).toBe(true));
+    expect(
+      screen.queryByRole('columnheader', { name: 'Buyers' }),
+    ).toBeTruthy();
+    // The cap column reads the assumption, and the fill column says there is
+    // nothing to wait for.
+    const rowText = rows()[0]?.textContent ?? '';
+    expect(rowText).toContain('∞');
+    expect(rowText).toContain('none');
+    // The hint names the assumption instead of the window.
+    const hint = document.querySelector('.budget .hint')?.textContent ?? '';
+    expect(hint).toContain('unlimited buyers');
+    expect(hint).toContain('cannot be repeated');
   });
 
   it('restores the view described by the URL', async () => {

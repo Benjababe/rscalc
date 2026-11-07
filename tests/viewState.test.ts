@@ -31,6 +31,27 @@ describe('parseViewState', () => {
     });
   });
 
+  it('reads the overnight knobs only when the mode is on', () => {
+    expect(parseViewState('#/earn?overnight=1&rest=8&session=45')).toEqual({
+      overnight: true,
+      restHours: 8,
+      sessionMinutes: 45,
+    });
+    expect(parseViewState('#/earn?overnight=1&unlimited=1')).toEqual({
+      overnight: true,
+      unlimited: true,
+    });
+    // Off means off: the knobs alone do not switch the model.
+    expect(parseViewState('#/earn?rest=8&session=45')).toEqual({
+      restHours: 8,
+      sessionMinutes: 45,
+    });
+    expect(parseViewState('#/earn?overnight=0')).toEqual({});
+    expect(parseViewState('#/earn?overnight=1&rest=0')).toEqual({
+      overnight: true,
+    });
+  });
+
   it('treats locked=0 as "hide locked" and locked=1 as showing them', () => {
     expect(parseViewState('#/x?locked=0').hideLocked).toBe(true);
     expect(parseViewState('#/x?locked=1').hideLocked).toBe(false);
@@ -123,6 +144,31 @@ describe('round trip', () => {
       skill: 'crafting',
     } as const;
     expect(parseViewState(buildViewHash('processing', view))).toEqual(view);
+  });
+
+  it('writes overnight only with the mode on, and only non-default knobs', () => {
+    expect(buildViewHash('earn', { overnight: true })).toBe('#/earn?overnight=1');
+    expect(
+      buildViewHash('earn', {
+        overnight: true,
+        restHours: 12,
+        sessionMinutes: 60,
+      }),
+    ).toBe('#/earn?overnight=1');
+    expect(
+      buildViewHash('earn', {
+        overnight: true,
+        restHours: 8,
+        sessionMinutes: 45,
+      }),
+    ).toBe('#/earn?overnight=1&rest=8&session=45');
+    expect(buildViewHash('earn', { overnight: true, unlimited: true })).toBe(
+      '#/earn?overnight=1&unlimited=1',
+    );
+    // Unlimited buyers is an overnight assumption, so it is not written alone.
+    expect(buildViewHash('earn', { unlimited: true })).toBe('#/earn');
+    // The knobs alone are not a mode.
+    expect(buildViewHash('earn', { restHours: 8 })).toBe('#/earn');
   });
 
   it('keeps the page when only the view differs', () => {

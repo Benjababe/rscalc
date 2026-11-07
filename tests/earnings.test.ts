@@ -53,6 +53,7 @@ function opportunity(overrides: Partial<Opportunity> = {}): Opportunity {
     delta: 20,
 
     geBuyLimit: 100,
+    volume24h: 180,
     volume4h: 30,
     sellablePer4h: 3,
     // The artifact's placeholder equals gp/4h and must never be read as an
@@ -553,5 +554,112 @@ describe('row builders', () => {
 
   it('caps shop runs at the GE 4h slice, never the buy limit', () => {
     expect(sellableAcrossWorlds(opportunity({ volume4h: 30, geBuyLimit: 100 }))).toBe(30);
+  });
+});
+
+describe('buildEarnings: overnight shop runs', () => {
+  it('sells into the rest window instead of the 4h slice', () => {
+    // volume24h is 180, so a 12h rest window is 90 units — three times the 4h
+    // slice of 30 the normal model caps at, at the same hourly rate.
+    const normal = earnings({ shopRuns: [opportunity()] }, { maxWorlds: 200 });
+    const overnight = earnings(
+      { shopRuns: [opportunity()] },
+      { maxWorlds: 200, overnight: { restWindowHours: 12, sessionMinutes: 60 } },
+    );
+
+    expect(normal.methods[0]?.capitalGp).toBe(6120);
+    const [method] = overnight.methods;
+    expect(method?.capitalGp).toBe(18_360);
+    expect(method?.profitGp).toBe(61_020);
+    // 90 units against a 90-unit window is the whole 12h rest, and the fill is
+    // the slower side, so it owns the clock.
+    expect(method?.timeSeconds).toBe(43_200);
+    expect(method?.gpPerHour).toBe(5085);
+    expect(method?.gpPerHour).toBe(normal.methods[0]?.gpPerHour);
+  });
+
+  it('prices a thin market the 4h floor excluded, once a night', () => {
+    // 2 trades a day: 4h floors to zero units, a 12h window absorbs one.
+    const normal = earnings({ shopRuns: [opportunity({ volume24h: 2, volume4h: 0 })] });
+    expect(normal.methods).toHaveLength(0);
+    expect(normal.unexecutable).toBe(1);
+
+    const [method] = earnings(
+      { shopRuns: [opportunity({ volume24h: 2, volume4h: 0 })] },
+      { overnight: { restWindowHours: 12, sessionMinutes: 60 } },
+    ).methods;
+
+    expect(method?.capitalGp).toBe(200);
+    expect(method?.profitGp).toBe(682);
+    // One unit of a one-unit window is the whole rest, so the rate is the
+    // nightly profit over the night — not over the 10 seconds it takes to buy.
+    expect(method?.timeSeconds).toBe(43_200);
+    expect(method?.gpPerHour).toBeCloseTo((682 * 3600) / 43_200, 6);
+  });
+
+  it('stops shopping when the session is up', () => {
+    const [method] = earnings(
+      { shopRuns: [opportunity()] },
+      { overnight: { restWindowHours: 12, sessionMinutes: 2 } },
+    ).methods;
+
+    // 120s of hops is 12 worlds of three units: 36 units, a 40% fill.
+    expect(method?.capitalGp).toBe(7344);
+    expect(method?.profitGp).toBe(24_408);
+    expect(method?.timeSeconds).toBe((36 / 90) * 43_200);
+  });
+
+  it('prices any quantity when the player assumes unlimited buyers', () => {
+    // No 24h volume at all: the 4h slice and the 12h window are both zero, so
+    // only the explicit assumption can price it.
+    const row = opportunity({ volume24h: 0, volume4h: 0 });
+    expect(
+      earnings({ shopRuns: [row] }, { overnight: { restWindowHours: 12 } })
+        .unexecutable,
+    ).toBe(1);
+
+    const [method] = earnings(
+      { shopRuns: [row] },
+      { overnight: { restWindowHours: 12, unlimitedBuyers: true } },
+    ).methods;
+
+    // Bounded by gold, worlds and the session only: 200 worlds of three units.
+    expect(method?.capitalGp).toBe(122_400);
+    expect(method?.profitGp).toBe(406_800);
+    // No fill is charged, so the hops are the whole clock.
+    expect(method?.timeSeconds).toBe(2000);
+    expect(method?.gpPerHour).toBe(732_240);
+  });
+
+  it('keeps the session cap under unlimited buyers', () => {
+    const [method] = earnings(
+      { shopRuns: [opportunity({ volume24h: 0, volume4h: 0 })] },
+      { overnight: { unlimitedBuyers: true, sessionMinutes: 1 } },
+    ).methods;
+
+    // 60s of hops is six worlds of three units.
+    expect(method?.capitalGp).toBe(3672);
+    expect(method?.profitGp).toBe(12_204);
+    expect(method?.timeSeconds).toBe(60);
+  });
+
+  it('counts a row the rest window cannot absorb as unexecutable', () => {
+    const result = earnings(
+      { shopRuns: [opportunity({ volume24h: 1, volume4h: 0 })] },
+      { overnight: { restWindowHours: 12 } },
+    );
+    expect(result.methods).toHaveLength(0);
+    expect(result.unexecutable).toBe(1);
+  });
+
+  it('leaves the other families on their own clock', () => {
+    const result = earnings(
+      { shopDumps: [sink()] },
+      { overnight: { restWindowHours: 12, sessionMinutes: 60 } },
+    );
+    const [method] = result.methods;
+    expect(method?.kind).toBe('shop-dump');
+    expect(method?.timeSeconds).toBe(2400);
+    expect(method?.gpPerHour).toBe(1_420_800);
   });
 });

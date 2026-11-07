@@ -23,7 +23,7 @@ import { Stat } from "./ui";
 import { usePagedRows } from "./paging";
 
 
-import payload from "../../data/shop-sinks.json";
+import { payload } from "./dataset";
 
 /** Every sortable column. Also the allowlist for a shared link. */
 const SORT_KEYS = [
@@ -302,13 +302,13 @@ const MODES = ["pessimistic", "patient"] as const;
  * stock table publishes a buy price, hopping worlds so each one resets the
  * shop's stock. The artifact supplies the eligible rows and their pricing
  * parameters; the plan is recomputed here so gold, hop time and travel speed
- * all apply. Static snapshot; no network calls.
+ * all apply. The snapshot itself is served by the backend and loaded by the shell.
  */
-// SAFETY: `data/shop-sinks.json` is only written by `scripts/refresh-sinks.ts`,
-// which validates the payload with `ShopSinksPayloadSchema` first.
-const DATA = payload as unknown as ShopSinksPayload;
-
 export function GeToShopPage(): JSX.Element {
+  // SAFETY: `data/shop-sinks.json` is only written by `scripts/refresh-sinks.ts`,
+  // which validates the payload with `ShopSinksPayloadSchema` first.
+  const DATA = payload("shop-sinks") as ShopSinksPayload;
+
   // A shared link carries the view; gold and column choices stay in storage.
   const [shared] = useState(() => currentViewState());
   const [mode, setMode] = useState<SellMode>(

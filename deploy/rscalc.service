@@ -1,0 +1,37 @@
+[Unit]
+Description=rscalc: OSRS gp/hour calculator (Express server + 4-hourly price refresh)
+Documentation=file:///srv/rscalc/deploy/README.md
+# The refresh pipeline needs the wiki and price APIs. A missing network is not
+# fatal: the server serves the last published dataset and retries on the next tick.
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=rscalc
+Group=rscalc
+WorkingDirectory=/srv/rscalc
+
+# systemd's default PATH does not always include where pnpm lands (corepack shims
+# in /usr/bin, or a standalone pnpm in /usr/local/bin).
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+# The 8 MB skilling artifact and the vite build both want headroom.
+Environment=NODE_OPTIONS=--max-old-space-size=2048
+
+# RSCALC_CONTACT=you@example.com   (required: the wiki User-Agent contact)
+# RSCALC_ADDR=:8080
+# RSCALC_REFRESH_INTERVAL=4h
+# RSCALC_REFRESH_TOKEN=...         (enables POST /api/refresh)
+EnvironmentFile=/etc/rscalc.env
+
+ExecStart=/usr/bin/env pnpm serve
+
+# A crawling pipeline is not a crash loop: restart, but do not hammer the APIs.
+Restart=on-failure
+RestartSec=15s
+
+# The refresh runs inside this process, so keep it from starving the box.
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

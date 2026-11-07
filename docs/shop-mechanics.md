@@ -551,3 +551,96 @@ GE ↔ shop trip are shared:
 
 The per-item table shows the batch, average shop price, spend and profit; the
 summary shows the shared worlds, hop time, GE supply time and total time.
+
+## 13. Overnight shop runs
+
+The shop -> GE model sizes a run against the GE's **4-hour** window (§9), so a
+run stops at what the market absorbs in four hours. `src/domain/overnight.ts`
+answers the other question: *"I will shop for an hour and then leave the GE
+offers resting — how much can I put up, and what is it worth?"*
+
+It is an option on `#/shop-to-ge`, its basket panel and the shop-run rows of
+`#/earn`; it is carried in the URL as `overnight=1&rest=<h>&session=<min>`. The
+shop-dump and processing families are unaffected: they sell into the market you
+are standing in, not into an offer you leave behind.
+
+### 13.1 The rest window replaces the 4h slice
+
+The unit cap is the same 24h traded volume, scaled to a window you choose
+(default 12 hours) instead of 4:
+
+```text
+restUnits = floor(volume24h * restHours / 24)
+```
+
+Nothing is invented: this is `volume24h` from §9, and a thin market still caps
+the run — an item that trades twice a day yields **one unit** in a 12h window
+(`floor(2 * 12 / 24)`), where the 4h slice floors to zero. That is the coverage
+the window buys: at the last refresh, 1,705 shop-run rows were priceable
+overnight against 1,682 on the 4h window, and the difference is entirely items
+the 4h floor excluded.
+
+### 13.2 The session is your own time
+
+Buying is bounded by a session (default 60 minutes, `0` = no limit): world hops
+plus the bank trips the loads need (§10). A world visit that would overrun the
+clock ends the plan, and a partial world is bought when it still fits. The plan
+reports `buySeconds` (your time) and `sessionLimited`.
+
+### 13.3 The fill is still charged
+
+```text
+sellSeconds = units / restUnits * restWindowSeconds
+timeSeconds = max(buySeconds, sellSeconds)
+```
+
+The offers rest while you sleep, but they are not free time: **your capital is
+committed until they fill**, and until then you cannot fund another run. Measuring
+this against the real artifact settled the question:
+
+| Wyrmscraig villager robe top | 4h window | 12h window, fill charged | 12h window, fill free |
+|---|---|---|---|
+| units | 0 (floored) | 1 | 1 |
+| profit | — | 137,508 | 137,508 |
+| time | — | 12h | 10s of shopping |
+| gp/hour | — | **11,459** | **49,502,880** |
+
+A free sell leg puts a 500 gp item that trades twice a day at the top of the
+leaderboard, because the 24-hour figure is divided by ten seconds. Charging the
+fill also has a property worth stating: for an item the market already absorbs in
+4h, the longer window buys a **bigger plan at the same hourly rate** (three times
+the units and the profit for three times the clock), which is what "stock up
+overnight" means. It does not manufacture a higher rate. `tests/budget.test.ts`
+pins that invariance.
+
+### 13.4 Unlimited buyers (an assumption, not a source)
+
+The checkbox beside the rest window, **Unlimited buyers**, switches the cap off
+entirely: no 4h buy limit and no volume ceiling, so a run is bounded only by
+gold, shop stock, worlds and the session, and no fill time is charged
+(`sellSeconds = 0`, so `gp/hour` is the shopping time alone). The rest window is
+disabled while it is on, because it can no longer bind.
+
+Everything it does is an assumption and the UI says so, in the hint, the
+caveats, and on the `#/earn` coverage:
+
+- **It prices stale markets.** The 24h traded volume is the only guard against a
+  GE price that is one old trade (§9). With the cap gone, items that have not
+  traded in a day are priced at that quote.
+- **The rate is a one-off.** Only the session bounds how much you buy, and the
+  night can absorb it once. Charging the fill is what keeps the ordinary
+  overnight rows repeatable; this switch deliberately gives that up, so its rows
+  are comparable with each other, not with the rest of the leaderboard.
+
+It exists because the player may know something the volume snapshot does not —
+an item about to be consumed by an update, a market they are about to move — and
+the alternative was to leave that out of the tool entirely.
+
+The UI exposes **Overnight**, **Session** (minutes), **Rest window** (hours) and
+**Unlimited buyers** in the budget card, swaps the *4h volume* column for *Rest
+units* (or *Buyers*, reading ∞), adds a *GE fill* column, and states the
+assumption in the caveats.
+
+Tests: `tests/overnight.test.ts` (window scaling, clamps and the unlimited-buyer
+cap), the overnight blocks in `tests/budget.test.ts` and `tests/basket.test.ts`,
+and `tests/earnings.test.ts` for the leaderboard rows.

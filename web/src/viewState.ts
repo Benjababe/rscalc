@@ -13,6 +13,10 @@
 
 import { useEffect } from "react";
 
+import {
+  DEFAULT_REST_WINDOW_HOURS,
+  DEFAULT_SESSION_MINUTES,
+} from "../../src/domain/overnight";
 import { pageHash, type Page } from "./route";
 
 export interface ViewState {
@@ -30,6 +34,21 @@ export interface ViewState {
   kind?: string;
   /** The player's Cooking level on the skilling page; 0/absent means "not set". */
   cookingLevel?: number;
+  /**
+   * Overnight shop runs on `#/earn` and `#/shop-to-ge`: rest the GE offers and
+   * cap the shopping session. Part of the shared view because it changes every
+   * number on the page.
+   */
+  overnight?: boolean;
+  /** Hours the GE offers rest, when `overnight` is on. */
+  restHours?: number;
+  /** Minutes spent shopping, when `overnight` is on. */
+  sessionMinutes?: number;
+  /**
+   * Assume unlimited GE buyers (no buy limit, no volume ceiling), when `overnight`
+   * is on. An assumption the viewer chose, so it belongs in the shared view.
+   */
+  unlimited?: boolean;
   /**
    * A player-entered actions/hour on the skilling page, used only for rows the wiki
    * publishes no rate for. 0/absent means "no rate given".
@@ -108,6 +127,17 @@ export function parseViewState(hash: string): ViewState {
   const rate = readNumber(params.get("rate"));
   if (rate !== undefined && rate > 0) state.rate = rate;
 
+  const overnight = readBool(params.get("overnight"));
+  if (overnight === true) state.overnight = true;
+
+  const restHours = readNumber(params.get("rest"));
+  if (restHours !== undefined && restHours > 0) state.restHours = restHours;
+
+  const sessionMinutes = readNumber(params.get("session"));
+  if (sessionMinutes !== undefined) state.sessionMinutes = sessionMinutes;
+
+  if (readBool(params.get("unlimited")) === true) state.unlimited = true;
+
   return state;
 }
 
@@ -157,6 +187,21 @@ export function buildViewHash(page: Page, state: ViewState): string {
   }
   if (state.rate !== undefined && state.rate > 0) {
     params.set("rate", String(state.rate));
+  }
+
+  // The overnight knobs are only meaningful with the mode on, and only written
+  // when they differ from the defaults, so an untouched link stays clean.
+  if (state.overnight === true) {
+    params.set("overnight", "1");
+    if (state.restHours !== undefined && state.restHours > 0 &&
+        state.restHours !== DEFAULT_REST_WINDOW_HOURS) {
+      params.set("rest", String(state.restHours));
+    }
+    if (state.sessionMinutes !== undefined &&
+        state.sessionMinutes !== DEFAULT_SESSION_MINUTES) {
+      params.set("session", String(state.sessionMinutes));
+    }
+    if (state.unlimited === true) params.set("unlimited", "1");
   }
 
   const query = params.toString();

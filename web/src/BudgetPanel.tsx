@@ -10,6 +10,7 @@
 
 import type { ReactNode } from "react";
 
+import { MAX_REST_WINDOW_HOURS } from "../../src/domain/overnight";
 import { compact } from "./format";
 import { GoldInput } from "./GoldInput";
 
@@ -138,3 +139,103 @@ export function TravelFields(props: {
   );
 }
 
+
+/**
+ * The overnight trio: the toggle, the session you are willing to shop and the
+ * window the GE offers are allowed to rest in.
+ *
+ * Both numbers are visible even while the mode is off — they are disabled, not
+ * hidden, so switching the mode on never reveals an assumption the player has
+ * not seen.
+ */
+export function OvernightFields(props: {
+  overnight: boolean;
+  onOvernight: (on: boolean) => void;
+  restWindowHours: number;
+  onRestWindowHours: (hours: number) => void;
+  sessionMinutes: number;
+  onSessionMinutes: (minutes: number) => void;
+  unlimitedBuyers: boolean;
+  onUnlimitedBuyers: (on: boolean) => void;
+}): JSX.Element {
+  return (
+    <>
+      <label
+        className="toggle inline"
+        title="Sell into a rest window instead of the 4h slice: the unit cap becomes what the 24h volume absorbs in the window, and buying stops when the session is up. The fill is still counted, because the capital is committed until it fills."
+      >
+        <input
+          type="checkbox"
+          checked={props.overnight}
+          onChange={(event) => props.onOvernight(event.target.checked)}
+        />
+        Overnight
+      </label>
+
+      <label
+        className="toggle"
+        title="Minutes you are willing to shop for: world hops plus the bank trips your loads need. 0 means no session limit."
+      >
+        <span className="label">Session</span>
+        <span className="field-control">
+          <input
+            className="num"
+            type="number"
+            min={0}
+            step={15}
+            disabled={!props.overnight}
+            value={props.sessionMinutes}
+            onChange={(event) =>
+              props.onSessionMinutes(
+                Math.max(0, Math.floor(Number(event.target.value) || 0)),
+              )
+            }
+            aria-label="Shopping session in minutes"
+          />
+          <span className="field-unit">min</span>
+        </span>
+      </label>
+
+      <label
+        className="toggle"
+        title="Hours the GE offers may rest before you look again. The unit cap is what the 24h traded volume absorbs in this window."
+      >
+        <span className="label">Rest window</span>
+        <span className="field-control">
+          <input
+            className="num"
+            type="number"
+            min={1}
+            max={MAX_REST_WINDOW_HOURS}
+            step={1}
+            disabled={!props.overnight || props.unlimitedBuyers}
+            value={props.restWindowHours}
+            onChange={(event) =>
+              props.onRestWindowHours(
+                Math.min(
+                  MAX_REST_WINDOW_HOURS,
+                  Math.max(1, Math.floor(Number(event.target.value) || 1)),
+                ),
+              )
+            }
+            aria-label="Rest window in hours"
+          />
+          <span className="field-unit">h</span>
+        </span>
+      </label>
+
+      <label
+        className="toggle inline"
+        title="Assume the GE has infinite buyers: no 4h buy limit and no volume ceiling, so the rest window stops capping the run and no fill time is charged. This prices items that have not traded recently — their GE price may be one stale trade — and the resulting gp / hour cannot be repeated the same night."
+      >
+        <input
+          type="checkbox"
+          checked={props.unlimitedBuyers}
+          disabled={!props.overnight}
+          onChange={(event) => props.onUnlimitedBuyers(event.target.checked)}
+        />
+        Unlimited buyers
+      </label>
+    </>
+  );
+}

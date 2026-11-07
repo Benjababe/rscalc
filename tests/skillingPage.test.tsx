@@ -14,7 +14,7 @@
  *    quietly.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   cleanup,
   fireEvent,
@@ -25,6 +25,8 @@ import {
 } from '@testing-library/react';
 
 import { SkillingPage } from '../web/src/Skilling.js';
+import { PAGE_ARTIFACTS, loadDataset, resetDataset } from '../web/src/dataset.js';
+import { stubDatasetFetch } from './support/datasetFetch.js';
 
 function rows(): HTMLElement[] {
   return [...document.querySelectorAll('tbody tr')] as HTMLElement[];
@@ -63,13 +65,18 @@ function hourlyCells(): string[] {
   return rows().map((row) => row.querySelectorAll('td')[7]?.textContent?.trim() ?? '');
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   window.localStorage.clear();
   window.history.replaceState(null, '', '/#/skilling');
+  // The page fetches its artifacts from the server now; answer from data/*.json.
+  stubDatasetFetch();
+  await loadDataset(PAGE_ARTIFACTS['skilling']);
 });
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
+  resetDataset();
 });
 
 describe('skilling page', () => {

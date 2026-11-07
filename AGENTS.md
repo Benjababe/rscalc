@@ -74,12 +74,35 @@ outcome for this project.
 ## Stack
 
 pnpm · TypeScript (strict, ESM) · Node >= 22 · Vite + React for the UI ·
-`tsx` for scripts · `vitest` for tests (`jsdom` + Testing Library for the UI
-render tests, node for everything else) · `eslint` (flat config, type-aware) for
-lint · `zod` for every external JSON payload.
+Express for the server · `tsx` to run both the scripts and the server ·
+`vitest` for tests (`jsdom` + Testing Library for the UI render tests, node for
+everything else) · `eslint` (flat config, type-aware) for lint · `zod` for every
+external JSON payload.
 
-No database. The pipeline is file-based: `scripts/` fetch → `data/*.json`
-(build artifacts) → engine reads them → UI reads the engine output.
+No database. The pipeline is file-based: `scripts/` fetch → `data/*.json` →
+engine reads them → the server publishes a dataset → the UI fetches it.
+
+**Serving model.** `src/server/` is the only always-on process (`pnpm serve`).
+It serves the built SPA and, every `RSCALC_REFRESH_INTERVAL` (4h), runs
+`pnpm refresh` and publishes the result as an immutable dataset under
+`runtime/datasets/<UTC stamp>/` with a precompressed copy of each artifact, then
+swaps the `current` pointer in one rename. The UI no longer imports `data/*.json`:
+`web/src/dataset.ts` fetches the manifest, which pins one URL per artifact to the
+dataset id, so a table can never mix two refreshes. A refresh needs no rebuild and
+no redeploy — the bundle carries only code. The server never computes a number:
+the pipeline keeps owning the maths, the zod schemas and the 1 req/s limit, and
+the server refuses to publish an artifact that does not parse.
+
+**Refresh logging.** Every line the pipeline (or an optional `RSCALC_BUILD_CMD`
+rebuild) writes on stdout/stderr is streamed to the server log with `phase=` and
+`stream=` fields *and* into the 400-line tail behind `/api/status`. A refresh must
+be diagnosable from `journalctl`/`docker logs` alone; the ring is for the browser.
+
+**Configuration.** `pnpm serve` reads the process environment and loads
+`<repo>/.env` first when it exists (`RSCALC_ENV_FILE` overrides the path). The real
+environment wins over the file, so systemd's `EnvironmentFile=` and Docker's `-e`
+behave as expected; a stray `.env` cannot redirect a server. `.env` is gitignored
+and nothing logs its values.
 
 No HTML-parser dependency: the small, header-addressed extractors live in
 `src/api/wikiTable.ts` (tables) and `src/api/wikiPages.ts` (wikitext).
@@ -109,6 +132,9 @@ src/domain/profit.ts   arbitrage planner: marginal buy quantity, margin, gp/4h
 src/domain/budget.ts   gold-budget planner: worlds, banking, gp/hour
 src/domain/basket.ts   multi-item shop planner: shared hops/loads, GE sell slots
 src/domain/bankTrip.ts nearest-bank join + per-shop trip seconds (shared with the GE trip)
+src/domain/overnight.ts overnight shop runs: rest-window scaling, the session
+                       clock, and the one cap helper the pages and the
+                       leaderboard share
 src/domain/shopAccess.ts  curated access rules -> per-shop access entries; lookup helpers
 src/engine/rank.ts     joins catalog × prices × volume × stackability
 src/engine/sinkRank.ts joins for GE -> shop; buy limit as a purchase cap,
@@ -134,7 +160,18 @@ scripts/refresh-skilling.ts recipe bucket + prices -> data/skilling.json;
 scripts/refresh-access.ts  apply scripts/shopAccessRules.ts; emits shop-access.json
 scripts/shopAccessRules.ts curated, cited shop access rules and exceptions
 scripts/smoke.ts           connectivity + schema check
-web/                       Vite + React UI (reads static data only)
+src/server/config.ts       env surface: addr, dirs, 4h interval, keep-N, token
+src/server/datasets.ts     publish: validate + gzip + atomic `current` swap;
+                           retention; pinned older datasets stay readable
+src/server/refresh.ts      the scheduler: single-flight pipeline run, timeout,
+                           status + log tail; boot policy (auto = stale only)
+src/server/app.ts          routes: manifest, pinned artifacts, status, token'd
+                           POST /api/refresh, static SPA + cache headers
+src/server/staticFiles.ts  web/dist with immutable hashed assets, gzip cache
+src/server/main.ts         wiring + graceful shutdown
+src/api/dataset.ts         shared contract: artifact names, manifest shape
+web/                       Vite + React UI (fetches the served dataset)
+web/src/dataset.ts         the loader: manifest -> pinned artifacts, page needs
 web/src/DataTable.tsx      the one results table: columns in, table + native
                            Columns picker + pager + empty state out; every page
                            (earn, shop-to-ge, ge-to-shop, processing, skilling)
@@ -143,9 +180,12 @@ web/src/Earn.tsx           the front page: every family in one ranked table,
                            with the method filter and the coverage line
 web/src/Skilling.tsx       #/skilling: every priced activity of a skill in both
                            modes, kind badges, cooking-level gate
-data/                      generated JSON (committed so the UI works offline)
-tests/                     unit + jsdom render tests; mocked fetch, no live network
+data/                      pipeline output (committed, so a fresh clone serves)
+tests/                     unit + jsdom render tests; mocked fetch, no live network;
+                           tests/server*.test.ts drive the real server over HTTP
 docs/                      sourced mechanics + data-source documentation
+deploy/                    home-lab hosting kit: systemd unit for `pnpm serve`,
+                           Dockerfile, deployment + rollback notes
 eslint.config.js           flat config: type-aware rules for src/scripts/tests/web
 ```
 
@@ -196,7 +236,10 @@ pnpm skilling       # data/skilling.json (scanned skills; losses included)
 pnpm skilling --fresh-recipes  # same, for the skilling artifact
 pnpm skilling --skill=crafting --limit=30 --actions-per-hour=1200
 pnpm skilling --skill=cooking --cooking-level=90   # only foods safe at 90
-pnpm build          # UI bundle
+pnpm build          # UI bundle (code only: the data is served, not bundled)
+pnpm serve          # Express server: SPA + dataset API + the 4h refresh loop
+                    # needs RSCALC_CONTACT; see deploy/README.md for env vars
+pnpm dev            # Vite UI on :5173, proxying /api to pnpm serve on :8080
 ```
 
 ## Milestones
@@ -578,6 +621,37 @@ count, null-rate rows kept with `gpPerHour = null`, the two `train` branches
 (no market → cost row; no liquidity → unpriced), and the artifact's coverage
 line reconciling against its own rows.
 
+### M15 — Overnight shop runs ✅
+A mode on `#/shop-to-ge`, its basket and the shop-run rows of `#/earn`: shop for a
+session, then leave the GE offers resting. See `docs/shop-mechanics.md` §13.
+- **The 4h window becomes a rest window** (`src/domain/overnight.ts`, default
+  12h): the unit cap is `floor(volume24h * restHours / 24)`, the same sourced
+  volume scaled, so a thin market still caps the run (2 trades/day → 1 unit). It
+  buys coverage, not rate: 1,705 priceable shop runs against 1,682 on the 4h
+  floor at the last refresh.
+- **The session is the player's own time** (`sessionSeconds`, default 60 min, 0 =
+  no limit): hops plus bank trips, with a partial world bought when it still fits.
+  The plan reports `buySeconds` and `sessionLimited`.
+- **The fill stays charged.** `timeSeconds = max(buySeconds, sellSeconds)`; the
+  capital is committed until the offers fill. Measured: a 500 gp item that trades
+  twice a day is 11.5k gp/hour with the fill charged and 49.5M gp/hour with it
+  free. A longer window must buy a bigger plan at the same rate, never a higher
+  one; `tests/budget.test.ts` pins that invariance.
+- **Only the shop-run family changes.** A shop dump and a recipe sell into the
+  market you are standing in. The window, session and mode travel in the URL
+  (`overnight=1&rest=12&session=60`).
+- **Unlimited buyers is the one opt-in fantasy, and it is labelled as such.** A
+  checkbox beside the rest window removes the cap entirely and charges no fill
+  time, on the player's stated assumption that the GE has infinite buyers. It
+  prices markets with no recent trades (the 24h volume is the only guard against
+  a stale price) and yields rates that cannot be repeated the same night, so the
+  hint, the caveats and the coverage line say both. It is never a default, and
+  the rest window is disabled while it is on.
+**Accept:** tests pin the window scaling and clamps, the session clock (including
+bank trips and the partial world), the fill-charged invariance, the thin-market
+coverage gain, the basket sharing the same clock, and the page's toggle, columns
+and deep link.
+
 ## Engineering conventions
 
 - Validate every external JSON shape with zod. Never `as`. Never `any`.
@@ -599,6 +673,12 @@ line reconciling against its own rows.
   not built yet, and `refresh-process.ts` keeps the strict rule.)
 - Every game-mechanic claim carries a URL citation, in code or in `docs/`.
 - Every price value is tagged with the timestamp it came from.
+- The UI never imports `data/*.json`. Pages read `payload(name)` after the shell
+  resolved `loadDataset(page)`; a page module is only imported in the ready
+  branch, so `payload()` can throw rather than return undefined and never does.
+- The server publishes only complete, parseable artifact sets, and only into a new
+  dataset directory: `runtime/datasets/<stamp>`, then a rename of `current`. A
+  request must never observe a half-written artifact or a mixed set.
 - Prices are `number` (gp). Max is well under `Number.MAX_SAFE_INTEGER`.
 - Sort comparisons must be total and deterministic; tests assert exact ordering.
 - Time assumptions (straight-line distance, movement speed, handover) are

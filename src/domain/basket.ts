@@ -16,9 +16,17 @@
  *    types each occupy one slot for the whole trip, leaving fewer slots for
  *    non-stackables. Bank trips are computed from the basket total, not per
  *    item. Stackable-only baskets never bank at all.
- *  - **GE sell time.** Each item has its own 4h throughput, and offers fill in
- *    parallel up to the player's GE slot count (members 8, free 3). Sell time is
- *    the makespan of scheduling each item's fill time on those slots.
+ *  - **GE sell time.** Each item has its own throughput over the window it was
+ *    capped from, and offers fill in parallel up to the player's GE slot count
+ *    (members 8, free 3). Sell time is the makespan of scheduling each item's
+ *    fill time on those slots.
+ *
+ * Overnight mode keeps all of that and changes the window: the per-item caps are
+ * taken from a rest window (e.g. 12h) rather than the 4h buy-limit window, and a
+ * session cap (`sessionSeconds`) stops the basket once another world visit and its
+ * shared bank loads would not fit. The fill is still charged as wall-clock time,
+ * because the capital stays tied up until the offers fill; see `planWithBudget` in
+ * `budget.ts` for the same model applied to one item.
  *
  * What is not shared/modelled: restock timers, travel to the shop, teleport
  * costs, competition for stock, and the player's attention. See README.
@@ -37,6 +45,7 @@ import { bankTripSeconds } from './bankTrip.js';
 import {
   DEFAULT_BANK_HANDOVER_SECONDS,
   DEFAULT_HOP_SECONDS,
+  DEFAULT_SELL_WINDOW_SECONDS,
   DEFAULT_MAX_WORLDS,
   DEFAULT_SECONDS_PER_TILE,
   DEFAULT_UNITS_PER_LOAD,
@@ -60,9 +69,6 @@ import {
  */
 export const GE_OFFER_SLOTS_MEMBERS = 8;
 export const GE_OFFER_SLOTS_FREE = 3;
-
-/** The GE buy limit and volume windows are 4 hours. */
-const SELL_WINDOW_SECONDS = 4 * 3600;
 
 export interface ShopBasketItem {
   /**
@@ -112,6 +118,19 @@ export interface BasketOptions {
    * 3 otherwise (the pessimistic free-to-play limit).
    */
   offerSlots?: number;
+  /**
+   * The market window each item's `maxUnits` was measured over, in seconds. The
+   * sell schedule is scaled to it, so an overnight basket passes a long rest
+   * window. Defaults to 4h.
+   */
+  sellWindowSeconds?: number;
+  /**
+  /**
+   * Longest shopping session, in seconds. A world visit whose hops and shared bank
+   * loads would overrun it is either shrunk to what fits or dropped. Undefined
+   * means no session limit.
+   */
+  sessionSeconds?: number;
 }
 
 export interface BasketItemPlan {
@@ -154,6 +173,11 @@ export interface ShopBasketPlan {
   worlds: number;
   /** Seconds spent hopping between worlds. */
   hopSecondsTotal: number;
+  /**
+   * Seconds spent buying in total: hops plus bank trips. In overnight mode this is
+   * `timeSeconds`, because the sell leg happens while the player is away.
+   */
+  buySeconds: number;
   /** Bank trips needed for the non-stackable part of the basket. */
   bankTrips: number;
   /** Seconds for one trip to this shop's bank. 0 when there is no bank. */
@@ -183,6 +207,8 @@ export interface ShopBasketPlan {
   budgetLimited: boolean;
   /** True when `maxWorlds` stopped the plan while another world was viable. */
   worldLimited: boolean;
+  /** True when the session clock, not gold, worlds or stock, ended the basket. */
+  sessionLimited: boolean;
   /** True when at least one item's next unit was no longer profitable. */
   marginLimited: boolean;
 }
@@ -482,11 +508,17 @@ function buyPartialWorld(states: ItemState[], budgetGp: number): PartialResult {
 function sellMakespan(
   items: readonly BasketItemPlan[],
   offerSlots: number,
+  sellWindowSeconds: number,
 ): number {
   const jobs = items
     .flatMap((item) => {
       if (item.units <= 0 || item.cap === null || item.cap <= 0) return [];
-      return [{ index: item.index, seconds: (item.units / item.cap) * SELL_WINDOW_SECONDS }];
+      return [
+        {
+          index: item.index,
+          seconds: (item.units / item.cap) * sellWindowSeconds,
+        },
+      ];
     })
     .sort((a, b) => b.seconds - a.seconds || a.index - b.index);
 
@@ -528,8 +560,20 @@ export function planShopBasket(
     ? GE_OFFER_SLOTS_MEMBERS
     : GE_OFFER_SLOTS_FREE;
   const offerSlots = positiveInteger(options.offerSlots, defaultOfferSlots);
+  const sellWindowSeconds = nonNegative(
+    options.sellWindowSeconds,
+    DEFAULT_SELL_WINDOW_SECONDS,
+  );
+  const sessionSeconds =
+    options.sessionSeconds !== undefined && Number.isFinite(options.sessionSeconds)
+      ? Math.max(0, options.sessionSeconds)
+      : null;
+  const bankSecondsPerTrip =
+    bankTiles === null
+      ? 0
+      : bankTripSeconds(bankTiles, secondsPerTile, handoverSeconds);
 
-  const states: ItemState[] = items.map((item, index) => {
+  let states: ItemState[] = items.map((item, index) => {
     const cap = capOf(item);
     const net = item.netSellPerUnit;
     const perWorldMax = item.row.infiniteStock
@@ -566,6 +610,7 @@ export function planShopBasket(
       avgCost: 0,
       worlds: 0,
       hopSecondsTotal: 0,
+      buySeconds: 0,
       bankTrips: 0,
       bankSecondsPerTrip: 0,
       bankSecondsTotal: 0,
@@ -579,6 +624,7 @@ export function planShopBasket(
       offerSlots,
       budgetLimited: false,
       worldLimited: false,
+      sessionLimited: false,
       marginLimited: false,
     };
   }
@@ -594,6 +640,84 @@ export function planShopBasket(
   let budgetLimited = false;
   let worldLimited = false;
   let marginLimited = false;
+  let sessionLimited = false;
+
+  /**
+   * The buying phase for a set of per-item unit totals: shared bank loads, the
+   * slots stackable types reserve, and the seconds that costs. Used for the final
+   * figures *and* for the session check, so the plan shown is the plan measured.
+   */
+  const buying = (
+    unitsPerItem: readonly number[],
+    worldCount: number,
+  ): {
+    stackableSlots: number;
+    nonStackableUnits: number;
+    unitsPerLoad: number;
+    bankTrips: number;
+    bankSecondsTotal: number;
+    buySeconds: number;
+  } => {
+    let stackableSlots = 0;
+    let nonStackableUnits = 0;
+    for (let i = 0; i < unitsPerItem.length; i += 1) {
+      const unitCount = unitsPerItem[i] ?? 0;
+      if (unitCount <= 0) continue;
+      if (states[i]?.stackable === true) stackableSlots += 1;
+      else nonStackableUnits += unitCount;
+    }
+    const unitsPerLoad = Math.max(1, baseUnitsPerLoad - stackableSlots);
+    // A full backpack you are about to sell needs no trip back to the shop.
+    const bankTrips =
+      nonStackableUnits <= unitsPerLoad
+        ? 0
+        : Math.ceil(nonStackableUnits / unitsPerLoad) - 1;
+    const bankSecondsTotal = bankTrips * bankSecondsPerTrip;
+    return {
+      stackableSlots,
+      nonStackableUnits,
+      unitsPerLoad,
+      bankTrips,
+      bankSecondsTotal,
+      buySeconds: worldCount * hopSeconds + bankSecondsTotal,
+    };
+  };
+
+  const fitsSession = (
+    unitsPerItem: readonly number[],
+    worldCount: number,
+  ): boolean =>
+    sessionSeconds === null ||
+    buying(unitsPerItem, worldCount).buySeconds <= sessionSeconds;
+
+  /**
+   * The most the session can hold, when a whole world does not fit.
+   *
+   * `buyPartialWorld` allocates by profit per coin and knows nothing about the
+   * clock, so the spend is binary-searched: more units never take less time, and
+   * every candidate is verified by the same rule the loop uses. Null when not even
+   * the cheapest affordable unit fits.
+   */
+  const partialWithinSession = (
+    budget: number,
+    worldCount: number,
+  ): ItemState[] | null => {
+    let low = 0;
+    let high = budget;
+    let best: ItemState[] | null = null;
+    while (high - low > 1) {
+      const mid = Math.floor((low + high) / 2);
+      const trial = states.map((state) => ({ ...state }));
+      const bought = buyPartialWorld(trial, mid);
+      if (bought.bought && fitsSession(trial.map((state) => state.taken), worldCount)) {
+        best = trial;
+        low = mid;
+      } else {
+        high = mid;
+      }
+    }
+    return best;
+  };
 
   while (true) {
     const remainingBudget = budgetGp - states.reduce((sum, s) => sum + s.totalCost, 0);
@@ -617,6 +741,19 @@ export function planShopBasket(
     if (remainingBudget >= fullCost) {
       // The budget covers every profitable unit in a fresh world. No allocation
       // choice is needed, so buy the world whole.
+      const proposed = states.map(
+        (state, i) => state.taken + (plans[i]?.units ?? 0),
+      );
+      if (!fitsSession(proposed, worlds + 1)) {
+        // The whole world overruns the session; buy what fits and stop.
+        const shrunk = partialWithinSession(remainingBudget, worlds + 1);
+        if (shrunk !== null) {
+          states = shrunk;
+          worlds += 1;
+        }
+        sessionLimited = true;
+        break;
+      }
       for (let i = 0; i < states.length; i += 1) {
         const state = states[i];
         const plan = plans[i];
@@ -629,12 +766,23 @@ export function planShopBasket(
       continue;
     }
 
-    const partial = buyPartialWorld(states, remainingBudget);
+    const trial = states.map((state) => ({ ...state }));
+    const partial = buyPartialWorld(trial, remainingBudget);
     if (!partial.bought) {
       // Even the cheapest profitable unit is unaffordable.
       budgetLimited = true;
       break;
     }
+    if (!fitsSession(trial.map((state) => state.taken), worlds + 1)) {
+      const shrunk = partialWithinSession(remainingBudget, worlds + 1);
+      if (shrunk !== null) {
+        states = shrunk;
+        worlds += 1;
+      }
+      sessionLimited = true;
+      break;
+    }
+    states = trial;
     worlds += 1;
     budgetLimited = true;
     // Loop again: if the leftover can still buy a fresh world's first unit, the
@@ -663,29 +811,23 @@ export function planShopBasket(
 
   // Each distinct stackable item type holds one slot for the whole trip. The
   // remaining slots carry non-stackable units, 27 of which fit when coins take
-  // the 28th. Unknown stackability is charged as non-stackable.
-  const stackableSlots = itemPlans.filter(
-    (item) => item.units > 0 && item.stackable === true,
-  ).length;
-  const nonStackableUnits = itemPlans.reduce(
-    (sum, item) => sum + (item.stackable === true ? 0 : item.units),
-    0,
+  // the 28th. Unknown stackability is charged as non-stackable. The banking
+  // half of the plan comes from `buying`, the same function the session clock
+  // was measured with, so the printed number and the planned one agree.
+  const phase = buying(
+    itemPlans.map((item) => item.units),
+    worlds,
   );
-  const unitsPerLoad = Math.max(1, baseUnitsPerLoad - stackableSlots);
-  const bankTrips =
-    nonStackableUnits <= unitsPerLoad
-      ? 0
-      : Math.ceil(nonStackableUnits / unitsPerLoad) - 1;
-  const bankSecondsPerTrip =
-    bankTiles === null
-      ? 0
-      : bankTripSeconds(bankTiles, secondsPerTile, handoverSeconds);
-  const bankSecondsTotal = bankTrips * bankSecondsPerTrip;
+  const { stackableSlots, nonStackableUnits, unitsPerLoad, bankTrips } = phase;
+  const bankSecondsTotal = phase.bankSecondsTotal;
   const bankTimeKnown = bankTrips === 0 || bankTiles !== null;
 
   const hopSecondsTotal = worlds * hopSeconds;
-  const sellSeconds = sellMakespan(itemPlans, offerSlots);
-  const timeSeconds = Math.max(hopSecondsTotal + bankSecondsTotal, sellSeconds);
+  const buySeconds = phase.buySeconds;
+  const sellSeconds = sellMakespan(itemPlans, offerSlots, sellWindowSeconds);
+  // Buying is the player's own time; selling is the GE's throughput, which the
+  // capital is committed for even when the offers rest overnight.
+  const timeSeconds = Math.max(buySeconds, sellSeconds);
 
   let gpPerHour: number | null;
   if (totalUnits <= 0) {
@@ -705,6 +847,7 @@ export function planShopBasket(
     avgCost: totalUnits > 0 ? totalCost / totalUnits : 0,
     worlds,
     hopSecondsTotal,
+    buySeconds,
     bankTrips,
     bankSecondsPerTrip,
     bankSecondsTotal,
@@ -718,6 +861,7 @@ export function planShopBasket(
     offerSlots,
     budgetLimited,
     worldLimited,
+    sessionLimited,
     marginLimited,
   };
 }

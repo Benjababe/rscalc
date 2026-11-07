@@ -200,6 +200,31 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* the server published a newer dataset than the one this tab loaded */
+.dataset-banner {
+  align-items: center;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-edge);
+  border-radius: 8px;
+  color: var(--accent-text);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin: 12px auto 0;
+  max-width: 1100px;
+  padding: 8px 12px;
+}
+
+/* a data-loading failure: the message, not just the headline */
+.error-detail {
+  color: var(--dim);
+  font-size: 12px;
+  margin: 6px 0 12px;
+  max-width: 70ch;
+  overflow-wrap: anywhere;
+}
+
 /* the snapshot is old enough that the numbers may have moved */
 .stale-flag {
   background: var(--accent-soft);

@@ -1,9 +1,15 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import type { ComponentType } from "react";
 
 import { ThemeToggle } from "./ThemeToggle";
 import { useTheme } from "./theme";
 
+import {
+  PAGE_ARTIFACTS,
+  artifactsLoaded,
+  datasetIsStale,
+  loadDataset,
+} from "./dataset";
 import {
   DEFAULT_PAGE,
   PAGE_LABELS,
@@ -46,6 +52,86 @@ const PAGE_COMPONENTS: Record<Page, ComponentType> = {
   skilling: SkillingPage,
 };
 
+/** How often a long-lived tab asks whether the server published a new dataset. */
+const STALE_POLL_MS = 5 * 60 * 1000;
+
+type DataState =
+  | { status: "loading" }
+  | { status: "ready" }
+  | { status: "error"; message: string };
+
+/**
+ * Load the artifacts this page needs.
+ *
+ * The page component is only rendered in the `ready` branch, which is what makes
+ * the module-scope-free `payload()` reads inside the pages safe: a page module is
+ * imported after its data is in memory, never before.
+ */
+function usePageData(page: Page): { state: DataState; retry: () => void } {
+  const [attempt, setAttempt] = useState(0);
+  const [state, setState] = useState<DataState>(() =>
+    artifactsLoaded(PAGE_ARTIFACTS[page]) ? { status: "ready" } : { status: "loading" },
+  );
+
+  useEffect(() => {
+    if (artifactsLoaded(PAGE_ARTIFACTS[page])) {
+      setState({ status: "ready" });
+      return;
+    }
+    let cancelled = false;
+    setState({ status: "loading" });
+    loadDataset(PAGE_ARTIFACTS[page]).then(
+      () => {
+        if (!cancelled) setState({ status: "ready" });
+      },
+      (cause: unknown) => {
+        if (cancelled) return;
+        setState({
+          status: "error",
+          message: cause instanceof Error ? cause.message : String(cause),
+        });
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [page, attempt]);
+
+  const retry = useCallback(() => {
+    setAttempt((value) => value + 1);
+  }, []);
+  return { state, retry };
+}
+
+/**
+ * The dataset newer than the one on screen, if any.
+ *
+ * A four-hourly refresh is invisible to a tab that loaded before it, so the shell
+ * asks the (tiny, `no-store`) manifest every few minutes and offers a reload. It
+ * never swaps the data underneath a rendered table: the numbers a player is
+ * reading stay consistent until they choose to reload.
+ */
+function useNewerDataset(): string | null {
+  const [published, setPublished] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const check = (): void => {
+      if (document.visibilityState === "hidden") return;
+      void datasetIsStale().then((dataset) => {
+        if (!cancelled && dataset !== null) setPublished(dataset);
+      });
+    };
+    const timer = setInterval(check, STALE_POLL_MS);
+    window.addEventListener("focus", check);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      window.removeEventListener("focus", check);
+    };
+  }, []);
+  return published;
+}
+
 function CurrentPage({ page }: { page: Page }): JSX.Element {
   const Component = PAGE_COMPONENTS[page];
   return <Component />;
@@ -61,6 +147,8 @@ export function App(): JSX.Element {
   const [page, setPage] = useState<Page>(() =>
     typeof window === "undefined" ? DEFAULT_PAGE : parsePageHash(window.location.hash),
   );
+  const data = usePageData(page);
+  const newerDataset = useNewerDataset();
 
   useEffect(() => {
     const sync = (): void => setPage(parsePageHash(window.location.hash));
@@ -83,8 +171,8 @@ export function App(): JSX.Element {
             A gp-earning calculator for Old School RuneScape: shop runs, Grand
             Exchange flips and deterministic processing, priced from the
             Wiki&apos;s real-time API and ranked by gp per hour at your own
-            gold. Every number is a static snapshot, so the site makes no
-            external API calls.
+            gold. This server re-derives the tables every four hours; the
+            browser calls nothing but this site.
           </p>
         </div>
         <div className="header-actions">
@@ -106,23 +194,56 @@ export function App(): JSX.Element {
         </div>
       </header>
 
-      <Suspense
-        fallback={
-          <div className="page">
-            <p className="empty" role="status">
-              Loading calculator…
+      {newerDataset !== null && (
+        <div className="dataset-banner" role="status">
+          <span>New prices are published on the server.</span>
+          <button type="button" className="chip-clear" onClick={() => window.location.reload()}>
+            Reload
+          </button>
+        </div>
+      )}
+
+      {data.state.status === "loading" && (
+        <div className="page">
+          <p className="empty" role="status">
+            Loading prices…
+          </p>
+        </div>
+      )}
+
+      {data.state.status === "error" && (
+        <div className="page">
+          <div className="empty" role="alert">
+            <p>
+              <strong>Could not load the price data.</strong>
             </p>
+            <p className="error-detail">{data.state.message}</p>
+            <button type="button" className="chip-clear" onClick={data.retry}>
+              Try again
+            </button>
           </div>
-        }
-      >
-        <CurrentPage page={page} />
-      </Suspense>
+        </div>
+      )}
+
+      {data.state.status === "ready" && (
+        <Suspense
+          fallback={
+            <div className="page">
+              <p className="empty" role="status">
+                Loading calculator…
+              </p>
+            </div>
+          }
+        >
+          <CurrentPage page={page} />
+        </Suspense>
+      )}
 
       <footer className="footer">
         <p className="attribution">
           Item names and icons © Jagex. Wiki data CC BY-SA. Recipe data from the
-          OSRS Wiki. Geo data from the OSRS Wiki map. The snapshots are static;
-          no external API calls.
+          OSRS Wiki. Geo data from the OSRS Wiki map. Snapshots are rebuilt on
+          the server every four hours; the browser calls nothing but this site.
         </p>
       </footer>
     </div>

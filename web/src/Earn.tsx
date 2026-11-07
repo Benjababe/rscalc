@@ -34,8 +34,8 @@ import type {
   SkillingPayload,
 } from "../../src/types";
 import { wikiUrl } from "../../src/util/wiki";
-import { ACCESS_MAP } from "./access";
-import { BudgetPanel, TravelFields } from "./BudgetPanel";
+import { accessMap } from "./access";
+import { BudgetPanel, OvernightFields, TravelFields } from "./BudgetPanel";
 import { FilterCheck, FilterToolbar } from "./FilterToolbar";
 import { formatDuration, formatGp } from "./format";
 import { matchesQuery, normaliseQuery } from "./matching";
@@ -46,14 +46,16 @@ import {
   pickOne,
   useShareableView,
 } from "./viewState";
-import { useBudgetSettings, useTravelSettings } from "./settings";import { sortByMeasure, useSort } from "./sorting";
+import {
+  useBudgetSettings,
+  useOvernightSettings,
+  useTravelSettings,
+} from "./settings";
+import { sortByMeasure, useSort } from "./sorting";
 import { DataTable, type DataColumn } from "./DataTable";
 import { Stat } from "./ui";
 
-import opportunitiesPayload from "../../data/opportunities.json";
-import sinksPayload from "../../data/shop-sinks.json";
-import processPayload from "../../data/process.json";
-import skillingPayload from "../../data/skilling.json";
+import { payload } from "./dataset";
 
 interface OpportunitiesData {
   generatedAt: string;
@@ -68,32 +70,13 @@ interface SinksData {
 }
 
 /**
- * All three artifacts are static snapshots built by `scripts/`. There is no
- * network call in this component, by design.
- */
-const OPPORTUNITIES = opportunitiesPayload as unknown as OpportunitiesData;
-const SINKS = sinksPayload as unknown as SinksData;
-const PROCESS = processPayload as unknown as ProcessPayload;
-
-/**
- * SAFETY: the artifact is written by `scripts/refresh-skilling.ts`, which refuses
- * to write a payload that fails `SkillingPayloadSchema` (zod), so the shape here is
- * the one that schema validated. Typed with `SkillingPayload` — the schema's own
- * inferred type — rather than a hand-written interface: a local interface is
- * exactly how this cast went wrong the first time, declaring `pessimistic` and
- * `patient` at the top level when the artifact nests them per skill. Nothing read
- * those fields, so the lie compiled.
- */
-const SKILLING = skillingPayload as unknown as SkillingPayload;
-
-/**
  * Flatten the per-skill artifact into one list for the leaderboard, carrying the
  * skill each row was scanned under (a few recipes are reachable from more than
  * one skill, so the recipe id alone is not an identity).
  */
-function skillingRows(mode: SellMode): SkillActivityRow[] {
+function skillingRows(skilling: SkillingPayload, mode: SellMode): SkillActivityRow[] {
   const rows: SkillActivityRow[] = [];
-  for (const catalog of SKILLING.skills) {
+  for (const catalog of skilling.skills) {
     const ranking =
       mode === "pessimistic" ? catalog.pessimistic : catalog.patient;
     for (const activity of ranking.opportunities) {
@@ -276,6 +259,18 @@ function makeColumns(mode: SellMode): readonly DataColumn<EarnMethod>[] {
 }
 
 export function EarnPage(): JSX.Element {
+  // Published by the server and fetched by the shell before this module renders:
+  // `App` gates every page on `loadDataset`, so these are present by now.
+  const OPPORTUNITIES = payload("opportunities") as OpportunitiesData;
+  const SINKS = payload("shop-sinks") as SinksData;
+  const PROCESS = payload("process") as ProcessPayload;
+  // SAFETY: `data/skilling.json` is written by `scripts/refresh-skilling.ts`, which
+  // refuses a payload that fails `SkillingPayloadSchema` (zod). Typed with the
+  // schema's own inferred type rather than a local interface: a local interface is
+  // exactly how this cast went wrong the first time, declaring `pessimistic` and
+  // `patient` at the top level when the artifact nests them per skill.
+  const SKILLING = payload("skilling") as SkillingPayload;
+
   // A shared link carries the view; gold and travel assumptions stay in the
   // same storage the detail pages use, so the numbers agree across pages.
   const [shared] = useState(() => currentViewState());
@@ -297,6 +292,16 @@ export function EarnPage(): JSX.Element {
     secondsPerTile,
     setSecondsPerTile,
   } = useTravelSettings();
+  const {
+    overnight,
+    setOvernight,
+    restWindowHours,
+    setRestWindowHours,
+    sessionMinutes,
+    setSessionMinutes,
+    unlimitedBuyers,
+    setUnlimitedBuyers,
+  } = useOvernightSettings(shared);
   const { sortKey, descending, toggle: toggleSort } = useSort<SortKey>(
     pickOne(shared.sort, SORT_KEYS, "gpPerHour"),
     shared.desc ?? true,
@@ -315,6 +320,10 @@ export function EarnPage(): JSX.Element {
     members: membersOnly,
     hideLocked,
     kind,
+    overnight,
+    restHours: restWindowHours,
+    sessionMinutes,
+    unlimited: unlimitedBuyers,
   });
 
   /** Every method, sized to the current gold and travel assumptions. */
@@ -325,11 +334,43 @@ export function EarnPage(): JSX.Element {
           shopRuns: OPPORTUNITIES[mode].opportunities,
           shopDumps: SINKS[mode].opportunities,
           recipes: PROCESS[mode].opportunities,
-          skilling: skillingRows(mode),
+          skilling: skillingRows(SKILLING, mode),
         },
-        { goldGp: gold, hopSeconds, maxWorlds, secondsPerTile, access: ACCESS_MAP },
+        {
+          goldGp: gold,
+          hopSeconds,
+          maxWorlds,
+          secondsPerTile,
+          access: accessMap(),
+          ...(overnight
+            ? {
+                overnight: {
+                  restWindowHours,
+                  sessionMinutes,
+                  unlimitedBuyers,
+                },
+              }
+            : {}),
+        },
       ),
-    [mode, gold, hopSeconds, maxWorlds, secondsPerTile],
+    // The four payload objects come from the loaded dataset and keep their
+    // identity across renders, so listing them costs nothing and stops the table
+    // from re-planning against a payload the deps array cannot see.
+    [
+      mode,
+      gold,
+      hopSeconds,
+      maxWorlds,
+      secondsPerTile,
+      overnight,
+      restWindowHours,
+      sessionMinutes,
+      unlimitedBuyers,
+      OPPORTUNITIES,
+      SINKS,
+      PROCESS,
+      SKILLING,
+    ],
   );
 
   const rows = useMemo<EarnMethod[]>(() => {
@@ -463,6 +504,30 @@ export function EarnPage(): JSX.Element {
               default stock on each world, <strong>{secondsPerTile}s</strong>{" "}
               per tile and up to <strong>{maxWorlds} worlds</strong>; processing
               uses each recipe&apos;s published action rate.
+              {overnight ? (
+                <>
+                  {" "}
+                  <strong>Overnight</strong> changes only the shop runs: they buy
+                  for up to{" "}
+                  <strong>
+                    {sessionMinutes > 0 ? `${sessionMinutes} min` : "no limit"}
+                  </strong>{" "}
+                  and{" "}
+                  {unlimitedBuyers ? (
+                    <>
+                      assume <strong>unlimited GE buyers</strong> — no buy limit
+                      and no volume cap, so no fill time is charged and the rate
+                      is a one-off rather than repeatable.
+                    </>
+                  ) : (
+                    <>
+                      sell into a <strong>{restWindowHours}h</strong> rest window
+                      instead of the 4h slice, so the cap is what a night
+                      absorbs.
+                    </>
+                  )}
+                </>
+              ) : null}
             </>
           ) : (
             <>
@@ -481,6 +546,17 @@ export function EarnPage(): JSX.Element {
           onMaxWorlds={setMaxWorlds}
           secondsPerTile={secondsPerTile}
           onSecondsPerTile={setSecondsPerTile}
+        />
+
+        <OvernightFields
+          overnight={overnight}
+          onOvernight={setOvernight}
+          restWindowHours={restWindowHours}
+          onRestWindowHours={setRestWindowHours}
+          sessionMinutes={sessionMinutes}
+          onSessionMinutes={setSessionMinutes}
+          unlimitedBuyers={unlimitedBuyers}
+          onUnlimitedBuyers={setUnlimitedBuyers}
         />
       </BudgetPanel>
 
@@ -565,6 +641,25 @@ export function EarnPage(): JSX.Element {
             one GE round trip plus one hop per world, no tax on either leg.{" "}
             <strong>Processing</strong> uses the recipe&apos;s published action
             rate against a 4h market window, with the tax on the output.
+          </p>
+          <p>
+            <strong>Overnight shop runs</strong> (the toggle in the budget card)
+            replace the GE&apos;s 4h window with a rest window you choose: the
+            units a run may buy become what the 24h traded volume absorbs in
+            that window, floored to whole units, so a thin market still caps the
+            run, and buying stops once the session you set is spent on hops and
+            banking. The fill is still counted in the plan&apos;s time, because
+            the capital is committed until the offers fill. A longer window
+            therefore buys a bigger plan at the same rate — it does not
+            manufacture a higher one. A rest window is not a promise: if the
+            market does not trade through your offer, nothing fills and the
+            capital stays tied up.{" "}
+            <strong>Unlimited buyers</strong> is the switch that turns both
+            guards off: the rest window stops capping the run and no fill time is
+            charged, so gp / hour becomes your shopping time alone. That prices
+            items whose last trade may be days old, and it produces rates that
+            cannot be repeated the same night — compare those rows with each
+            other, not with the rest of the leaderboard.
           </p>
           <p>
             <strong>Capital</strong> is the money the plan ties up, not a

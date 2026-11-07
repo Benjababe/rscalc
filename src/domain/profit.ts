@@ -123,6 +123,7 @@ export function evaluate(
     delta: row.delta,
 
     geBuyLimit: quote.limit,
+    volume24h: volume24hForMode(quote, options.mode),
     volume4h,
     sellablePer4h,
     gpPer4h,

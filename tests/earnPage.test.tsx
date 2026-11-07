@@ -9,7 +9,7 @@
  * `tests/earnings.test.ts`.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   cleanup,
   fireEvent,
@@ -20,6 +20,8 @@ import {
 } from '@testing-library/react';
 
 import { EarnPage } from '../web/src/Earn.js';
+import { PAGE_ARTIFACTS, loadDataset, resetDataset } from '../web/src/dataset.js';
+import { stubDatasetFetch } from './support/datasetFetch.js';
 
 function rows(): HTMLElement[] {
   return [...document.querySelectorAll('tbody tr')] as HTMLElement[];
@@ -50,13 +52,18 @@ function hourlyRates(): number[] {
   });
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   window.localStorage.clear();
   window.history.replaceState(null, '', '/');
+  // The page fetches its artifacts from the server now; answer from data/*.json.
+  stubDatasetFetch();
+  await loadDataset(PAGE_ARTIFACTS['earn']);
 });
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
+  resetDataset();
 });
 
 describe('Earn page', () => {
@@ -86,6 +93,34 @@ describe('Earn page', () => {
         kind,
       );
     }
+  });
+
+  it('re-plans the shop runs when Overnight is on, and says so', async () => {
+    render(<EarnPage />);
+    await waitFor(() => expect(rows().length).toBe(100));
+
+    const hintBefore = document.querySelector('.budget .hint')?.textContent ?? '';
+    expect(hintBefore).not.toContain('Overnight');
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Overnight' }));
+
+    await waitFor(() =>
+      expect(
+        document.querySelector('.budget .hint')?.textContent ?? '',
+      ).toContain('Overnight'),
+    );
+    // The session and rest window are stated, not implied.
+    const hint = document.querySelector('.budget .hint')?.textContent ?? '';
+    expect(hint).toContain('60 min');
+    expect(hint).toContain('12h');
+    // The leaderboard still renders, and stays sorted by gp/hour.
+    expect(rows().length).toBe(100);
+    const rates = hourlyRates();
+    for (let i = 1; i < rates.length; i += 1) {
+      expect(rates[i]).toBeLessThanOrEqual(rates[i - 1] ?? 0);
+    }
+    // The other families are untouched: a processing row is still present.
+    expect(kindBadges()).toContain('Processing');
   });
 
   it('narrows to one method family', async () => {
