@@ -164,6 +164,19 @@ journalctl -u rscalc.service -f
 `Restart=on-failure` with a 15 s delay covers a crash; a *failed refresh* is not a
 crash, so it is recorded in `/api/status` and the previous dataset keeps serving.
 
+Running the server with npm instead of pnpm? Every script supports both, so the
+only change is the unit's command:
+
+```ini
+ExecStart=/usr/bin/env npm start
+```
+
+The refresh chain inside it is manager-agnostic (it composes through `npm run`).
+Dependency installs are the exception: `pnpm install --frozen-lockfile` is what
+pins versions, and `pnpm-lock.yaml` is the lockfile of record — `npm install` has
+nothing to freeze against, so prefer pnpm for that one step even if npm runs the
+service.
+
 ## Docker
 
 ```sh

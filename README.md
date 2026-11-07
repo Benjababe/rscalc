@@ -75,6 +75,13 @@ setting, the systemd unit and the Docker image.
 For UI work: `RSCALC_REFRESH=off RSCALC_CONTACT=x pnpm serve` in one terminal and
 `pnpm dev` in another — Vite proxies `/api` to the server.
 
+Every script also runs under **npm**: `npm start` (the server), `npm run refresh`,
+`npm run build`, `npm run report`. Composed scripts (`refresh`, `build:data`) are
+written as `npm run <task>` chains so either manager can drive them, and npm needs
+`--` before flags: `npm run report -- --write` where pnpm accepts
+`pnpm report --write`. Installs remain pnpm-only: `pnpm-lock.yaml` is the lockfile
+of record, so a stray `package-lock.json` is gitignored rather than half-supported.
+
 ### Commands
 
 | Command | What it does |
@@ -92,7 +99,8 @@ For UI work: `RSCALC_REFRESH=off RSCALC_CONTACT=x pnpm serve` in one terminal an
 | `pnpm sinks` | GE → shop ranking in the terminal |
 | `pnpm sinks --write` | emit `data/shop-sinks.json` for the UI |
 | `pnpm process` | processing ranking + `data/process.json` |
-| `pnpm serve` | server: SPA + dataset API + 4-hourly refresh |
+| `pnpm serve` / `npm start` | server: SPA + dataset API + 4-hourly refresh |
+| `npm run <task>` | any task above, for npm users (`npm run refresh`) |
 | `pnpm dev` / `pnpm build` | web UI (dev server proxies `/api` to `pnpm serve`) |
 | `pnpm test` / `pnpm typecheck` | unit, render and server tests / `tsc --noEmit` |
 | `pnpm lint` / `pnpm lint:fix` | ESLint, type-aware; `--fix` applies safe autofixes |

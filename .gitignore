@@ -7,3 +7,5 @@ web/dist/
 .env.local
 .DS_Store
 runtime/
+# pnpm-lock.yaml is the lockfile of record; the scripts run under npm, the installs do not
+package-lock.json

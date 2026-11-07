@@ -242,6 +242,11 @@ pnpm serve          # Express server: SPA + dataset API + the 4h refresh loop
 pnpm dev            # Vite UI on :5173, proxying /api to pnpm serve on :8080
 ```
 
+Every script above also runs under npm (`npm start`, `npm run refresh`); composed
+scripts chain `npm run <task>` so either manager works, and npm flags need
+`--` (`npm run report -- --write`). Installs stay pnpm-only: `pnpm-lock.yaml` is
+the lockfile of record and `package-lock.json` is gitignored.
+
 ## Milestones
 
 ### M0 — Scaffold ✅
