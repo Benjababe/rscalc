@@ -14,8 +14,20 @@ import type { z } from 'zod';
  *
  * The parse is inside `try` so a corrupt artifact cannot escape as an
  * unhandled `SyntaxError`.
+ *
+ * The signature derives the result from the schema (`z.output<S>`) rather than
+ * inferring a free `T` from it. Both read the same, but only this form fails
+ * safely: if `zod` does not resolve on a machine (a stale or missing
+ * `node_modules`), the schema argument becomes an error type, `z.ZodType<T>`
+ * cannot infer `T`, and every caller silently receives `unknown` — a wall of
+ * "is of type 'unknown'" errors far from the real cause. With a lookup instead of
+ * reverse inference, the same breakage produces one error in this file instead of
+ * one per call site.
  */
-export async function readJsonFile<T>(path: string, schema: z.ZodType<T>): Promise<T> {
+export async function readJsonFile<S extends z.ZodTypeAny>(
+  path: string,
+  schema: S,
+): Promise<z.output<S>> {
   let raw: string;
   try {
     raw = await readFile(path, 'utf8');
@@ -43,5 +55,8 @@ export async function readJsonFile<T>(path: string, schema: z.ZodType<T>): Promi
     );
   }
 
-  return result.data;
+  // SAFETY: `safeParse` is reached through `ZodTypeAny`, whose Output is `any`, so
+  // the success branch has to be narrowed back to the schema's own output type.
+  // The guarantee is zod's own: `success` means the value matched the schema.
+  return result.data as z.output<S>;
 }
