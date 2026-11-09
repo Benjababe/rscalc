@@ -8,9 +8,10 @@ redeploying. It is now one Node process (`pnpm serve`) that does two things:
 
 1. **Serves** the built SPA *and* the published dataset over HTTP. The browser
    fetches current prices, so a refresh reaches an open tab without a rebuild.
-2. **Refreshes** every four hours: it runs the pipeline (`pnpm refresh`), which
-   re-derives every table from the wiki and price APIs, then publishes the result
-   as an atomic dataset.
+2. **Refreshes** every four hours **on the hour** — 00:00, 04:00, 08:00, 12:00,
+   16:00 and 20:00 in the server's timezone: it runs the pipeline (`pnpm refresh`),
+   which re-derives every table from the wiki and price APIs, then publishes the
+   result as an atomic dataset.
 
 It computes no numbers itself. `src/` + `scripts/` keep the maths, the zod
 schemas and the 1 request/second budget, exactly as before; the server schedules
@@ -71,6 +72,21 @@ EOF
 pnpm serve
 ```
 
+### The schedule
+
+The ticks are wall-clock marks, not "one interval after the last run finished",
+so they never drift: with the default `RSCALC_REFRESH_INTERVAL=4h` the pipeline
+starts at **00:00, 04:00, 08:00, 12:00, 16:00 and 20:00** in the server's own
+timezone, and the marks stay put when a run takes 40 minutes (an overrun skips
+the mark it missed rather than firing twice). `nextRunAt` on `/api/status` answers
+when the next one is.
+
+The timezone is the process's `TZ`. A systemd host uses the host clock; a
+container defaults to **UTC**, so set `TZ=Europe/Berlin` (or whatever) in
+`docker run -e` if the marks should follow local midnight rather than UTC
+midnight. An interval that does not divide a day (say `5h`) keeps midnight as its
+zero point and may land at 01:00 the next day.
+
 ### Refreshing on boot
 
 The unit starts at boot (`WantedBy=multi-user.target`), and the server decides on
@@ -130,7 +146,7 @@ and serves the last published dataset forever.
 | `RSCALC_DATA_DIR` | `<repo>/data` | where the pipeline writes artifacts |
 | `RSCALC_WEB_DIR` | `<repo>/web/dist` | the built SPA |
 | `RSCALC_RUNTIME_DIR` | `<repo>/runtime` | published datasets |
-| `RSCALC_REFRESH_INTERVAL` | `4h` | `4h`, `30m`, `90s`, `1d`, or bare seconds |
+| `RSCALC_REFRESH_INTERVAL` | `4h` | `4h`, `30m`, `90s`, `1d`, or bare seconds; ticks land on the wall-clock marks of that interval (4h → 00:00, 04:00, …) |
 | `RSCALC_REFRESH_TIMEOUT` | `1h` | kills a hung pipeline (SIGKILL) |
 | `RSCALC_REFRESH` | `on` | `off` serves the last dataset and never runs the pipeline |
 | `RSCALC_REFRESH_ON_BOOT` | `auto` | `auto` (stale only), `always`, `never` |

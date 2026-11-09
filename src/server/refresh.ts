@@ -8,6 +8,12 @@
  * TypeScript pipeline stays the single source of truth for the numbers, its zod
  * schemas and its 1 request/second budget.
  *
+ * The ticks are wall-clock marks, not "four hours after the last one finished":
+ * a 4-hour interval runs at 00:00, 04:00, 08:00, 12:00, 16:00 and 20:00 in the
+ * server's own timezone (`TZ`), so a dataset is refreshed just after each round
+ * hour and never drifts later minute by minute. A run that overruns a mark skips
+ * it rather than firing twice, and the next mark still holds.
+ *
  * Three properties matter more than the schedule:
  *
  *  - **one at a time.** The pipeline writes `data/*.json` in place and the HTTP
@@ -182,14 +188,28 @@ export class Refresher {
     }
   }
 
-  /** Schedule the next run `interval` after this one finished (no drift stacking). */
+  /**
+   * Schedule the next run at the next wall-clock mark (no drift stacking).
+   *
+   * Scheduling happens after the run settles, so a pipeline that overruns its
+   * mark simply picks up the following one: the marks stay fixed even when a
+   * refresh takes 40 minutes.
+   */
   private scheduleNext(): void {
     if (this.stopped || !this.config.refreshEnabled) return;
-    this.nextRunAt = this.now() + this.config.refreshIntervalMs;
+    // Only one armed tick: a boot refresh that finishes before the mark armed by
+    // `start` must replace that timer, not run beside it.
+    if (this.timer !== null) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+    const now = this.now();
+    const runAt = nextAlignedRun(now, this.config.refreshIntervalMs);
+    this.nextRunAt = runAt;
     this.timer = setTimeout(() => {
       this.timer = null;
       this.triggerSafely();
-    }, this.config.refreshIntervalMs);
+    }, runAt - now);
     // Do not keep the event loop alive for a scheduled refresh; the HTTP server
     // owns the process lifetime.
     this.timer.unref();
@@ -330,6 +350,42 @@ export class Refresher {
         return;
     }
   }
+}
+
+const HOUR_MS = 60 * 60 * 1000;
+const MINUTE_MS = 60 * 1000;
+
+/**
+ * The next wall-clock mark for an interval, in the server's local timezone.
+ *
+ * A 4-hour interval yields 00:00, 04:00, 08:00, 12:00, 16:00, 20:00, then
+ * 00:00 again; a 30-minute interval yields :00 and :30 of every hour. The mark
+ * is always strictly after `nowMs`, so a tick that lands exactly on a mark (or
+ * a pipeline that finished on one) waits for the next rather than firing twice.
+ *
+ * The arithmetic is on the local wall clock, not on elapsed milliseconds, so a
+ * daylight-saving shift cannot move a 04:00 mark to 03:00 or 05:00. An interval
+ * that does not divide a day (say 5h) keeps the same zero point — local midnight
+ * — and can land past it, at 01:00 the next day.
+ *
+ * If a clock jump ever makes the computed mark past (`nowMs` moved backwards, an
+ * interval longer than a day), the caller gets one interval from now instead of
+ * a time in the past, so the schedule cannot stall.
+ */
+export function nextAlignedRun(nowMs: number, intervalMs: number): number {
+  if (!Number.isFinite(intervalMs) || intervalMs <= 0) {
+    throw new Error(`refresh interval must be a positive number of ms, got ${String(intervalMs)}`);
+  }
+  const now = new Date(nowMs);
+  const elapsedToday =
+    now.getHours() * HOUR_MS + now.getMinutes() * MINUTE_MS + now.getSeconds() * 1000 + now.getMilliseconds();
+  const mark = Math.floor(elapsedToday / intervalMs) + 1;
+  // Local midnight, then wall-clock ms into the day: Date setters resolve each
+  // field in local time, so the offset in force at that wall time is applied.
+  const candidate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  candidate.setMilliseconds(mark * intervalMs);
+  const at = candidate.getTime();
+  return at > nowMs ? at : nowMs + intervalMs;
 }
 
 function formatDuration(ms: number): string {

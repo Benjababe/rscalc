@@ -143,12 +143,23 @@ describe("Refresher", () => {
     expect(() => refresher.trigger()).toThrow(/disabled/);
   });
 
-  it("schedules the next run only after the current one settles", async () => {
+  it("schedules the next run on the following 4-hour mark only after the current one settles", async () => {
     const refresher = await refresherWith("ok");
     refresher.trigger();
     await waitForSettled(refresher);
-    expect(refresher.status().nextRunAt).not.toBeNull();
-    expect(refresher.status().intervalSeconds).toBe(4 * 60 * 60);
+
+    const status = refresher.status();
+    expect(status.nextRunAt).not.toBeNull();
+    expect(status.intervalSeconds).toBe(4 * 60 * 60);
+
+    // A wall-clock mark in the server's timezone: 00:00, 04:00, 08:00, ...
+    const next = new Date(status.nextRunAt as string);
+    expect(next.getHours() % 4).toBe(0);
+    expect(next.getMinutes()).toBe(0);
+    expect(next.getSeconds()).toBe(0);
+    expect(next.getMilliseconds()).toBe(0);
+    expect(next.getTime()).toBeGreaterThan(Date.now());
+    expect(next.getTime()).toBeLessThanOrEqual(Date.now() + 4 * 60 * 60 * 1000);
   });
 });
 

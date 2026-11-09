@@ -70,6 +70,9 @@ async function main(): Promise<void> {
       repoDir: config.repoDir,
       refresh: config.refreshEnabled,
       intervalSeconds: Math.round(config.refreshIntervalMs / 1000),
+      // The schedule is wall-clock aligned, so the operator can see in the log
+      // which mark the first tick will land on (in this process's timezone).
+      nextRefreshAt: refresher.status().nextRunAt ?? undefined,
       bootPolicy: config.bootPolicy,
     });
   };

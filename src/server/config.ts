@@ -31,6 +31,11 @@ export interface ServerConfig {
    * only code. Set it if the box also builds the UI and you want those logs too.
    */
   buildCommand: string;
+  /**
+   * The refresh cadence. The scheduler ticks on this interval's wall-clock marks
+   * (4h => 00:00, 04:00, ... in the server's timezone), not one interval after
+   * the previous run finished.
+   */
   refreshIntervalMs: number;
   refreshTimeoutMs: number;
   /** false serves the last published dataset and never runs the pipeline. */
