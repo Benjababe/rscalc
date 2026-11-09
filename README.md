@@ -6,17 +6,19 @@ One question, answered from sourced data: **at the gold I actually have, what
 earns the most gp per hour, what does it cost up front, and how long does a run
 take?**
 
-Three families are modelled, each from its own wiki-sourced data and all priced
+Four families are modelled, each from its own wiki-sourced data and all priced
 by the same pure planners:
 
 - **shop runs** — buy stock from an NPC shop and sell it on the GE;
 - **sell to shop** — buy on the GE and sell it to an NPC shop;
 - **processing** — buy inputs on the GE, transform them with a deterministic
-  recipe and sell the output.
+  recipe and sell the output;
+- **skilling** — for a given skill, every priced activity: a make, a gather,
+  an expected-value loot table, or the cost of training.
 
-The front page puts all three in **one leaderboard**, so the comparison the
+The front page puts all four in **one leaderboard**, so the comparison the
 player actually wants ("what should I do with 5m gp?") is not spread across
-three tabs. The tabs are the detail pages behind each row.
+four tabs. The tabs are the detail pages behind each row.
 
 ```text
 EARN GP at 1,000,000 gp  [every row sized to that gold]
@@ -29,10 +31,12 @@ EARN GP at 1,000,000 gp  [every row sized to that gold]
 6  Jaguar fur      Shop run     1,582,790      38,600   1,314,200   49m 49s —
 ```
 
-Works for all **593 shops** in the game, 3,595 priceable shop → GE pairs,
-603 GE → shop flips, and 407 instant / 651 patient processing recipes at the
-last build — 2,486 methods ranked at 1,000,000 gp, with the rest counted and
-explained rather than filled in.
+Works for all **599 shops** in the game. At the last build: **2,121 priceable
+shop → GE pairs** and **744 GE → shop flips** (each priceable in at least one
+of the two price modes), **398 instant / 645 patient processing recipes**, and
+**2,173 / 2,159 skilling activities across 19 skills** — together **2,530
+methods ranked at 1,000,000 gp** (3,052 in patient mode), with the rest
+counted and explained rather than filled in.
 
 ```text
 SHOP -> GE
@@ -55,7 +59,7 @@ PROCESSING (patient)
 
 ```sh
 pnpm install
-pnpm refresh        # catalogue + access + GE prices + all three UI rankings
+pnpm refresh        # catalogue + access + GE prices + all four UI rankings
 pnpm report         # ranked table in the terminal
 pnpm serve          # server: UI + served data + 4-hourly refresh on :8080
 ```
@@ -68,7 +72,8 @@ wins over it:
 ```sh
 printf 'RSCALC_CONTACT=me@example.com
 ' > .env
-``` It serves the last committed dataset
+```
+It serves the last committed dataset
 immediately and refreshes on its own schedule; see `deploy/README.md` for every
 setting, the systemd unit and the Docker image.
 
@@ -91,7 +96,7 @@ of record, so a stray `package-lock.json` is gitignored rather than half-support
 | `pnpm market` | rebuild `data/market.json` |
 | `pnpm run access` | rebuild `data/shop-access.json` from the curated rules |
 | `pnpm build:data` | shops + market |
-| `pnpm refresh` | all data: catalogue + access + market + all three UI rankings |
+| `pnpm refresh` | all data: catalogue + access + market + all four UI rankings |
 | `pnpm report` | ranked CLI table |
 | `pnpm report --mode=patient` | price against GE `high` instead of `low` |
 | `pnpm report --shop="<name>" --gold=N` | one shop's multi-item basket |
@@ -99,6 +104,7 @@ of record, so a stray `package-lock.json` is gitignored rather than half-support
 | `pnpm sinks` | GE → shop ranking in the terminal |
 | `pnpm sinks --write` | emit `data/shop-sinks.json` for the UI |
 | `pnpm process` | processing ranking + `data/process.json` |
+| `pnpm skilling` | skilling activities (losses included) + `data/skilling.json` |
 | `pnpm serve` / `npm start` | server: SPA + dataset API + 4-hourly refresh |
 | `npm run <task>` | any task above, for npm users (`npm run refresh`) |
 | `pnpm dev` / `pnpm build` | web UI (dev server proxies `/api` to `pnpm serve`) |
@@ -121,8 +127,14 @@ no network calls.
 It fetches the wiki recipe bucket and the prices API, and always writes both
 modes to `data/process.json`; the flags only shape the terminal table.
 
-To refresh everything — catalogue, access table, market, both shop rankings and
-the processing artifact — in one go:
+`pnpm skilling` flags: `--skill=crafting` (comma-separated, for the terminal
+table), `--cooking-level=N` (only foods safe at that level),
+`--actions-per-hour=N` and `--limit=N`. It fetches the recipe bucket, the wiki
+node and loot sources and the prices API, and always writes both modes for every
+scanned skill to `data/skilling.json`; the flags only shape the terminal table.
+
+To refresh everything — catalogue, access table, market, both shop rankings, the
+processing artifact and the skilling artifact — in one go:
 
 ```sh
 pnpm refresh
@@ -142,18 +154,18 @@ can reach you about your traffic.
 ```text
 Special:Bucket?bucket=storeline  ─┐
 Special:Bucket?bucket=recipe     ─┤
-prices.runescape.wiki/api/v2     ─┴─► catalogue + GE quotes
-                                          │
-              ┌───────────────────────────┼───────────────────────────┐
-    src/engine/rank.ts       src/engine/sinkRank.ts       src/engine/processRank.ts
-              │                           │                           │
-    data/opportunities.json     data/shop-sinks.json         data/process.json
-              │                           │                           │
-              └───────────────┬───────────┴───────────────────────────┘
-                              │
-                 src/domain/earnings.ts  ← one gp/hour leaderboard
-                              │
-      pnpm report / pnpm sinks / pnpm process   →  pnpm serve  →  web UI (5 pages)
+prices.runescape.wiki/api/v2     ─┴─►       catalogue + GE quotes
+                                                       │
+                ┌─────────────────────────┬────────────┼────────────┬─────────────────────────┐
+       src/engine/rank.ts      src/engine/sinkRank.ts   src/engine/processRank.ts  src/engine/skilling.ts
+                │                         │            │            │                         │
+     data/opportunities.json    data/shop-sinks.json   │    data/process.json        data/skilling.json
+                │                         │            │            │                         │
+                └─────────────────────────┬────────────┼────────────┬─────────────────────────┘
+                                                       │
+                                            src/domain/earnings.ts  ← one gp/hour leaderboard
+                                                       │
+   pnpm report / pnpm sinks / pnpm process / pnpm skilling   →  pnpm serve  →  web UI (5 pages)
 ```
 
 `pnpm serve` publishes those artifacts as a dataset and serves them, so the
@@ -161,7 +173,7 @@ browser fetches current numbers and never calls an external API. A refresh needs
 no rebuild: the running server re-runs the pipeline every four hours (or on
 `POST /api/refresh`) and swaps the served dataset atomically, while the SPA
 bundle stays code-only (about 340 kB, 80 kB gzipped). The **Earn gp** page joins
-all three artifacts in the browser through `src/domain/earnings.ts`, so the
+all four artifacts in the browser through `src/domain/earnings.ts`, so the
 leaderboard is always computed by the same planners as the detail pages and
 cannot drift from them. Each page module is code-split and loads only the
 artifacts it needs; the leaderboard is the only page that needs all of them.
@@ -184,24 +196,26 @@ method you can actually execute, re-planned at your own gold:
 - **Time** — how long the plan takes: world hops and bank trips against the GE's
   own throughput for a shop run; one GE round trip plus hops against the GE's
   supply for a sell-to-shop flip; the recipe's published action rate against a
-  4h market window for processing.
-- **Needs** — the wiki-cited access requirement for a shop, or the recipe's skill
-  levels. Levels are shown, never enforced: this is not a read of your account.
+  4h market window for processing; the published attempt interval for skilling.
+- **Needs** — the wiki-cited access requirement for a shop, or the skill levels
+  for a recipe or skilling row (and, for a cooking row, the no-burn level).
+  Levels are shown, never enforced: this is not a read of your account.
 
-The **method filter** narrows the list to shop runs, sell-to-shop flips or
-processing; **Members only** and **Hide locked** behave exactly as on the detail
-pages. Clicking a method opens its detail page with the same price mode and the
-item already searched.
+The **method filter** narrows the list to shop runs, sell-to-shop flips,
+processing or skilling; **Members only** and **Hide locked** behave exactly as
+on the detail pages. Clicking a method opens its detail page with the same
+price mode and the item already searched.
 
 Rows that cannot be numbered are excluded **and reported**: a shop with no bank
 on its map that needs banking, a flip whose shop has no map distance to the GE,
-and a recipe with no published tick time are counted under the table. Nothing is
+a recipe with no published tick time and a skilling activity with no published
+rate are counted under the table. Nothing is
 estimated to fill the gap, and at a given gold the page also says how many
 methods that gold cannot fund.
 
-The leaderboard compares three different models of time. It is a fair comparison
-of *this repo's* modelled methods, not a claim about every way to make gp: bossing,
-Slayer and skilling are out of scope.
+The leaderboard compares four different models of time. It is a fair comparison
+of *this repo's* modelled methods, not a claim about every way to make gp: bossing
+and other combat methods are out of scope.
 
 ## Budget mode (web UI)
 
@@ -373,9 +387,57 @@ recipe down, never speed it up. The **Actions / hour** column shows the rate
 actually used; the cell note shows the lower effective plan rate after GE and
 gold caps.
 
-The gold field is the **same localStorage value** as the two shop pages. The full
+The gold field is the **same localStorage value** as the other pages. The full
 method, deterministic-only filter, exclusions and worked example are in
 [docs/processing.md](docs/processing.md).
+
+## Skilling (web UI + CLI)
+
+Use the **Skilling** tab (or `#/skilling`) to answer the per-skill question:
+**for this skill, what can I actually do, and does it earn me gp or cost me gp?**
+It opens in instant mode, like the other pages.
+
+```sh
+pnpm skilling                        # all scanned skills, both modes -> data/skilling.json
+pnpm skilling --skill=crafting --limit=30 --actions-per-hour=1200
+pnpm skilling --skill=cooking --cooking-level=90   # only foods safe at 90
+```
+
+Unlike the processing page, the profit floor is **off**: the artifact carries
+the loss-making side too, so training cost is a result, not a filter. Every row
+is priced GE buy → GE sell and shows its per-action profit in its own column —
+the one number that does not depend on a rate at all.
+
+- **Kind badges:** `Make` (a deterministic recipe), `Upgrade` (a finished item
+  re-made into a better version of itself), `Cost` (an output that cannot be
+  sold, priced as the cost of one action), `Gather` (one node per published
+  respawn) and `EV` (a published loot table or success chart priced at its
+  expectation, with the distribution carried alongside so the mean is
+  auditable).
+- **Time:** a published attempt interval gives gp/hour; a row with none keeps
+  `—` and ranks by per-action profit. The **Actions / hour** input fills only
+  the missing rates, marks the result *your rate*, and never overrides a
+  published one — the artifact itself never carries a player rate.
+- **Cooking is gated, not guessed:** a cooked food carries its published
+  no-burn level and stays hidden until the entered **Cooking level** reaches
+  it, because a hidden gamble cannot be ranked.
+- **The Blast Furnace** is the one minigame that publishes both halves — a
+  throughput per bar and the coffer fee — and is priced as an overlay on its
+  bucket recipes: the published bars/hour replaces the tick count and the fee
+  is charged per bar as `ceil(72,000 / rate)` gp.
+- The **Gold available** field is the **same localStorage value** as the other
+  pages, and the per-skill **coverage line** states what was priced,
+  profitable, loss-making, cost-only, unknown-rate and unpriced — the unpriced
+  remainder is counted, never estimated.
+
+The full method, the scan queue and every refusal — each with the published
+number it would need — are in [docs/skilling-plan.md](docs/skilling-plan.md).
+
+What this page deliberately does **not** claim: it prices **GE buy → GE sell
+only** — no high-alch and no shop-sale channel — so a losing row is a number
+for that channel, not a verdict on the item; banking and facility travel are
+charged only where the wiki pins a location (a stall); and a rate marked
+*your rate* is presentation arithmetic, never part of the artifact.
 
 ## Accuracy — read this before trusting a number
 
@@ -486,14 +548,15 @@ src/domain/   shopPrice.ts (game maths), shopSink.ts (GE -> shop), shopAccess.ts
               tax.ts, profit.ts, budget.ts, basket.ts, bankTrip.ts,
               earnings.ts (the gp/hour leaderboard) — pure, no I/O
 src/engine/   rank.ts (shop -> GE), sinkRank.ts (GE -> shop),
-              processRank.ts (processing) — join catalogue × prices
+              processRank.ts (processing), skilling.ts (skilling)
+              — join catalogue × prices
 src/types.ts   zod schemas for every artifact
 scripts/       refresh-shops, refresh-market, refresh-access, report,
-              refresh-sinks, refresh-process, smoke
-web/           Vite + React: the earn leaderboard plus the three detail pages
+              refresh-sinks, refresh-process, refresh-skilling, smoke
+web/           Vite + React: the earn leaderboard plus the four detail pages
 data/          generated JSON (committed so the UI builds offline)
 docs/          shop-mechanics.md, data-sources.md, shop-access.md,
-              processing.md, tooling-notes.md
+              processing.md, skilling-plan.md, tooling-notes.md
 ```
 
 `docs/shop-mechanics.md` documents every formula with citations, including the
